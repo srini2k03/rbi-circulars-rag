@@ -1,0 +1,46 @@
+name: Check provider API key and list models
+description: >
+  Fail early, without printing it, when the API key for the selected provider is empty,
+  then optionally list the models the key can use (the key is only sent in the header).
+inputs:
+  provider:
+    description: groq | gemini
+    required: true
+  groq_key:
+    description: secrets.GROQ_API_KEY
+    required: false
+    default: ""
+  gemini_key:
+    description: secrets.GEMINI_API_KEY
+    required: false
+    default: ""
+  list_models:
+    description: "List the models available to the key"
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PROVIDER: ${{ inputs.provider }}
+        GROQ_KEY: ${{ inputs.groq_key }}
+        GEMINI_KEY: ${{ inputs.gemini_key }}
+        LIST_MODELS: ${{ inputs.list_models }}
+      run: |
+        case "$PROVIDER" in
+          groq)   name=GROQ_API_KEY;   key="$GROQ_KEY";   url="https://api.groq.com/openai/v1/models" ;;
+          gemini) name=GEMINI_API_KEY; key="$GEMINI_KEY"; url="https://generativelanguage.googleapis.com/v1beta/openai/models" ;;
+          *) echo "::error::Unknown provider '$PROVIDER' (expected groq or gemini)"; exit 1 ;;
+        esac
+        if [ -z "${key//[[:space:]]/}" ]; then
+          echo "::error::The ${name} repository secret is missing or empty. Add it under Settings > Secrets and variables > Actions, then re-run."
+          exit 1
+        fi
+        echo "${name} is set."
+        if [ "$LIST_MODELS" = "true" ]; then
+          echo "Models available to this ${PROVIDER} key:"
+          curl -fsS -H "Authorization: Bearer ${key}" "$url" \
+            | python3 -c "import json,sys; print('\n'.join(sorted(m['id'] for m in json.load(sys.stdin)['data'])))" \
+            || echo "::warning::could not list models"
+        fi

@@ -1,37 +1,42 @@
 name: Evaluate
 
 # Retrieval ablation (no LLM) -> gate calibration + generation plan -> generation with the
-# Gemini free tier and the local Ollama model -> LLM-judge + NLI -> report committed to
-# results/. Every stage is resumable: re-run the workflow after the daily free-tier quota
+# API provider's free tier (Groq by default, Gemini optional) and the local Ollama model
+# -> LLM-judge + NLI -> report committed to results/. Every stage is resumable: re-run the workflow after the daily free-tier quota
 # resets and it continues from the committed records and the cached LLM responses.
 
 on:
   workflow_dispatch:
     inputs:
+      provider:
+        description: "LLM provider for the API backend (free tiers)"
+        type: choice
+        options: [groq, gemini]
+        default: groq
       generator_model:
-        description: "Gemini model for answers"
+        description: "API generator (blank = provider default: groq llama-3.1-8b-instant, gemini gemini-3.5-flash-lite)"
         type: string
-        default: "gemini-3.5-flash-lite"
+        default: ""
       generator_fallbacks:
-        description: "Comma-separated fallback models for answers (503 overload, 404/403, quota)"
+        description: "Comma-separated generator fallbacks (blank = provider default: groq openai/gpt-oss-20b)"
         type: string
-        default: "gemini-3.1-flash-lite"
+        default: ""
       judge_model:
-        description: "Gemini model for the LLM judge"
+        description: "LLM judge (blank = provider default: groq llama-3.3-70b-versatile, gemini gemini-3.8-flash)"
         type: string
-        default: "gemini-3.8-flash"
+        default: ""
       judge_fallbacks:
-        description: "Comma-separated fallback models for the judge"
+        description: "Comma-separated judge fallbacks (blank = provider default: groq openai/gpt-oss-120b,qwen/qwen3-32b)"
         type: string
-        default: "gemini-3.7-flash,gemini-3.5-flash"
+        default: ""
       ollama_model:
         description: "Local Ollama model evaluated alongside"
         type: string
         default: "qwen2.5:3b-instruct"
       requests_per_day:
-        description: "Client-side daily request budget per Gemini model"
+        description: "Client-side daily request cap per model (0 = provider default)"
         type: string
-        default: "200"
+        default: "0"
       reuse_retrieval:
         description: "Reuse committed retrieval results instead of re-running the ablation"
         type: boolean
@@ -53,7 +58,7 @@ permissions:
   contents: write  # commits results/
 
 concurrency:
-  group: llm-quota
+  group: llm-quota-${{ inputs.provider }}
   cancel-in-progress: false
 
 env:
@@ -61,32 +66,26 @@ env:
   HF_HOME: ${{ github.workspace }}/.hf
   RBIRAG_EMBEDDER: sentence-transformers
   RBIRAG_RERANKER: cross-encoder
+  RBIRAG_LLM_PROVIDER: ${{ inputs.provider }}
   RBIRAG_OAI_MODEL: ${{ inputs.generator_model }}
-  RBIRAG_OAI_MODEL_FALLBACKS: ${{ inputs.generator_fallbacks }}
+  RBIRAG_OAI_MODEL_FALLBACKS: ${{ inputs.generator_fallbacks || 'auto' }}
   RBIRAG_JUDGE_BACKEND: openai_compatible
   RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model }}
-  RBIRAG_JUDGE_MODEL_FALLBACKS: ${{ inputs.judge_fallbacks }}
+  RBIRAG_JUDGE_MODEL_FALLBACKS: ${{ inputs.judge_fallbacks || 'auto' }}
   RBIRAG_OLLAMA_MODEL: ${{ inputs.ollama_model }}
   RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
-  RBIRAG_LLM_RPM: "10"
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/check-secret
+      - uses: ./.github/actions/provider-key
         with:
-          name: GEMINI_API_KEY
-          value: ${{ secrets.GEMINI_API_KEY }}
-      - name: List Gemini models available to this key
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          curl -fsS -H "Authorization: Bearer ${GEMINI_API_KEY}" \
-            "https://generativelanguage.googleapis.com/v1beta/openai/models" \
-            | python3 -c "import json,sys; print('\n'.join(sorted(m['id'] for m in json.load(sys.stdin)['data'])))" \
-            || echo "::warning::could not list models"
+          provider: ${{ inputs.provider }}
+          groq_key: ${{ secrets.GROQ_API_KEY }}
+          gemini_key: ${{ secrets.GEMINI_API_KEY }}
+          list_models: "true"
       - name: Check the test set exists
         run: |
           if [ ! -f data/eval/qa_v1.jsonl ] && [ ! -f data/eval/qa_candidates.jsonl ]; then
@@ -176,16 +175,18 @@ jobs:
             results/calibration.json
             results/generation/plan.json
 
-  generate-gemini:
+  generate-api:
     needs: select
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/check-secret
+      - uses: ./.github/actions/provider-key
         with:
-          name: GEMINI_API_KEY
-          value: ${{ secrets.GEMINI_API_KEY }}
+          provider: ${{ inputs.provider }}
+          groq_key: ${{ secrets.GROQ_API_KEY }}
+          gemini_key: ${{ secrets.GEMINI_API_KEY }}
+          list_models: "false"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -215,10 +216,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ github.run_id }}-gemini
-          restore-keys: llm-cache-
-      - name: Generate with Gemini and judge (resumable)
+          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-api
+          restore-keys: llm-cache-${{ inputs.provider }}-
+      - name: Generate with the API provider and judge (resumable)
         env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: rbirag eval generate --backend openai_compatible
       - name: Save LLM cache
@@ -226,11 +228,11 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ github.run_id }}-gemini
+          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-api
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: generation-gemini
+          name: generation-api
           path: results/generation/*openai_compatible*
           if-no-files-found: warn
 
@@ -294,17 +296,19 @@ jobs:
           if-no-files-found: warn
 
   judge-ollama:
-    needs: [select, generate-ollama, generate-gemini]
-    # A failed Gemini job (e.g. a fatal model/key error) stops everything downstream.
-    if: ${{ always() && needs.select.result == 'success' && needs.generate-gemini.result == 'success' }}
+    needs: [select, generate-ollama, generate-api]
+    # A failed API job (e.g. a fatal model/key error) stops everything downstream.
+    if: ${{ always() && needs.select.result == 'success' && needs.generate-api.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/check-secret
+      - uses: ./.github/actions/provider-key
         with:
-          name: GEMINI_API_KEY
-          value: ${{ secrets.GEMINI_API_KEY }}
+          provider: ${{ inputs.provider }}
+          groq_key: ${{ secrets.GROQ_API_KEY }}
+          gemini_key: ${{ secrets.GEMINI_API_KEY }}
+          list_models: "false"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -339,12 +343,13 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ github.run_id }}-judge
+          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-judge
           restore-keys: |
-            llm-cache-${{ github.run_id }}-gemini
-            llm-cache-
+            llm-cache-${{ inputs.provider }}-${{ github.run_id }}-api
+            llm-cache-${{ inputs.provider }}-
       - name: Judge the Ollama answers (generation is skipped because records exist)
         env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: rbirag eval generate --backend ollama
       - name: Save LLM cache
@@ -352,7 +357,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ github.run_id }}-judge
+          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-judge
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -361,10 +366,10 @@ jobs:
           if-no-files-found: warn
 
   report:
-    needs: [preflight, retrieval, select, generate-gemini, judge-ollama]
+    needs: [preflight, retrieval, select, generate-api, judge-ollama]
     # Never report/commit a run whose LLM jobs failed (fatal configuration errors exit 2).
     # Quota exhaustion is not a failure: those jobs succeed with status "incomplete".
-    if: ${{ always() && needs.select.result == 'success' && needs.generate-gemini.result == 'success' && needs.judge-ollama.result == 'success' }}
+    if: ${{ always() && needs.select.result == 'success' && needs.generate-api.result == 'success' && needs.judge-ollama.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -388,7 +393,7 @@ jobs:
           path: results
       - uses: actions/download-artifact@v4
         with:
-          name: generation-gemini
+          name: generation-api
           path: results/generation
         continue-on-error: true
       - uses: actions/download-artifact@v4
