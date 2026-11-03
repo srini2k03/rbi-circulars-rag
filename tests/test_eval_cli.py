@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 from pathlib import Path
@@ -11,6 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from rbirag.cli import app
+from rbirag.eval.ai_review import AIReview, AIReviewRecord, append_ai_reviews
 from rbirag.eval.dataset import GoldSpan, QAPair, read_qa_jsonl, write_qa_jsonl
 from tests.conftest import HTML_DIR, REAL_FIXTURES
 
@@ -103,9 +105,10 @@ def test_eval_pipeline_cli(workspace: Path) -> None:
     assert "Models that actually answered" in md
     assert "human-verified: 1" in md
     assert (
-        "**Test set: reviewed test set (`data/eval/qa_v1.jsonl`), 6 questions, 1 human-verified.**"
-        in md
+        "**Test set: reviewed test set (`data/eval/qa_v1.jsonl`): 6 model-generated pairs "
+        "(0 AI-reviewed by Claude, 1 human-verified).**" in md
     )
+    assert "## AI-reviewed subset" not in md  # no AI review file in this workspace
     meta = json.loads((workspace / "results/run_metadata.json").read_text())
     assert meta["test_set_file"] == "data/eval/qa_v1.jsonl"
 
@@ -179,7 +182,7 @@ def test_candidates_are_used_and_labelled_until_reviewed_set_exists(workspace: P
     invoke("eval", "report")
     md = (workspace / "results/README.md").read_text()
     assert "model-generated test set (`data/eval/qa_candidates.jsonl`)" in md
-    assert "6 questions, 0 human-verified" in md  # verification only counts in qa_v1.jsonl
+    assert "6 model-generated pairs (0 AI-reviewed by Claude, 0 human-verified)" in md
     meta = json.loads((workspace / "results/run_metadata.json").read_text())
     assert meta["test_set"].startswith("model-generated test set")
 
@@ -206,3 +209,64 @@ def test_qa_status_counts_auto_failed_but_not_rejected(workspace: Path) -> None:
     out = json.loads(invoke("eval", "qa-status", "--candidates", str(path)))
     assert out["answerable"] == 3  # the auto-failed pair counts, the rejected one does not
     assert out["passing_auto_checks"] == 4
+
+
+def _ai_review(pair: QAPair, decision: str, question: str | None = None) -> AIReviewRecord:
+    return AIReviewRecord(
+        qa_id=pair.qa_id, qtype=pair.qtype, answerable=pair.answerable,
+        original_question=pair.question, original_answer=pair.answer,
+        question=question or pair.question, answer=pair.answer,
+        review=AIReview(decision=decision, notes="n", reviewed_at="2026-11-03"),  # type: ignore[arg-type]
+    )  # fmt: skip
+
+
+def test_ai_review_filters_edits_and_labels_the_report(workspace: Path) -> None:
+    """AI-rejected pairs leave the test set, AI edits are used, results are re-filtered,
+    and every label says 'AI-reviewed by Claude', never human-verified."""
+    path = workspace / "data/eval/qa_v1.jsonl"
+    pairs = {p.qa_id: p for p in read_qa_jsonl(path)}
+    invoke("eval", "retrieval", "--chunkers", "section", "--sizes", "64", "--modes", "bm25",
+           "--tag", "t")  # fmt: skip
+    edited_q = "How often must KYC of high risk customers be updated periodically?"
+    append_ai_reviews(
+        [
+            _ai_review(pairs["a1"], "accept"),
+            _ai_review(pairs["a2"], "reject"),
+            _ai_review(pairs["a3"], "edit", question=edited_q),
+            _ai_review(pairs["a0"], "reject"),  # a0 was human-accepted: the human decision wins
+        ],
+        workspace / "data/eval/qa_ai_reviewed.jsonl",
+    )
+    invoke("eval", "report")
+    meta = json.loads((workspace / "results/run_metadata.json").read_text())
+    assert meta["questions"] == 5  # a2 excluded
+    assert meta["human_verified"] == 1  # unchanged: AI review never counts as human
+    assert meta["ai_review"]["reviewed_in_test_set"] == 2
+    assert meta["ai_review"]["rejected_excluded"] == 1
+    assert meta["test_set"] == (
+        "reviewed test set (`data/eval/qa_v1.jsonl`): 5 model-generated pairs "
+        "(2 AI-reviewed by Claude, 1 human-verified); 1 AI-rejected pairs excluded"
+    )
+    md = (workspace / "results/README.md").read_text()
+    assert "## AI-reviewed subset (2 pairs)" in md
+    assert "not human verification" in md
+    # headline retrieval rows were recomputed without the rejected pair and the pre-edit run
+    row = json.loads((workspace / "results/retrieval/rows-t.json").read_text())[0]
+    assert row["n_queries"] == 4
+    with (workspace / "results/retrieval_ablation.csv").open() as fh:
+        assert next(csv.DictReader(fh))["n_queries"] == "2"  # a0, a1 (a3 ran before its edit)
+    with (workspace / "results/retrieval_ablation_ai_reviewed.csv").open() as fh:
+        assert next(csv.DictReader(fh))["n_queries"] == "1"  # a1 only
+
+    # the pipeline now uses the edited wording, and the source files are untouched
+    from rbirag.config import get_settings
+    from rbirag.eval.cli import load_qa
+
+    used = {p.qa_id: p for p in load_qa(get_settings())}
+    assert "a2" not in used
+    assert used["a3"].question == edited_q
+    assert used["a3"].ai_review is not None and used["a3"].verified is False
+    assert used["a0"].ai_review is None  # human decision took precedence
+    assert "ai_review" not in path.read_text()
+    status = json.loads(invoke("eval", "qa-status", "--candidates", str(path)))
+    assert (status["ai_reviewed"], status["ai_rejected"], status["human_verified"]) == (4, 2, 1)

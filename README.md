@@ -6,8 +6,8 @@ sources and says "I don't know" when retrieval confidence is low.
 > **Status: work in progress.** Ingestion, retrieval, generation and the evaluation
 > harness are implemented. The API, the UI and the full write-up come next. No results
 > are reported yet: every number in this README will come from a real, reproducible run
-> whose date, commit, judge model and human-verified count are recorded in
-> `results/run_metadata.json`.
+> whose date, commit, judge model, human-verified count (currently 0) and AI-reviewed
+> count are recorded in `results/run_metadata.json`.
 
 ## What exists today
 
@@ -53,8 +53,10 @@ sources and says "I don't know" when retrieval confidence is low.
     cost nothing.
 - **Evaluation:**
   - A test set: about 220 candidate questions sampled by year and department (factual,
-    numeric, procedural, multi-chunk), plus about 30 deliberately unanswerable ones,
-    which you then review by hand.
+    numeric, procedural, multi-chunk), plus about 30 deliberately unanswerable ones.
+    All of them are model-generated. 50 have been reviewed by an AI assistant (Claude)
+    against the source documents; none has been verified by a human yet (see
+    [Test set status](#test-set-status)).
   - Retrieval metrics: Recall@k, MRR@10 and nDCG@10, scored at both document and chunk
     level against character-span gold evidence, so different chunkers are compared
     fairly.
@@ -113,6 +115,31 @@ rbirag query "..." --llm ollama                    # local model
 rbirag query "..." --retrieve-only --json          # retrieval only
 ```
 
+## Test set status
+
+**Test set: model-generated pairs, 50 of them AI-reviewed by Claude, 0 human-verified.**
+
+- `data/eval/qa_candidates.jsonl`: the model-generated pairs. A daily workflow adds pairs
+  until there are 220 answerable and 30 unanswerable ones.
+- `data/eval/qa_ai_reviewed.jsonl`: an **AI review, not a human verification**. An AI
+  assistant (Claude) checked 50 answerable pairs, a seeded sample stratified by year,
+  department and question type, against the full source documents:
+  - 20 accepted;
+  - 23 edited (question/answer wording only);
+  - 7 rejected.
+
+  No unanswerable pairs existed yet to review. [`docs/qa_review.md`](docs/qa_review.md)
+  gives the method, seed, counts and failure patterns. The file is append-only and keyed
+  by `qa_id`, so pairs generated later stay unreviewed and do not disturb it.
+- Evaluation applies the review:
+  - AI-rejected pairs are excluded and AI-edited wording is used;
+  - human decisions (`qa_v1.jsonl`, below) take precedence;
+  - the AI review never sets `verified`.
+- The results README states the test set, for example "81 model-generated pairs
+  (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded". It reports
+  headline metrics on the full set and the same metrics on the AI-reviewed subset as a
+  separate section.
+
 ## Reviewing the test set (about 30–40 minutes, on your own machine)
 
 The `qa.yml` workflow writes model-generated candidates to `data/eval/qa_candidates.jsonl`.
@@ -144,9 +171,10 @@ git commit -m "Review Q/A pairs"
 git push
 ```
 
-`verified: true` marks pairs a human accepted or edited. Rejected pairs are excluded from
-evaluation, as are pairs that failed the automatic checks; unreviewed pairs are still
-used and are reported as model-generated.
+`verified: true` marks pairs a human accepted or edited; the AI review never sets it.
+Rejected pairs (by a human, or by the AI review) are excluded from evaluation, as are
+pairs that failed the automatic checks. Unreviewed pairs are still used and are reported
+as model-generated.
 
 ## Workflows
 
@@ -174,8 +202,10 @@ runs use the input defaults):
 
 Until you have reviewed pairs with `rbirag eval verify`, evaluation runs on the
 model-generated candidates, and the results README says so in its first line
-("model-generated test set ..., 0 human-verified"). Once `data/eval/qa_v1.jsonl` exists it
-is used instead, and the line names it with its human-verified count.
+("model-generated test set ...: N model-generated pairs (K AI-reviewed by Claude,
+0 human-verified)"). Once `data/eval/qa_v1.jsonl` exists it is used instead, and the line
+names it with its human-verified count. In both cases the AI review in
+`data/eval/qa_ai_reviewed.jsonl` is applied on top.
 
 Run LLM workflows that use the same API key one at a time, including workflows in
 *other* repositories that share the key: free-tier limits are per key (or per

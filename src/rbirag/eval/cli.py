@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -57,14 +57,30 @@ def qa_path(settings: Settings, path: Path | None = None) -> Path:
     return reviewed if reviewed.exists() else settings.eval_dir / "qa_candidates.jsonl"
 
 
-def load_qa(settings: Settings, path: Path | None = None) -> list[Any]:
-    """Usable pairs (rejected/auto-failed dropped) from :func:`qa_path`."""
+def load_test_set(settings: Settings, path: Path | None = None) -> tuple[list[Any], list[str]]:
+    """Usable pairs from :func:`qa_path` (human-rejected and auto-failed dropped), with the
+    AI review in ``qa_ai_reviewed.jsonl`` applied: AI-rejected pairs dropped, AI-edited
+    wording used. Returns the pairs and the ids of the AI-rejected pairs."""
+    from rbirag.eval.ai_review import AI_REVIEW_FILE, apply_ai_reviews, read_ai_reviews
     from rbirag.eval.dataset import read_qa_jsonl, usable
 
     path = qa_path(settings, path)
-    pairs = usable(read_qa_jsonl(path))
-    logger.info("loaded %d usable Q/A pairs from %s", len(pairs), path)
-    return pairs
+    pairs, rejected = apply_ai_reviews(
+        usable(read_qa_jsonl(path)), read_ai_reviews(settings.eval_dir / AI_REVIEW_FILE)
+    )
+    logger.info(
+        "loaded %d usable Q/A pairs from %s (%d AI-reviewed, %d AI-rejected excluded)",
+        len(pairs),
+        path,
+        sum(p.ai_review is not None for p in pairs),
+        len(rejected),
+    )
+    return pairs, rejected
+
+
+def load_qa(settings: Settings, path: Path | None = None) -> list[Any]:
+    """The evaluation pairs (see :func:`load_test_set`)."""
+    return load_test_set(settings, path)[0]
 
 
 def _models(settings: Settings, embedder: str | None, reranker: str | None) -> tuple[Any, Any]:
@@ -232,6 +248,17 @@ def _load_rows(results_dir: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _load_per_query(results_dir: Path) -> list[Any]:
+    from rbirag.eval.ablate import RetrievalQueryResult
+
+    out: list[Any] = []
+    for f in sorted((results_dir / "retrieval").glob("per_query-*.jsonl")):
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                out.append(RetrievalQueryResult.model_validate_json(line))
+    return out
+
+
 @eval_app.command("calibrate")
 def calibrate(
     config: Annotated[
@@ -253,6 +280,7 @@ def calibrate(
     pairs = load_qa(s, qa)
     dev, _ = split(pairs, s.dev_fraction, s.seed)
     dev_ids = {p.qa_id: p.answerable for p in dev}
+    dev_questions = {p.qa_id: p.question for p in dev}
     probs: list[float] = []
     answerable: list[bool] = []
     for f in sorted((s.results_dir / "retrieval").glob("per_query-*.jsonl")):
@@ -261,6 +289,8 @@ def calibrate(
             if (
                 item["config"] == config
                 and item["qa_id"] in dev_ids
+                and item.get("question", dev_questions[item["qa_id"]])
+                == dev_questions[item["qa_id"]]
                 and item.get("confidence") is not None
             ):
                 probs.append(float(item["confidence"]))
@@ -441,7 +471,13 @@ def report(
     from rbirag.eval.ablate import load_records
     from rbirag.eval.calibrate import Calibration
     from rbirag.eval.gen_metrics import GenerationRecord
-    from rbirag.eval.report import build_report, mix, run_metadata
+    from rbirag.eval.report import (
+        build_report,
+        current_items,
+        mix,
+        resummarize_retrieval,
+        run_metadata,
+    )
 
     s = get_settings()
     records: list[GenerationRecord] = []
@@ -453,7 +489,22 @@ def report(
         data = json.loads(cal_path.read_text(encoding="utf-8"))
         data.pop("config", None)
         cal = Calibration.model_validate(data)
-    pairs = load_qa(s, qa)
+    pairs, ai_rejected = load_test_set(s, qa)
+    questions = {p.qa_id: p.question for p in pairs}
+    edited = {p.qa_id for p in pairs if p.ai_review is not None and p.ai_review.decision == "edit"}
+    ai_questions = {p.qa_id: p.question for p in pairs if p.ai_review is not None}
+    # results for AI-rejected pairs, or run before an edit, do not count
+    records = current_items(records, questions, edited)
+    retrieval_rows = _load_rows(s.results_dir)
+    per_query = _load_per_query(s.results_dir)
+    ai_rows: list[dict[str, Any]] = []
+    if per_query:
+        ai_rows = resummarize_retrieval(
+            retrieval_rows, per_query, ai_questions, edited=edited, n_resamples=s.bootstrap_samples
+        )
+        retrieval_rows = resummarize_retrieval(
+            retrieval_rows, per_query, questions, edited=edited, n_resamples=s.bootstrap_samples
+        )
 
     model_mix: dict[str, str] = {}
     for backend in sorted({r.backend for r in records}):
@@ -467,6 +518,7 @@ def report(
     meta = run_metadata(
         pairs,
         test_set=qa_path(s, qa).as_posix(),
+        ai_rejected=len(ai_rejected),
         model_mix=model_mix,
         judge_model=model_mix.get("judge", s.judge_model),
         generator_models=sorted({f"{r.backend}:{r.model}" for r in records if r.model}),
@@ -485,12 +537,14 @@ def report(
         planned.update({c: len(plan_data["subset_ids"]) for c in plan_data["subset"]})
     written = build_report(
         s.results_dir,
-        retrieval_rows=_load_rows(s.results_dir),
+        retrieval_rows=retrieval_rows,
         generation_records=records,
         calibration=cal,
         metadata=meta,
         planned=planned,
         n_resamples=s.bootstrap_samples,
+        ai_reviewed_retrieval_rows=ai_rows,
+        ai_reviewed_generation_records=[r for r in records if r.qa_id in ai_questions],
     )
     for p in written:
         typer.echo(str(p))
@@ -502,6 +556,7 @@ def report(
 def candidate_status(
     path: Path, n_answerable: int, n_unanswerable: int, tolerance: float
 ) -> dict[str, Any]:
+    from rbirag.eval.ai_review import AI_REVIEW_FILE, read_ai_reviews
     from rbirag.eval.dataset import read_qa_jsonl
 
     # Targets count generated candidates (not human-rejected); pairs failing the automatic
@@ -511,12 +566,17 @@ def candidate_status(
     )
     answerable = sum(p.answerable for p in pairs)
     unanswerable = sum(not p.answerable for p in pairs)
+    ai = read_ai_reviews(path.parent / AI_REVIEW_FILE)
+    reviewed = [p for p in pairs if p.qa_id in ai]
     need_ans = int(n_answerable * (1 - tolerance))
     need_unans = int(n_unanswerable * (1 - tolerance))
     return {
         "answerable": answerable,
         "unanswerable": unanswerable,
         "passing_auto_checks": sum(p.auto_check is not False for p in pairs),
+        "human_verified": sum(p.verified for p in pairs),
+        "ai_reviewed": len(reviewed),
+        "ai_rejected": sum(ai[p.qa_id].review.decision == "reject" for p in reviewed),
         "target_answerable": n_answerable,
         "target_unanswerable": n_unanswerable,
         "tolerance": tolerance,
@@ -546,11 +606,12 @@ def qa_status(
 
 
 def generation_progress(
-    results_dir: Path, backends: Sequence[str], qa_ids: set[str]
+    results_dir: Path, backends: Sequence[str], questions: Mapping[str, str]
 ) -> dict[str, Any]:
-    """Pending work per (config, backend) of the plan. An item is pending if it has no
-    record, its answer errored (except permanent per-item rejections), or it still needs a
-    judge verdict that was never attempted or hit the quota."""
+    """Pending work per (config, backend) of the plan, for the pairs in ``questions``
+    (qa_id -> current wording). An item is pending if it has no record, its record was for
+    an earlier wording, its answer errored (except permanent per-item rejections), or it
+    still needs a judge verdict that was never attempted or hit the quota."""
     from rbirag.eval.ablate import load_records
 
     plan_path = results_dir / "generation" / "plan.json"
@@ -569,10 +630,10 @@ def generation_progress(
         for config, ids in items:
             pending = 0
             for qa_id in ids:
-                if qa_id not in qa_ids:
+                if qa_id not in questions:
                     continue
                 rec = records.get((config, backend, qa_id))
-                if rec is None:
+                if rec is None or rec.question != questions[qa_id]:
                     pending += 1
                 elif rec.error is not None:
                     pending += 0 if rec.error.startswith("rejected") else 1
@@ -601,5 +662,5 @@ def progress(
 ) -> None:
     """Pending generation/judge work for the current plan (used by scheduled workflows)."""
     s = get_settings()
-    ids = {p.qa_id for p in load_qa(s, qa)}
-    _echo_json(generation_progress(s.results_dir, _csv(backends), ids))
+    questions = {p.qa_id: p.question for p in load_qa(s, qa)}
+    _echo_json(generation_progress(s.results_dir, _csv(backends), questions))

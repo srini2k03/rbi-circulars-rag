@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 QuestionType = Literal["factual", "numeric", "procedural", "multi_chunk", "unanswerable"]
 ReviewStatus = Literal["pending", "accepted", "edited", "rejected"]
+AIDecision = Literal["accept", "edit", "reject"]
+AI_REVIEWER = "ai-assistant (Claude)"
 
 
 class GoldSpan(BaseModel):
@@ -20,6 +22,15 @@ class GoldSpan(BaseModel):
     doc_id: str
     start: int = Field(ge=0)
     end: int = Field(ge=0)
+
+
+class AIReview(BaseModel):
+    """A review by an AI assistant. It is never a human verification (see ``verified``)."""
+
+    reviewer: str = AI_REVIEWER
+    decision: AIDecision
+    notes: str
+    reviewed_at: str
 
 
 class QAPair(BaseModel):
@@ -40,6 +51,7 @@ class QAPair(BaseModel):
     review_status: ReviewStatus = "pending"
     verified: bool = False  # True only when a human accepted or edited it
     reviewer_note: str = ""
+    ai_review: AIReview | None = None  # set in memory from qa_ai_reviewed.jsonl, not by humans
 
     @property
     def gold_doc_ids(self) -> set[str]:
@@ -52,7 +64,8 @@ def write_qa_jsonl(pairs: Iterable[QAPair], path: Path) -> int:
     n = 0
     with tmp.open("w", encoding="utf-8") as fh:
         for p in pairs:
-            fh.write(p.model_dump_json() + "\n")
+            # the AI review lives in its own file (qa_ai_reviewed.jsonl), never in these
+            fh.write(p.model_dump_json(exclude={"ai_review"}) + "\n")
             n += 1
     tmp.replace(path)
     return n

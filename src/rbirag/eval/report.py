@@ -8,15 +8,21 @@ import math
 import os
 import subprocess
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from rbirag.eval.calibrate import Calibration
 from rbirag.eval.dataset import QAPair
 from rbirag.eval.gen_metrics import GenerationRecord, refusal_counts, summarize
 from rbirag.eval.stats import Estimate
+
+if TYPE_CHECKING:
+    from rbirag.eval.ablate import RetrievalQueryResult
+
+_T = TypeVar("_T")
 
 
 def _fmt(value: Any, digits: int = 3) -> str:
@@ -320,30 +326,99 @@ def human_verified(source: str | None, qa: Sequence[QAPair]) -> int:
     return sum(p.verified for p in qa) if source is None or is_reviewed_set(source) else 0
 
 
-def describe_test_set(source: str | None, qa: Sequence[QAPair]) -> str:
-    """How the results README describes the test set that was used."""
-    verified = human_verified(source, qa)
-    if is_reviewed_set(source):
-        return f"reviewed test set (`{source}`), {len(qa)} questions, {verified} human-verified"
-    return (
-        f"model-generated test set (`{source or 'qa_candidates.jsonl'}`), {len(qa)} questions, "
-        f"{verified} human-verified"
+def ai_reviewed(qa: Sequence[QAPair]) -> int:
+    """Pairs reviewed (accepted or edited) by the AI assistant. Not human verification."""
+    return sum(p.ai_review is not None for p in qa)
+
+
+def describe_test_set(source: str | None, qa: Sequence[QAPair], ai_rejected: int = 0) -> str:
+    """How the results README describes the test set that was used, e.g.
+    ``model-generated test set (`qa_candidates.jsonl`): 116 model-generated pairs
+    (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded``."""
+    kind = "reviewed test set" if is_reviewed_set(source) else "model-generated test set"
+    text = (
+        f"{kind} (`{source or 'qa_candidates.jsonl'}`): {len(qa)} model-generated pairs "
+        f"({ai_reviewed(qa)} AI-reviewed by Claude, {human_verified(source, qa)} human-verified)"
     )
+    if ai_rejected:
+        text += f"; {ai_rejected} AI-rejected pairs excluded"
+    return text
 
 
-def run_metadata(qa: Sequence[QAPair], test_set: str | None = None, **extra: Any) -> dict[str, Any]:
+def run_metadata(
+    qa: Sequence[QAPair], test_set: str | None = None, ai_rejected: int = 0, **extra: Any
+) -> dict[str, Any]:
+    verified = human_verified(test_set, qa)
+    reviews = Counter(p.ai_review.decision for p in qa if p.ai_review is not None)
     return {
         "test_set_file": test_set,
-        "test_set": describe_test_set(test_set, qa),
+        "test_set": describe_test_set(test_set, qa, ai_rejected),
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": git_sha(),
         "questions": len(qa),
         "answerable": sum(p.answerable for p in qa),
         "unanswerable": sum(not p.answerable for p in qa),
-        "human_verified": human_verified(test_set, qa),
-        "unverified_model_generated": len(qa) - human_verified(test_set, qa),
+        "human_verified": verified,
+        "ai_review": {
+            "reviewer": "ai-assistant (Claude); an AI review, not human verification",
+            "reviewed_in_test_set": ai_reviewed(qa),
+            "accepted": reviews["accept"],
+            "edited": reviews["edit"],
+            "rejected_excluded": ai_rejected,
+        },
+        "unverified_model_generated": len(qa) - verified,
         **extra,
     }
+
+
+def current_items(
+    items: Sequence[_T], questions: Mapping[str, str], edited: AbstractSet[str] = frozenset()
+) -> list[_T]:
+    """Per-question results that still describe a pair in the test set: the pair was not
+    dropped (e.g. AI-rejected) and was run with its current wording. Results without a
+    recorded question are kept unless the pair has been edited since."""
+    out: list[_T] = []
+    for it in items:
+        q = questions.get(str(getattr(it, "qa_id", "")))
+        if q is None:
+            continue
+        ran = getattr(it, "question", None)
+        if (ran is not None and ran != q) or (ran is None and getattr(it, "qa_id", "") in edited):
+            continue
+        out.append(it)
+    return out
+
+
+def resummarize_retrieval(
+    rows: Sequence[dict[str, Any]],
+    per_query: Sequence[RetrievalQueryResult],
+    questions: Mapping[str, str],
+    *,
+    edited: AbstractSet[str] = frozenset(),
+    n_resamples: int = 1000,
+) -> list[dict[str, Any]]:
+    """Retrieval rows recomputed from per-query results restricted to ``questions``.
+
+    A row whose config has no remaining per-query results is dropped."""
+    from rbirag.eval.ablate import RetrievalConfig, summarize_retrieval
+
+    by_config: dict[str, list[RetrievalQueryResult]] = {}
+    for it in current_items(per_query, questions, edited):
+        by_config.setdefault(it.config, []).append(it)
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        items = by_config.get(row["config"])
+        if not items:
+            continue
+        new = summarize_retrieval(
+            RetrievalConfig.parse(row["config"]),
+            items,
+            n_chunks=int(row.get("n_chunks") or 0),
+            n_resamples=n_resamples,
+        )
+        if new["n_queries"]:
+            out.append(new)
+    return out
 
 
 def build_report(
@@ -355,6 +430,8 @@ def build_report(
     metadata: dict[str, Any],
     planned: dict[str, int] | None = None,
     n_resamples: int = 1000,
+    ai_reviewed_retrieval_rows: Sequence[dict[str, Any]] = (),
+    ai_reviewed_generation_records: Sequence[GenerationRecord] = (),
 ) -> list[Path]:
     results_dir.mkdir(parents=True, exist_ok=True)
     charts = results_dir / "charts"
@@ -366,7 +443,10 @@ def build_report(
         f"Generated {metadata.get('generated_at')} at commit `{metadata.get('commit')}`. "
         f"Questions: {metadata.get('questions')} ({metadata.get('answerable')} answerable, "
         f"{metadata.get('unanswerable')} unanswerable); human-verified: "
-        f"{metadata.get('human_verified')}.\n",
+        f"{metadata.get('human_verified')}; AI-reviewed by Claude (not human verification): "
+        f"{(metadata.get('ai_review') or {}).get('reviewed_in_test_set', 0)}, with "
+        f"{(metadata.get('ai_review') or {}).get('rejected_excluded', 0)} AI-rejected pairs "
+        "excluded.\n",
         "Models that actually answered (share of calls):\n",
         *[f"- {role}: {desc}" for role, desc in (metadata.get("model_mix") or {}).items()],
         "",
@@ -396,6 +476,30 @@ def build_report(
         (results_dir / "generation.md").write_text(md, encoding="utf-8")
         md_parts += ["## Generation\n", md]
         written += [results_dir / "generation.csv", results_dir / "generation.md"]
+    n_ai = int((metadata.get("ai_review") or {}).get("reviewed_in_test_set") or 0)
+    if n_ai:
+        md_parts += [
+            f"## AI-reviewed subset ({n_ai} pairs)\n",
+            f"The same runs restricted to the {n_ai} pairs an AI assistant (Claude) accepted "
+            "or edited after checking them against the source documents (see "
+            "`docs/qa_review.md`). This is an AI review, not human verification; edited "
+            "pairs use the edited wording.\n",
+        ]
+        if ai_reviewed_retrieval_rows:
+            sub_csv = results_dir / "retrieval_ablation_ai_reviewed.csv"
+            write_csv(ai_reviewed_retrieval_rows, sub_csv)
+            md_parts += ["### Retrieval\n", retrieval_markdown(ai_reviewed_retrieval_rows)]
+            written.append(sub_csv)
+        if ai_reviewed_generation_records:
+            sub = generation_rows(ai_reviewed_generation_records, n_resamples=n_resamples)
+            write_csv(sub, results_dir / "generation_ai_reviewed.csv")
+            sub_md = (
+                generation_markdown(sub)
+                if any(r["status"] == "measured" for r in sub)
+                else "No configuration is complete on this subset yet.\n"
+            )
+            md_parts += ["### Generation\n", sub_md]
+            written.append(results_dir / "generation_ai_reviewed.csv")
     if calibration is not None:
         (results_dir / "calibration.json").write_text(
             calibration.model_dump_json(indent=2), encoding="utf-8"
