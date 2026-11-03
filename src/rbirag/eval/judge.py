@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from rbirag.generation.citations import strip_citations
-from rbirag.generation.llm import LLM, Message, TokenUsage
+from rbirag.generation.llm import LLM, Message, RequestRejectedError, TokenUsage
 
 JUDGE_SYSTEM = """You are a meticulous evaluator of answers produced by a retrieval-augmented \
 system over Reserve Bank of India notifications. You judge only against the numbered \
@@ -188,12 +188,18 @@ def build_judge_prompt(question: str, answer: str, sources: Sequence[str]) -> st
 def judge_answer(
     llm: LLM, question: str, answer: str, sources: Sequence[str], *, max_tokens: int = 4096
 ) -> JudgeResult:
-    response = llm.generate(
-        [Message(role="user", content=build_judge_prompt(question, answer, sources))],
-        system=JUDGE_SYSTEM,
-        max_tokens=max_tokens,
-        json_schema=JUDGE_SCHEMA,
-    )
+    try:
+        response = llm.generate(
+            [Message(role="user", content=build_judge_prompt(question, answer, sources))],
+            system=JUDGE_SYSTEM,
+            max_tokens=max_tokens,
+            json_schema=JUDGE_SCHEMA,
+        )
+    except RequestRejectedError as exc:  # per-item: record the failure and move on
+        return JudgeResult(
+            verdict=None, usage=TokenUsage(), model=llm.model, backend=llm.backend,
+            error=f"rejected: {str(exc)[:200]}",
+        )  # fmt: skip
 
     def result(verdict: JudgeVerdict | None, error: str | None = None) -> JudgeResult:
         return JudgeResult(

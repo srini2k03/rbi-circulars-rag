@@ -585,27 +585,26 @@ def test_groq_is_the_default_provider() -> None:
     assert s.llm_provider == "groq"
     assert s.oai_base_url == "https://api.groq.com/openai/v1"
     assert s.oai_api_key_env == "GROQ_API_KEY"
-    assert (s.judge_model, s.qa_model) == ("llama-3.3-70b-versatile", "llama-3.3-70b-versatile")
-    assert s.judge_model_fallbacks == ["openai/gpt-oss-120b", "qwen/qwen3-32b"]
-    assert (s.oai_model, s.oai_model_fallbacks) == ("llama-3.1-8b-instant", ["openai/gpt-oss-20b"])
+    assert (s.judge_model, s.qa_model) == ("openai/gpt-oss-120b", "openai/gpt-oss-120b")
+    assert s.judge_model_fallbacks == ["qwen/qwen3.8-27b"]
+    assert (s.oai_model, s.oai_model_fallbacks) == ("openai/gpt-oss-20b", ["qwen/qwen3.8-27b"])
     assert s.oai_model != s.judge_model  # generator differs from the judge
     assert s.llm_rpm == 25
-    assert s.rpd_for("llama-3.3-70b-versatile") <= 1000
-    assert s.rpd_for("llama-3.1-8b-instant") <= 14_400
-    assert 0 < s.tpm_for("llama-3.3-70b-versatile") <= 12_000
-    assert s.prices["llama-3.3-70b-versatile"].input == 0.0
+    assert s.rpd_for("openai/gpt-oss-120b") <= 1000
+    assert 0 < s.tpm_for("openai/gpt-oss-120b") <= 8_000
+    assert s.prices["openai/gpt-oss-120b"].input == 0.0
 
 
 def test_provider_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     from rbirag.config import Settings
 
-    monkeypatch.setenv("RBIRAG_JUDGE_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setenv("RBIRAG_JUDGE_MODEL", "qwen/qwen3.8-27b")
     monkeypatch.setenv("RBIRAG_LLM_RPD", "50")
     s = Settings()
-    assert s.judge_model == "openai/gpt-oss-120b"
+    assert s.judge_model == "qwen/qwen3.8-27b"
     # an explicit primary keeps the rest of the preset chain as fallbacks
-    assert s.judge_model_fallbacks == ["llama-3.3-70b-versatile", "qwen/qwen3-32b"]
-    assert s.rpd_for("llama-3.1-8b-instant") == 50
+    assert s.judge_model_fallbacks == ["openai/gpt-oss-120b"]
+    assert s.rpd_for("openai/gpt-oss-20b") == 50
     g = Settings(llm_provider="gemini", llm_rpd=0)
     assert g.oai_base_url.startswith("https://generativelanguage.googleapis.com")
     assert g.oai_api_key_env == "GEMINI_API_KEY"
@@ -724,3 +723,46 @@ def test_groq_stream_usage_in_x_groq() -> None:
     final = chunks[-1].final
     assert final is not None
     assert (final.usage.input_tokens, final.usage.output_tokens) == (11, 2)
+
+
+# ----------------------------------------------------------------------------- per-item rejections
+
+
+def test_json_validate_failed_retries_once_without_json_mode() -> None:
+    bodies: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        bodies.append(body)
+        if "response_format" in body:
+            return httpx.Response(
+                400,
+                json={
+                    "error": {"message": "Failed to generate JSON", "code": "json_validate_failed"}
+                },
+            )
+        return httpx.Response(200, json=completion('Sure: {"question": "q", "answer": "a"}'))
+
+    resp = oai(handler, json_mode="json_object").generate(MSGS, json_schema={"type": "object"})
+    assert resp.text.endswith('{"question": "q", "answer": "a"}')
+    assert len(bodies) == 2
+    assert "response_format" in bodies[0]
+    assert "response_format" not in bodies[1]
+
+
+def test_rejected_twice_raises_request_rejected_without_retries() -> None:
+    from rbirag.generation.llm import RequestRejectedError
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(400, json={"error": {"code": "json_validate_failed"}})
+
+    with pytest.raises(RequestRejectedError):
+        oai(handler).generate(MSGS, json_schema={"type": "object"})
+    assert calls["n"] == 2  # original + one retry without JSON mode
+    calls["n"] = 0
+    with pytest.raises(RequestRejectedError):
+        oai(handler).generate(MSGS)  # no JSON mode: no second attempt
+    assert calls["n"] == 1

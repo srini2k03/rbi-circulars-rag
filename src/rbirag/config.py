@@ -45,6 +45,7 @@ DEFAULT_PRICES: dict[str, ModelPrice] = {
     "openai/gpt-oss-120b": ModelPrice(input=0.0, output=0.0),
     "openai/gpt-oss-20b": ModelPrice(input=0.0, output=0.0),
     "qwen/qwen3-32b": ModelPrice(input=0.0, output=0.0),
+    "qwen/qwen3.8-27b": ModelPrice(input=0.0, output=0.0),
     "gemini-3.8-flash": ModelPrice(input=0.0, output=0.0),
     "gemini-3.7-flash": ModelPrice(input=0.0, output=0.0),
     "gemini-3.6-flash": ModelPrice(input=0.0, output=0.0),

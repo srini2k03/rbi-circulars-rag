@@ -250,3 +250,35 @@ def test_incomplete_configs_are_not_headline_results() -> None:
     good_row = next(r for r in rows if r["config"] == "good")
     assert good_row["judge_model"] == "gemini-3.8-flash 70%, gemini-3.7-flash 30%"
     assert mix([None, None]) == "-"
+
+
+def test_generation_eval_continues_after_rejected_items(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    from rbirag.generation.llm import RequestRejectedError
+
+    records = tmp_path / "records.jsonl"
+    calls = {"n": 0}
+
+    def judge_reply(messages: Sequence[Message], system: str | None) -> str:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RequestRejectedError("HTTP 400: json_validate_failed")
+        return JUDGE_JSON
+
+    def answers(messages: Sequence[Message], system: str | None) -> str:
+        if "FIRMS" in messages[-1].content.split("Question:")[-1]:
+            raise RequestRejectedError("HTTP 400: bad request")
+        return "Banks must comply with the rule [1]."
+
+    pipeline = make_pipeline(fixture_docs, ScriptedLLM(answers))
+    run = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, judge=ScriptedLLM(judge_reply)
+    )
+    assert run.complete
+    recs = load_records(records)
+    assert recs[("c", "fake", "firms")].error is not None
+    assert recs[("c", "fake", "firms")].error.startswith("rejected:")
+    judged = [r for r in recs.values() if r.judge_error and r.judge_error.startswith("rejected:")]
+    assert len(judged) == 1
+    assert sum(r.judge_faithfulness is not None for r in recs.values()) >= 1
