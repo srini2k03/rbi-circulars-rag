@@ -50,7 +50,7 @@ def test_full_pipeline_smoke(raw_dir: Path, tmp_path: Path) -> None:
             out = invoke(
                 "query", "periodic updation of KYC for high risk customers",
                 "--chunker", chunker, "--mode", mode, "--embedder", "fake",
-                "--reranker", "fake", "--top-k", "3", "--json",
+                "--reranker", "fake", "--top-k", "3", "--json", "--retrieve-only",
             )  # fmt: skip
             result = json.loads(out)
             assert result["mode"] == mode
@@ -59,11 +59,31 @@ def test_full_pipeline_smoke(raw_dir: Path, tmp_path: Path) -> None:
             if mode == "hybrid_rerank":
                 assert result["confidence"]["is_confident"] is True
 
-    text_out = invoke("query", "bulk deposits", "--mode", "bm25", "--chunker", "section")
-    assert "[1]" in text_out and "rbi-12701" in text_out
+    text_out = invoke(
+        "query", "bulk deposits", "--mode", "bm25", "--chunker", "section", "--retrieve-only"
+    )
+    assert "[1]" in text_out
+    assert "rbi-12701" in text_out
+
+    # answer generation with the deterministic fake LLM, streamed and as JSON
+    question = "How often must KYC be updated for high risk customers?"
+    common = ["--chunker", "section", "--mode", "hybrid_rerank", "--embedder", "fake",
+              "--reranker", "fake", "--llm", "fake"]  # fmt: skip
+    streamed = invoke("query", question, *common)
+    assert "[1]" in streamed
+    assert "fake:fake-extractive" in streamed
+    answer = json.loads(invoke("query", question, *common, "--json"))
+    assert answer["refused"] is False
+    assert answer["citations"]["cited_ids"] == [1]
+    assert answer["sources"][0]["doc_id"] == "rbi-12655"
+    assert answer["cost"]["usd"] == 0.0
+    assert set(answer["timings_ms"]) >= {"retrieve", "rerank", "generate", "total"}
+    gated = json.loads(invoke("query", "monsoon cricket score in Chennai", *common, "--json"))
+    assert gated["refused"] is True
+    assert gated["refusal_reason"] == "low_confidence"
 
 
 def test_cli_help_lists_commands() -> None:
     out = invoke("--help")
-    for cmd in ("fetch", "ingest", "index", "query"):
+    for cmd in ("fetch", "ingest", "index", "query", "eval"):
         assert cmd in out

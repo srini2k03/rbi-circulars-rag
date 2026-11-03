@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end smoke on the HTML fixtures, fully offline:
 # ingest -> chunk (fixed | semantic | section) -> index (BM25 + embedded Qdrant, fake embedder)
-# -> query in every retrieval mode.
+# -> query in every retrieval mode -> answer with the deterministic fake LLM (no API key).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,6 +18,8 @@ export RBIRAG_PROCESSED_DIR="$WORK/processed"
 export RBIRAG_INDEX_DIR="$WORK/indexes"
 export RBIRAG_EMBEDDER=fake
 export RBIRAG_RERANKER=fake
+export RBIRAG_LLM_BACKEND=fake
+export RBIRAG_LLM_CACHE_DIR="$WORK/llm-cache"
 export RBIRAG_CHUNK_SIZE=128
 export RBIRAG_CHUNK_OVERLAP=16
 export RBIRAG_SECTION_MIN_TOKENS=24
@@ -29,7 +31,12 @@ for chunker in fixed semantic section; do
   for mode in bm25 dense hybrid hybrid_rerank; do
     echo "=== chunker=$chunker mode=$mode"
     rbirag query "How often must KYC be updated for high risk customers?" \
-      --chunker "$chunker" --mode "$mode" --top-k 3
+      --chunker "$chunker" --mode "$mode" --top-k 3 --retrieve-only
   done
+  echo "=== chunker=$chunker answer (fake LLM, hybrid_rerank + confidence gate)"
+  rbirag query "How often must KYC be updated for high risk customers?" \
+    --chunker "$chunker" --mode hybrid_rerank --llm fake
+  rbirag query "What is the monsoon cricket score in Chennai?" \
+    --chunker "$chunker" --mode hybrid_rerank --llm fake
 done
 echo "smoke OK"
