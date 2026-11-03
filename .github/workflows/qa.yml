@@ -1,0 +1,115 @@
+name: Generate Q/A candidates
+
+on:
+  workflow_dispatch:
+    inputs:
+      n_answerable:
+        description: "Answerable candidates to generate (stratified by year x department)"
+        type: string
+        default: "220"
+      n_unanswerable:
+        description: "Unanswerable candidates"
+        type: string
+        default: "30"
+      model:
+        description: "Gemini model id for question writing"
+        type: string
+        default: "gemini-2.5-flash"
+      requests_per_day:
+        description: "Client-side daily request budget per model (free tier)"
+        type: string
+        default: "200"
+
+permissions:
+  contents: write  # commits data/eval/qa_candidates.jsonl
+
+concurrency:
+  group: llm-quota  # shares the free-tier quota with evaluate.yml
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  RBIRAG_QA_BACKEND: openai_compatible
+  RBIRAG_QA_MODEL: ${{ inputs.model }}
+  RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
+  RBIRAG_LLM_RPM: "10"
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/check-secret
+        with:
+          name: GEMINI_API_KEY
+          value: ${{ secrets.GEMINI_API_KEY }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ingest,retrieval,llm]"
+
+      - name: Download corpus (release corpus-v1)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+          echo "documents: $(wc -l < data/processed/documents.jsonl)"
+
+      - name: Restore LLM response cache and quota counters
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/llm
+          key: llm-cache-${{ github.run_id }}
+          restore-keys: llm-cache-
+
+      - name: Build the chunk store (section-aware, 512 tokens, no embeddings)
+        run: rbirag index --chunker section --no-dense
+
+      - name: Generate candidates (resumable; stops cleanly when the daily quota is used)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          N_ANS: ${{ inputs.n_answerable }}
+          N_UNANS: ${{ inputs.n_unanswerable }}
+        run: |
+          rbirag eval qa-generate --chunks indexes/section/chunks.jsonl \
+            --n-answerable "$N_ANS" --n-unanswerable "$N_UNANS" | tee /tmp/qa_stats.json
+          {
+            echo "## Q/A candidates"
+            echo '```json'
+            cat /tmp/qa_stats.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '"complete": false' /tmp/qa_stats.json; then
+            echo "::warning::Daily request budget reached. Re-run this workflow later; finished pairs and cached responses are reused."
+          fi
+
+      - name: Save LLM cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/llm
+          key: llm-cache-${{ github.run_id }}
+
+      - name: Commit candidates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/eval/qa_candidates.jsonl
+          if git diff --cached --quiet; then
+            echo "no changes"
+            exit 0
+          fi
+          git commit -m "Update Q/A candidates (run ${{ github.run_id }})"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

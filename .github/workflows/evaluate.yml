@@ -1,0 +1,395 @@
+name: Evaluate
+
+# Retrieval ablation (no LLM) -> gate calibration + generation plan -> generation with the
+# Gemini free tier and the local Ollama model -> LLM-judge + NLI -> report committed to
+# results/. Every stage is resumable: re-run the workflow after the daily free-tier quota
+# resets and it continues from the committed records and the cached LLM responses.
+
+on:
+  workflow_dispatch:
+    inputs:
+      generator_model:
+        description: "Gemini model for answers"
+        type: string
+        default: "gemini-2.5-flash-lite"
+      judge_model:
+        description: "Gemini model for the LLM judge"
+        type: string
+        default: "gemini-2.5-flash"
+      ollama_model:
+        description: "Local Ollama model evaluated alongside"
+        type: string
+        default: "qwen2.5:3b-instruct"
+      requests_per_day:
+        description: "Client-side daily request budget per Gemini model"
+        type: string
+        default: "200"
+      reuse_retrieval:
+        description: "Reuse committed retrieval results instead of re-running the ablation"
+        type: boolean
+        default: false
+      full_configs:
+        description: "Configs evaluated on the full test set"
+        type: string
+        default: "1"
+      subset_configs:
+        description: "Further configs evaluated on a subset"
+        type: string
+        default: "2"
+      subset_size:
+        description: "Answerable questions in the subset"
+        type: string
+        default: "50"
+
+permissions:
+  contents: write  # commits results/
+
+concurrency:
+  group: llm-quota
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  HF_HOME: ${{ github.workspace }}/.hf
+  RBIRAG_EMBEDDER: sentence-transformers
+  RBIRAG_RERANKER: cross-encoder
+  RBIRAG_OAI_MODEL: ${{ inputs.generator_model }}
+  RBIRAG_JUDGE_BACKEND: openai_compatible
+  RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model }}
+  RBIRAG_OLLAMA_MODEL: ${{ inputs.ollama_model }}
+  RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
+  RBIRAG_LLM_RPM: "10"
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/check-secret
+        with:
+          name: GEMINI_API_KEY
+          value: ${{ secrets.GEMINI_API_KEY }}
+      - name: Check the test set exists
+        run: |
+          if [ ! -f data/eval/qa_v1.jsonl ] && [ ! -f data/eval/qa_candidates.jsonl ]; then
+            echo "::error::No test set. Run the 'Generate Q/A candidates' workflow (and optionally 'rbirag eval verify') first."
+            exit 1
+          fi
+
+  retrieval:
+    needs: preflight
+    if: ${{ !inputs.reuse_retrieval }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        chunker: [fixed, semantic, section]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[ingest,retrieval,ml,eval]"
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: .hf
+          key: hf-models-v1-${{ runner.os }}
+      - name: Download corpus
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+      - name: Retrieval ablation (${{ matrix.chunker }} x 256/512/1024 x 4 modes)
+        run: |
+          rm -f results/retrieval/rows-${{ matrix.chunker }}.json results/retrieval/per_query-${{ matrix.chunker }}.jsonl
+          rbirag eval retrieval --chunkers ${{ matrix.chunker }} --sizes 256,512,1024 --tag ${{ matrix.chunker }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrieval-${{ matrix.chunker }}
+          path: results/retrieval/*-${{ matrix.chunker }}.*
+
+  select:
+    needs: [preflight, retrieval]
+    if: ${{ always() && needs.preflight.result == 'success' && (needs.retrieval.result == 'success' || needs.retrieval.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    outputs:
+      configs: ${{ steps.plan.outputs.configs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[retrieval,eval]"
+      - uses: actions/download-artifact@v4
+        if: ${{ !inputs.reuse_retrieval }}
+        with:
+          pattern: retrieval-*
+          path: results/retrieval
+          merge-multiple: true
+      - name: Calibrate the confidence gate on the dev split
+        run: rbirag eval calibrate
+      - name: Plan generation and print the planned call count
+        id: plan
+        env:
+          FULL: ${{ inputs.full_configs }}
+          SUBSET: ${{ inputs.subset_configs }}
+          SIZE: ${{ inputs.subset_size }}
+        run: |
+          rbirag eval plan --backends openai_compatible,ollama \
+            --full-configs "$FULL" --subset-configs "$SUBSET" --subset-size "$SIZE" | tee /tmp/plan.txt
+          { echo "## Generation plan"; echo '```'; cat /tmp/plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "configs=$(python -c "import json; p=json.load(open('results/generation/plan.json')); print(json.dumps(p['full']+p['subset']))")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plan
+          path: |
+            results/calibration.json
+            results/generation/plan.json
+
+  generate-gemini:
+    needs: select
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/check-secret
+        with:
+          name: GEMINI_API_KEY
+          value: ${{ secrets.GEMINI_API_KEY }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[ingest,retrieval,ml,llm,eval]"
+      - uses: actions/cache@v4
+        with:
+          path: .hf
+          key: hf-models-v1-${{ runner.os }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: results
+      - name: Download corpus
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+      - name: Restore LLM cache and quota counters
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/llm
+          key: llm-cache-${{ github.run_id }}-gemini
+          restore-keys: llm-cache-
+      - name: Generate with Gemini and judge (resumable)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: rbirag eval generate --backend openai_compatible
+      - name: Save LLM cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/llm
+          key: llm-cache-${{ github.run_id }}-gemini
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generation-gemini
+          path: results/generation/*openai_compatible*
+          if-no-files-found: warn
+
+  generate-ollama:
+    needs: select
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJSON(needs.select.outputs.configs) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[ingest,retrieval,ml,llm,eval]"
+      - uses: actions/cache@v4
+        with:
+          path: .hf
+          key: hf-models-v1-${{ runner.os }}
+      - name: Cache Ollama models
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-${{ inputs.ollama_model }}
+      - name: Install and start Ollama
+        env:
+          MODEL: ${{ inputs.ollama_model }}
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          sudo systemctl stop ollama 2>/dev/null || true
+          mkdir -p ~/.ollama/models
+          OLLAMA_MODELS="$HOME/.ollama/models" nohup ollama serve > /tmp/ollama.log 2>&1 &
+          for _ in $(seq 1 60); do curl -sf http://localhost:11434/api/tags >/dev/null && break; sleep 1; done
+          OLLAMA_MODELS="$HOME/.ollama/models" ollama pull "$MODEL"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: results
+      - name: Download corpus
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+      - name: Generate with Ollama (judged later in one job to respect the API rate limit)
+        run: rbirag eval generate --backend ollama --configs "${{ matrix.config }}" --no-judge
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generation-ollama-${{ strategy.job-index }}
+          path: results/generation/*ollama*
+          if-no-files-found: warn
+
+  judge-ollama:
+    needs: [select, generate-ollama, generate-gemini]
+    if: ${{ always() && needs.select.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/check-secret
+        with:
+          name: GEMINI_API_KEY
+          value: ${{ secrets.GEMINI_API_KEY }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[ingest,retrieval,ml,llm,eval]"
+      - uses: actions/cache@v4
+        with:
+          path: .hf
+          key: hf-models-v1-${{ runner.os }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: results
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: generation-ollama-*
+          path: results/generation
+          merge-multiple: true
+      - name: Download corpus
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+      - name: Restore LLM cache and quota counters
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/llm
+          key: llm-cache-${{ github.run_id }}-judge
+          restore-keys: |
+            llm-cache-${{ github.run_id }}-gemini
+            llm-cache-
+      - name: Judge the Ollama answers (generation is skipped because records exist)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: rbirag eval generate --backend ollama
+      - name: Save LLM cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/llm
+          key: llm-cache-${{ github.run_id }}-judge
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generation-ollama-judged
+          path: results/generation/*ollama*
+          if-no-files-found: warn
+
+  report:
+    needs: [preflight, retrieval, select, generate-gemini, judge-ollama]
+    if: ${{ always() && needs.select.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[retrieval,eval]"
+      - uses: actions/download-artifact@v4
+        if: ${{ !inputs.reuse_retrieval }}
+        with:
+          pattern: retrieval-*
+          path: results/retrieval
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: results
+      - uses: actions/download-artifact@v4
+        with:
+          name: generation-gemini
+          path: results/generation
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: generation-ollama-judged
+          path: results/generation
+        continue-on-error: true
+      - name: Build report
+        run: |
+          rbirag eval report
+          {
+            echo "## Status"
+            for f in results/generation/status-*.json; do [ -f "$f" ] && { echo "### $f"; echo '```json'; cat "$f"; echo '```'; }; done
+            cat results/README.md
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -qs '"complete": false' results/generation/status-*.json; then
+            echo "::warning::Generation is incomplete (free-tier quota). Re-run this workflow with reuse_retrieval=true after the quota resets."
+          fi
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "Update evaluation results (run ${{ github.run_id }}, ${GITHUB_SHA::7})"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

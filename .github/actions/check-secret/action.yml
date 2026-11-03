@@ -1,0 +1,22 @@
+name: Check API key secret
+description: Fail early, without printing it, when a required API key secret is empty.
+inputs:
+  name:
+    description: Name of the secret (for the error message)
+    required: true
+  value:
+    description: The secret value (pass secrets.X)
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        SECRET_NAME: ${{ inputs.name }}
+        SECRET_VALUE: ${{ inputs.value }}
+      run: |
+        if [ -z "${SECRET_VALUE//[[:space:]]/}" ]; then
+          echo "::error::The ${SECRET_NAME} repository secret is missing or empty. Add it under Settings > Secrets and variables > Actions, then re-run."
+          exit 1
+        fi
+        echo "${SECRET_NAME} is set."
