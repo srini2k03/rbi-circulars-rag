@@ -466,6 +466,9 @@ def generate(
 @eval_app.command("report")
 def report(
     qa: Annotated[Path | None, typer.Option()] = None,
+    update_readme: Annotated[
+        Path | None, typer.Option(help="Also refresh the results section of this README.")
+    ] = None,
 ) -> None:
     """Write CSV/Markdown tables, charts and run metadata into the results directory."""
     from rbirag.eval.ablate import load_records
@@ -548,6 +551,16 @@ def report(
     )
     for p in written:
         typer.echo(str(p))
+    if update_readme is not None:
+        from rbirag.eval.report import generation_rows, readme_results_section
+        from rbirag.eval.report import update_readme as _update
+
+        gen_rows = generation_rows(records, planned=planned, n_resamples=s.bootstrap_samples)
+        section = readme_results_section(meta, retrieval_rows, gen_rows)
+        if _update(update_readme, section):
+            typer.echo(f"updated results section in {update_readme}")
+        else:
+            typer.echo(f"no RESULTS markers in {update_readme}; left unchanged", err=True)
 
 
 # ----------------------------------------------------------------------------- scheduling
