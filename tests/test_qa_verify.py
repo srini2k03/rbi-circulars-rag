@@ -188,3 +188,37 @@ def test_rejected_items_are_skipped_and_the_run_continues(chunks: list[Chunk]) -
     assert run.complete
     assert sum(p.answerable for p in run.pairs) == n_samples - 1  # one skipped
     assert sum(not p.answerable for p in run.pairs) == 2
+
+
+NBH = chr(0x2011)  # non-breaking hyphen, as some models write it
+
+
+def test_locate_handles_ellipses_and_unicode_dashes(chunks: list[Chunk]) -> None:
+    c = next(c for c in chunks if "two years" in c.text and "eight years" in c.text)
+    quote = "at least once in every two years for high risk customers ... once in every eight years"
+    span = locate(quote, c)
+    assert span is not None
+    doc_text = c.text
+    assert doc_text[span.start - c.start : span.end - c.start].startswith("at least once")
+    assert doc_text[span.start - c.start : span.end - c.start].endswith("eight years")
+    assert locate("high" + NBH + "risk customers is not in it", c) is None
+    nb = next(c for c in chunks if "Board-approved" in c.text)
+    assert locate("Board" + NBH + "approved policy on the interest rates", nb) is not None
+    assert locate("... out of order ... at least once in every two years", c) is None
+
+
+def test_recheck_rescues_pairs_that_failed_old_checks(chunks: list[Chunk]) -> None:
+    from rbirag.eval.qa_generate import recheck
+
+    c = next(c for c in chunks if "Board-approved" in c.text)
+    failed = QAPair(
+        qa_id="x", question="Which policy must banks have for bulk deposit rates?", answer="A Board policy.",
+        qtype="factual", evidence="Board" + NBH + "approved policy ... reviewed at least once a year",
+        source_chunk_ids=[c.chunk_id], auto_check=False,
+    )  # fmt: skip
+    reviewed = failed.model_copy(update={"qa_id": "y", "review_status": "rejected"})
+    out, fixed = recheck([failed, reviewed], chunks)
+    assert fixed == 1
+    assert out[0].auto_check is True
+    assert out[0].gold[0].doc_id == c.doc_id
+    assert out[1].auto_check is False  # human decisions are never overridden
