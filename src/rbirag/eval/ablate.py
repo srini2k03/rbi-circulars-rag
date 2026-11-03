@@ -373,6 +373,28 @@ def _cosine(a: FloatArray, b: FloatArray) -> float:
     return float(np.dot(a, b) / denom) if denom else 0.0
 
 
+class JudgeOnlyLLM:
+    """Stands in for the generator in judge-only runs; it must never be called."""
+
+    def __init__(self, backend: str, model: str = "judge-only") -> None:
+        self._backend = backend
+        self._model = model
+
+    @property
+    def backend(self) -> str:
+        return self._backend
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    def generate(self, *args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("judge-only run tried to generate an answer")
+
+    def stream(self, *args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("judge-only run tried to generate an answer")
+
+
 @dataclass
 class GenerationRun:
     complete: bool
@@ -391,8 +413,13 @@ def run_generation_eval(
     judge: LLM | None = None,
     nli: NLIScorer | None = None,
     embedder: Embedder | None = None,
+    judge_only: bool = False,
 ) -> GenerationRun:
-    """Answer (and judge) each question once; resumable and quota-aware."""
+    """Answer (and judge) each question once; resumable and quota-aware.
+
+    With ``judge_only`` no answer is ever generated: questions without a usable record
+    are skipped (counted in ``skipped``) and only missing verdicts are produced, so a judge
+    job never needs the generator (e.g. an Ollama server) to be reachable."""
     existing = load_records(records_path)
     backend = pipeline.llm.backend
     generated = judged = skipped = 0
@@ -401,6 +428,9 @@ def run_generation_eval(
         rec = existing.get(key)
         if rec is not None and rec.question != pair.question:
             rec = None  # the question was edited (e.g. by a review): answer it afresh
+        if judge_only and (rec is None or rec.error is not None):
+            skipped += 1
+            continue
         try:
             if rec is None or rec.error is not None:
                 try:
