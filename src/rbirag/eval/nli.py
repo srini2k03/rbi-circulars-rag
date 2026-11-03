@@ -128,7 +128,9 @@ def nli_check(
             best_per_citation[(si, c)] = max(best_per_citation.get((si, c), 0.0), p)
 
     faithful = sum(p >= threshold for p in best_per_sentence) / len(sentences)
-    n_pairs = sum(len(c) for _, c in sentences)
+    n_pairs = sum(
+        len(set(c)) for _, c in sentences
+    )  # distinct ids per sentence, like the numerator
     correct = sum(1 for p in best_per_citation.values() if p >= threshold)
     return NLIResult(
         faithfulness=faithful,

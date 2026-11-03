@@ -68,11 +68,21 @@ def mrr_at_k(ranks: Sequence[int | None], k: int) -> float:
 
 
 def ndcg_at_k(ranks: Sequence[int | None], k: int) -> float:
-    """Binary-gain nDCG: DCG = sum 1/log2(rank+1) over gold items found within k."""
+    """Binary-gain nDCG over *distinct relevant ranks*.
+
+    ``ranks`` holds, per gold item, the rank of the first retrieved result covering it.
+    Several gold items covered by the same result share that rank and count once:
+    DCG = sum of 1/log2(r+1) over the distinct ranks r <= k. The ideal ranking needs one
+    result per distinct rank found plus one per gold item never found, capped at k, so
+    nDCG is always in [0, 1] (e.g. two gold spans inside one rank-1 chunk give 1.0).
+    """
     if not ranks:
         return 0.0
-    dcg = sum(1.0 / math.log2(r + 1) for r in ranks if r is not None and r <= k)
-    ideal = sum(1.0 / math.log2(i + 1) for i in range(1, min(len(ranks), k) + 1))
+    distinct = {r for r in ranks if r is not None}
+    missing = sum(1 for r in ranks if r is None)
+    dcg = sum(1.0 / math.log2(r + 1) for r in distinct if r <= k)
+    n_ideal = min(len(distinct) + missing, k)
+    ideal = sum(1.0 / math.log2(i + 1) for i in range(1, n_ideal + 1))
     return dcg / ideal if ideal else 0.0
 
 

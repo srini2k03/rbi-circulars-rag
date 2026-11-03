@@ -125,3 +125,24 @@ def test_splits_and_usable() -> None:
     pairs[0] = pairs[0].model_copy(update={"review_status": "rejected"})
     pairs[1] = pairs[1].model_copy(update={"auto_check": False})
     assert len(usable(pairs)) == 198
+
+
+def test_ndcg_counts_each_rank_once_and_stays_in_unit_interval() -> None:
+    # two gold spans inside the rank-1 chunk: a perfect ranking
+    assert ndcg_at_k([1, 1], 10) == 1.0
+    # previously this summed gain twice; now bounded
+    assert ndcg_at_k([1, 1, 2], 10) == 1.0
+    # one span found at rank 1, one never found: ideal needs two results
+    assert ndcg_at_k([1, None], 10) == pytest.approx(1 / (1 + 1 / math.log2(3)))
+    # two spans in one chunk at rank 3
+    assert ndcg_at_k([3, 3], 10) == pytest.approx(1 / math.log2(4))
+    # found only beyond k still needs an ideal slot
+    assert ndcg_at_k([12, 1], 10) == pytest.approx(1 / (1 + 1 / math.log2(3)))
+
+
+def test_chunk_level_ndcg_with_two_spans_in_one_chunk() -> None:
+    qa = QAPair(qa_id="q", question="?", answer="a", qtype="multi_chunk",
+                gold=[GoldSpan(doc_id="d", start=10, end=40), GoldSpan(doc_id="d", start=60, end=90)])  # fmt: skip
+    m = query_metrics([chunk("d", 0, 100, 0), chunk("d", 100, 200, 1)], qa, level="chunk")
+    assert m.ndcg == 1.0
+    assert m.recall[1] == 1.0
