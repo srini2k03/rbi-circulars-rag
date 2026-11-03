@@ -93,7 +93,9 @@ def test_crawl_writes_manifest_html_and_pdf(tmp_path: Path) -> None:
         12700: httpx.Response(404),
         12699: ok_page,
     }
-    with make_fetcher(tmp_path, make_handler(pages, calls), clock) as f:
+    with make_fetcher(
+        tmp_path, make_handler(pages, calls), clock, pdf_only_below_html_chars=None
+    ) as f:
         stats = f.crawl(descending_ids(12702, 12699), max_docs=10)
     assert stats.statuses == {"ok": 2, "not_found": 1, "empty": 1}
     assert stats.pdfs_ok == 2
@@ -260,3 +262,11 @@ def test_probe_reports_diagnostics(tmp_path: Path) -> None:
     assert r["pdf"]["http_status"] == 404
     assert "strategies" in r["diagnostics"]
     assert not (tmp_path / "raw" / "manifest.jsonl").exists()
+
+
+def test_pdf_skipped_when_html_has_full_text(tmp_path: Path) -> None:
+    calls: list[str] = []
+    clock = FakeClock()
+    with make_fetcher(tmp_path, make_handler({12701: ok_page}, calls), clock) as f:
+        f.crawl([12701], max_docs=10)
+    assert not any("rbidocs" in c or c.lower().endswith(".pdf") for c in calls)
