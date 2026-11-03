@@ -14,7 +14,7 @@ on:
       model:
         description: "Gemini model id for question writing"
         type: string
-        default: "gemini-2.5-flash"
+        default: "gemini-3.8-flash"
       requests_per_day:
         description: "Client-side daily request budget per model (free tier)"
         type: string
@@ -45,6 +45,14 @@ jobs:
         with:
           name: GEMINI_API_KEY
           value: ${{ secrets.GEMINI_API_KEY }}
+      - name: List Gemini models available to this key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          curl -fsS -H "Authorization: Bearer ${GEMINI_API_KEY}" \
+            "https://generativelanguage.googleapis.com/v1beta/openai/models" \
+            | python -c "import json,sys; print('\n'.join(sorted(m['id'] for m in json.load(sys.stdin)['data'])))" \
+            || echo "::warning::could not list models"
 
       - uses: actions/setup-python@v5
         with:
