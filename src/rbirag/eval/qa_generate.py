@@ -205,25 +205,93 @@ def _norm(text: str) -> str:
     return " ".join(text.lower().split())
 
 
-def locate(evidence: str, chunk: Chunk) -> GoldSpan | None:
-    """Character span of ``evidence`` in the document, via the chunk's offsets."""
-    ev = evidence.strip().strip('"').strip()
-    if len(ev) < 10:
-        return None
-    idx = chunk.text.find(ev)
+_ELLIPSIS = re.compile(r"\s*(?:\.\.\.+|\u2026)\s*")
+
+
+def _find(fragment: str, text: str, start: int = 0) -> tuple[int, int] | None:
+    """Exact match, else a whitespace/case-insensitive one; positions in ``text``."""
+    idx = text.find(fragment, start)
     if idx >= 0:
-        return GoldSpan(
-            doc_id=chunk.doc_id, start=chunk.start + idx, end=chunk.start + idx + len(ev)
-        )
-    # whitespace/case-insensitive match: map normalised positions back to the original
-    words = ev.split()
-    pattern = r"\s+".join(re.escape(w) for w in words)
-    m = re.search(pattern, chunk.text, re.IGNORECASE)
-    if m:
-        return GoldSpan(
-            doc_id=chunk.doc_id, start=chunk.start + m.start(), end=chunk.start + m.end()
-        )
-    return None
+        return idx, idx + len(fragment)
+    pattern = r"\s+".join(re.escape(w) for w in fragment.split())
+    m = re.compile(pattern, re.IGNORECASE).search(text, start)
+    return (m.start(), m.end()) if m else None
+
+
+def locate(evidence: str, chunk: Chunk) -> GoldSpan | None:
+    """Character span of ``evidence`` in the document, via the chunk's offsets.
+
+    Models often normalise punctuation (non-breaking hyphens, curly quotes) and elide parts
+    of a quote with "...". The evidence is unicode-normalised like the corpus, split on
+    ellipses, and every fragment of 10+ characters must appear in order; the span runs
+    from the first fragment to the last.
+    """
+    from rbirag.ingest.clean import normalize_unicode
+
+    ev = normalize_unicode(evidence).strip().strip('"').strip()
+    fragments = [f.strip(" ,;:") for f in _ELLIPSIS.split(ev)]
+    fragments = [f for f in fragments if len(f) >= 10]
+    if not fragments:
+        return None
+    text = chunk.text
+    pos = 0
+    first: int | None = None
+    end = 0
+    for frag in fragments:
+        found = _find(frag, text, pos)
+        if found is None:
+            return None
+        if first is None:
+            first = found[0]
+        pos = end = found[1]
+    assert first is not None
+    return GoldSpan(doc_id=chunk.doc_id, start=chunk.start + first, end=chunk.start + end)
+
+
+def check_pair(
+    question: str, answer: str, evidence: str, chunks: Sequence[Chunk], qtype: str
+) -> tuple[list[GoldSpan], bool]:
+    """Gold spans and the automatic check for a generated pair."""
+    gold: list[GoldSpan] = []
+    located = None
+    for c in chunks:
+        located = located or locate(evidence, c)
+    if located is not None:
+        gold.append(located)
+    if qtype == "multi_chunk":  # multi-chunk questions also need the other part
+        for c in chunks:
+            if (
+                located is None
+                or c.doc_id != located.doc_id
+                or not (c.start <= located.start < c.end)
+            ):
+                gold.append(GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end))
+    auto_ok = (
+        located is not None
+        and len(question.split()) >= 5
+        and bool(answer)
+        and not _DEICTIC.search(question)
+    )
+    if not gold:
+        gold = [GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end) for c in chunks]
+    return gold, auto_ok
+
+
+def recheck(pairs: Sequence[QAPair], chunks: Sequence[Chunk]) -> tuple[list[QAPair], int]:
+    """Re-run the automatic checks on pending pairs that failed them (no LLM calls).
+    Returns the pairs and how many now pass."""
+    by_id = {c.chunk_id: c for c in chunks}
+    out: list[QAPair] = []
+    fixed = 0
+    for p in pairs:
+        src = [by_id[c] for c in p.source_chunk_ids if c in by_id]
+        if p.auto_check is False and p.answerable and p.review_status == "pending" and src:
+            gold, ok = check_pair(p.question, p.answer, p.evidence, src, p.qtype)
+            if ok:
+                p = p.model_copy(update={"gold": gold, "auto_check": True})
+                fixed += 1
+        out.append(p)
+    return out, fixed
 
 
 def qa_id_for(key: str) -> str:
@@ -271,29 +339,7 @@ def generate_pair(llm: LLM, sample: Sample) -> QAPair | None:
     answer = str(obj.get("answer", "")).strip()
     evidence = str(obj.get("evidence", "")).strip()
     first = sample.chunks[0]
-    gold: list[GoldSpan] = []
-    located = None
-    for c in sample.chunks:
-        located = located or locate(evidence, c)
-    if located is not None:
-        gold.append(located)
-    # multi-chunk questions also need the second part
-    if sample.qtype == "multi_chunk":
-        for c in sample.chunks:
-            if (
-                located is None
-                or c.doc_id != located.doc_id
-                or not (c.start <= located.start < c.end)
-            ):
-                gold.append(GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end))
-    auto_ok = (
-        located is not None
-        and len(question.split()) >= 5
-        and bool(answer)
-        and not _DEICTIC.search(question)
-    )
-    if not gold:
-        gold = [GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end) for c in sample.chunks]
+    gold, auto_ok = check_pair(question, answer, evidence, sample.chunks, sample.qtype)
     md = first.metadata
     year = md.get("year")
     return QAPair(
@@ -377,7 +423,10 @@ def generate_candidates(
     existing: Sequence[QAPair] = (),
 ) -> GenerationRun:
     """Generate candidates; stops cleanly (``complete=False``) when the quota runs out."""
-    done = {p.qa_id: p for p in existing}
+    rechecked, n_fixed = recheck(list(existing), chunks)
+    if n_fixed:
+        logger.info("re-checked existing candidates: %d now pass the automatic checks", n_fixed)
+    done = {p.qa_id: p for p in rechecked}
     samples = stratified_samples(chunks, n_answerable, seed)
     attempted = 0
     complete = True
