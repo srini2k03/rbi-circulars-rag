@@ -1,0 +1,210 @@
+from __future__ import annotations
+
+import json
+from collections.abc import Sequence
+from pathlib import Path
+
+import pytest
+
+from rbirag.config import Settings
+from rbirag.document import Document
+from rbirag.eval.ablate import (
+    RetrievalConfig,
+    build_config_index,
+    grid,
+    load_records,
+    plan_generation,
+    planned_calls,
+    run_generation_eval,
+    run_retrieval_ablation,
+)
+from rbirag.eval.dataset import GoldSpan, QAPair
+from rbirag.eval.nli import FakeNLI
+from rbirag.generation.llm import FakeLLM, Message, QuotaExhaustedError, ScriptedLLM
+from rbirag.generation.rag import RAGPipeline
+from rbirag.index.embedder import FakeEmbedder
+from rbirag.retrieval.pipeline import Retriever
+from rbirag.retrieval.rerank import FakeReranker
+
+JUDGE_JSON = json.dumps(
+    {
+        "claims": [{"claim": "c", "supported": True, "source_ids": [1]}],
+        "relevance": 5,
+        "relevance_reason": "ok",
+    }
+)
+
+
+def gold_for(doc: Document, phrase: str) -> GoldSpan:
+    i = doc.text.index(phrase)
+    return GoldSpan(doc_id=doc.doc_id, start=i, end=i + len(phrase))
+
+
+@pytest.fixture
+def qa(fixture_docs: list[Document]) -> list[QAPair]:
+    by = {d.source_id: d for d in fixture_docs}
+    return [
+        QAPair(qa_id="kyc", question="How often is periodic updation of KYC for high risk customers?",
+               answer="Every two years.", qtype="numeric",
+               gold=[gold_for(by[12655], "at least once in every two years for high risk customers")]),
+        QAPair(qa_id="bulk", question="Differential interest rates on bulk deposits for small finance banks",
+               answer="Allowed above 3 crore.", qtype="factual",
+               gold=[gold_for(by[12701], "Small Finance Banks shall be permitted to offer differential rates")]),
+        QAPair(qa_id="firms", question="Form ODI reporting through the FIRMS portal deadline",
+               answer="Within 30 days.", qtype="procedural",
+               gold=[gold_for(by[12590], "within 30 days of the transaction")]),
+        QAPair(qa_id="none", question="What is the SEBI cap on mutual fund expense ratios?", answer="",
+               qtype="unanswerable", answerable=False),
+    ]  # fmt: skip
+
+
+def test_grid() -> None:
+    configs = grid()
+    assert len(configs) == 4 * 3 * 3
+    assert RetrievalConfig.parse("section-512-hybrid_rerank") == RetrievalConfig(
+        "section", 512, "hybrid_rerank"
+    )
+
+
+def test_retrieval_ablation_rows(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    per_query = tmp_path / "pq.jsonl"
+    rows = run_retrieval_ablation(
+        fixture_docs, qa, settings=Settings(), embedder=FakeEmbedder(64), reranker=FakeReranker(),
+        chunkers=["fixed", "section"], sizes=[64, 128], modes=["bm25", "hybrid_rerank"],
+        per_query_path=per_query,
+    )  # fmt: skip
+    assert len(rows) == 2 * 2 * 2
+    for r in rows:
+        assert r["n_queries"] == 3  # the unanswerable question is not scored
+        assert 0 <= r["chunk_ndcg@10"] <= 1
+        assert r["doc_recall@10"] == 1.0  # 3 documents: every gold doc is in the top 10
+        lo, hi = r["chunk_ndcg@10_ci"]
+        assert lo <= r["chunk_ndcg@10"] <= hi
+    lines = [json.loads(x) for x in per_query.read_text().splitlines()]
+    assert len(lines) == 8 * 4
+    rerank = [x for x in lines if x["config"].endswith("hybrid_rerank")]
+    assert all(x["confidence"] is not None for x in rerank)
+
+
+def test_plan_and_planned_calls(qa: list[QAPair]) -> None:
+    rows = [
+        {"config": "section-512-hybrid_rerank", "mode": "hybrid_rerank", "chunk_ndcg@10": 0.8},
+        {"config": "fixed-512-hybrid_rerank", "mode": "hybrid_rerank", "chunk_ndcg@10": 0.7},
+        {"config": "section-512-bm25", "mode": "bm25", "chunk_ndcg@10": 0.6},
+        {"config": "section-512-dense", "mode": "dense", "chunk_ndcg@10": 0.5},
+        {"config": "fixed-256-dense", "mode": "dense", "chunk_ndcg@10": 0.4},
+    ]
+    plan = plan_generation(rows, qa, full_configs=1, subset_configs=2, subset_size=2)
+    assert plan.full == ["section-512-hybrid_rerank"]
+    assert plan.subset == ["section-512-bm25", "section-512-dense"]  # one per other mode
+    assert len(plan.subset_ids) == 2 + 1  # 2 answerable + round(2 * 1/3) unanswerable
+    calls = planned_calls(plan, qa, ["openai_compatible", "ollama"])
+    assert calls["generate[openai_compatible]"] == 4 + 3 + 3
+    assert calls["judge (all backends)"] == (3 + 2 + 2) * 2
+    assert calls["api_calls_upper_bound"] == 10 + 14  # ollama generation is local
+
+
+def make_pipeline(fixture_docs: list[Document], llm: object) -> RAGPipeline:
+    _, bundle = build_config_index(fixture_docs, "section", 128, Settings(), FakeEmbedder(64))
+    retriever = Retriever(
+        bundle.store,
+        bm25=bundle.bm25,
+        dense=bundle.dense,
+        reranker=FakeReranker(),
+        mode="hybrid_rerank",
+    )
+    return RAGPipeline(retriever, llm, top_k=3)  # type: ignore[arg-type]
+
+
+def test_generation_eval_resumable(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    records = tmp_path / "records.jsonl"
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+    judge = ScriptedLLM(lambda m, s: JUDGE_JSON, model="judge-model")
+    run = run_generation_eval(
+        pipeline,
+        qa,
+        config="c",
+        records_path=records,
+        judge=judge,
+        nli=FakeNLI(),
+        embedder=FakeEmbedder(64),
+    )
+    assert run.complete
+    assert run.generated == 4
+    recs = load_records(records)
+    assert len(recs) == 4
+    unans = recs[("c", "fake", "none")]
+    assert unans.refused  # gated by low confidence
+    assert unans.judge_faithfulness is None
+    kyc = recs[("c", "fake", "kyc")]
+    assert kyc.judge_faithfulness == 1.0
+    assert kyc.judge_relevance == 1.0
+    assert kyc.judge_model == "judge-model"
+    assert kyc.nli_faithfulness is not None
+    assert kyc.emb_relevance is not None
+    n_judge_calls = len(judge.calls)
+    assert n_judge_calls == sum(1 for r in recs.values() if r.answerable and not r.refused)
+    again = run_generation_eval(pipeline, qa, config="c", records_path=records, judge=judge)
+    assert (again.generated, again.judged, again.skipped) == (0, 0, 4)
+    assert len(judge.calls) == n_judge_calls
+
+
+def test_generation_eval_stops_on_quota_and_resumes_judging(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    records = tmp_path / "records.jsonl"
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+
+    def no_quota(messages: Sequence[Message], system: str | None) -> str:
+        raise QuotaExhaustedError("daily")
+
+    run = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, judge=ScriptedLLM(no_quota)
+    )
+    assert not run.complete
+    assert run.generated == 1
+    done = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, judge=ScriptedLLM(lambda m, s: JUDGE_JSON)
+    )
+    assert done.complete
+    assert done.judged >= 1
+    assert all(
+        r.judge_faithfulness is not None
+        for r in load_records(records).values()
+        if r.answerable and not r.refused
+    )
+
+
+def test_report_writes_tables_and_charts(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    pytest.importorskip("matplotlib")
+    from rbirag.eval.calibrate import calibrate_threshold
+    from rbirag.eval.report import build_report, run_metadata
+
+    rows = run_retrieval_ablation(
+        fixture_docs, qa, settings=Settings(), embedder=FakeEmbedder(32), reranker=FakeReranker(),
+        chunkers=["section"], sizes=[64, 128], modes=["bm25", "hybrid_rerank"],
+    )  # fmt: skip
+    records_path = tmp_path / "r.jsonl"
+    run_generation_eval(make_pipeline(fixture_docs, FakeLLM()), qa, config="c", records_path=records_path,
+                        judge=ScriptedLLM(lambda m, s: JUDGE_JSON))  # fmt: skip
+    cal = calibrate_threshold([0.9, 0.2, 0.8], [True, False, True])
+    out = tmp_path / "results"
+    written = build_report(
+        out, retrieval_rows=rows, generation_records=list(load_records(records_path).values()),
+        calibration=cal, metadata=run_metadata(qa, judge_model="judge"), n_resamples=200,
+    )  # fmt: skip
+    names = {p.name for p in written}
+    assert {"retrieval_ablation.csv", "generation.md", "calibration.png", "recall_at_k.png",
+            "chunk_size_sweep.png", "latency_vs_quality.png", "mrr_by_config.png"} <= names  # fmt: skip
+    assert all(p.exists() and p.stat().st_size > 0 for p in written)
+    md = (out / "README.md").read_text()
+    assert "section-128-hybrid_rerank" in md
+    assert "human-verified: 0" in md
+    meta = json.loads((out / "run_metadata.json").read_text())
+    assert meta["questions"] == 4
