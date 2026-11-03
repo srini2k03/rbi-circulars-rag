@@ -33,7 +33,7 @@ def test_free_tier_and_local_cost_zero_but_tokens_recorded() -> None:
     usage = TokenUsage(input_tokens=5000, output_tokens=300)
     gemini = compute_cost(
         usage,
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
         backend="openai_compatible",
         prices=DEFAULT_PRICES,
         usd_to_inr=88,

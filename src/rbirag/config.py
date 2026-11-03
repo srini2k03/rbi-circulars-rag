@@ -6,12 +6,13 @@ Every field can be overridden with an ``RBIRAG_``-prefixed environment variable,
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 RetrievalMode = Literal["bm25", "dense", "hybrid", "hybrid_rerank"]
 ChunkerName = Literal["fixed", "semantic", "section"]
@@ -36,8 +37,12 @@ class ModelPrice(BaseModel):
 # optional Anthropic backend; cache writes 1.25x input, cache reads 0.1x input. Claude Haiku
 # 5.5's price applies to prompts up to 100K tokens. Local Ollama models cost nothing.
 DEFAULT_PRICES: dict[str, ModelPrice] = {
-    "gemini-2.5-flash": ModelPrice(input=0.0, output=0.0),
-    "gemini-2.5-flash-lite": ModelPrice(input=0.0, output=0.0),
+    "gemini-3.8-flash": ModelPrice(input=0.0, output=0.0),
+    "gemini-3.7-flash": ModelPrice(input=0.0, output=0.0),
+    "gemini-3.6-flash": ModelPrice(input=0.0, output=0.0),
+    "gemini-3.5-flash": ModelPrice(input=0.0, output=0.0),
+    "gemini-3.5-flash-lite": ModelPrice(input=0.0, output=0.0),
+    "gemini-3.1-flash-lite": ModelPrice(input=0.0, output=0.0),
     "claude-haiku-5-5": ModelPrice(input=0.10, output=0.50, cache_read=0.01, cache_write=0.125),
     "claude-sonnet-5-5": ModelPrice(input=2.00, output=10.00, cache_read=0.20, cache_write=2.50),
     "claude-opus-5-5": ModelPrice(input=4.00, output=20.00, cache_read=0.20, cache_write=5.00),
@@ -123,7 +128,12 @@ class Settings(BaseSettings):
     # settings, logged or echoed.
     oai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     oai_api_key_env: str = "GEMINI_API_KEY"
-    oai_model: str = "gemini-2.5-flash-lite"
+    oai_model: str = "gemini-3.5-flash-lite"
+    # Fallback chains (comma-separated in env vars): used when a model is overloaded
+    # (503), not found / not permitted (404/403), or out of daily quota.
+    oai_model_fallbacks: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["gemini-3.1-flash-lite"]
+    )
     oai_reasoning_effort: str | None = None
     oai_json_mode: Literal["json_schema", "json_object", "none"] = "json_schema"
     oai_stream_usage: bool = True
@@ -133,6 +143,8 @@ class Settings(BaseSettings):
     llm_rpd: int = Field(default=200, ge=1)
     llm_max_retries: int = Field(default=6, ge=0)
     llm_backoff_base_seconds: float = Field(default=5.0, gt=0)
+    llm_switch_after_503: int = Field(default=2, ge=1)
+    llm_model_cooldown_seconds: float = Field(default=300.0, ge=0)
     # Disk cache of every LLM call, keyed by a hash of the full request.
     llm_cache: bool = True
     llm_cache_dir: Path = Path(".cache/llm")
@@ -156,13 +168,31 @@ class Settings(BaseSettings):
     eval_dir: Path = Path("data/eval")
     results_dir: Path = Path("results")
     qa_backend: LLMBackend = "openai_compatible"
-    qa_model: str = "gemini-2.5-flash"
+    qa_model: str = "gemini-3.8-flash"
+    qa_model_fallbacks: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["gemini-3.7-flash", "gemini-3.5-flash"]
+    )
     judge_backend: LLMBackend = "openai_compatible"
-    judge_model: str = "gemini-2.5-flash"
+    judge_model: str = "gemini-3.8-flash"
+    judge_model_fallbacks: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["gemini-3.7-flash", "gemini-3.5-flash"]
+    )
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
     bootstrap_samples: int = Field(default=1000, ge=100)
     dev_fraction: float = Field(default=0.3, gt=0, lt=1)
     seed: int = 13
+
+    @field_validator(
+        "oai_model_fallbacks", "qa_model_fallbacks", "judge_model_fallbacks", mode="before"
+    )
+    @classmethod
+    def _split_models(cls, value: object) -> object:
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("["):
+                return json.loads(text)
+            return [m.strip() for m in text.split(",") if m.strip()]
+        return value
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Settings:

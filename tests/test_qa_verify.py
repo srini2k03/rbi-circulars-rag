@@ -73,14 +73,14 @@ def test_generate_pair_parses_and_checks(chunks: list[Chunk], fixture_docs: list
         "answer": "At least once every two years.",
         "evidence": "at least once in every two years for high risk customers",
     })  # fmt: skip
-    llm = ScriptedLLM([reply], model="gemini-2.5-flash")
+    llm = ScriptedLLM([reply], model="gemini-3.8-flash")
     pair = generate_pair(llm, Sample((c,), "numeric"))
     assert pair is not None
     assert pair.auto_check is True
     assert pair.gold[0].doc_id == c.doc_id
     doc = next(d for d in fixture_docs if d.doc_id == c.doc_id)
     assert doc.text[pair.gold[0].start : pair.gold[0].end].lower().startswith("at least once")
-    assert pair.generator_model == "gemini-2.5-flash"
+    assert pair.generator_model == "gemini-3.8-flash"
     vague = json.dumps(
         {"question": "What does this circular say about KYC?", "answer": "x", "evidence": "nope"}
     )

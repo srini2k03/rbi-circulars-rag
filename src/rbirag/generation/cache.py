@@ -42,6 +42,11 @@ def request_key(
     return hashlib.sha256(blob).hexdigest()
 
 
+def _strip_fences(text: str) -> str:
+    m = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.S)
+    return m.group(1) if m else text.strip()
+
+
 class CachedLLM:
     """Wraps any :class:`LLM`; ``generate`` and ``stream`` both read/write the cache."""
 
@@ -72,9 +77,19 @@ class CachedLLM:
             logger.warning("ignoring unreadable cache entry %s", path.name)
             return None
 
-    def _put(self, key: str, response: LLMResponse) -> None:
-        if response.refused or not response.text:
-            return  # never cache failures; they may succeed on a rerun
+    def _put(
+        self, key: str, response: LLMResponse, json_schema: dict[str, Any] | None = None
+    ) -> None:
+        """Store only successful completions. Errors raise and never reach here; refusals,
+        empty or error-stop responses, and unparseable JSON for a JSON request are skipped
+        so a rerun asks again instead of replaying a failure."""
+        if not response.ok:
+            return
+        if json_schema is not None:
+            try:
+                json.loads(_strip_fences(response.text))
+            except json.JSONDecodeError:
+                return
         path = self._path(key)
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
@@ -114,7 +129,7 @@ class CachedLLM:
         response = self.inner.generate(
             messages, system=system, max_tokens=max_tokens, json_schema=json_schema
         )
-        self._put(key, response)
+        self._put(key, response, json_schema)
         return response
 
     def stream(

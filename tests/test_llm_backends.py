@@ -39,7 +39,7 @@ class Clock:
 def oai(handler: Callable[[httpx.Request], httpx.Response], **kw: Any) -> OpenAICompatibleLLM:
     clock = kw.pop("clock", Clock())
     return OpenAICompatibleLLM(
-        "gemini-2.5-flash-lite",
+        "gemini-3.5-flash-lite",
         api_key=SECRET,
         client=httpx.Client(transport=httpx.MockTransport(handler)),
         sleep=clock.sleep,
@@ -382,3 +382,196 @@ def test_anthropic_requires_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
     with pytest.raises(MissingAPIKeyError):
         require_api_key()
+
+
+# ----------------------------------------------------------------------------- fallback chain
+
+
+def chain_llm(
+    handler: Callable[[httpx.Request], httpx.Response], health: Any = None, **kw: Any
+) -> OpenAICompatibleLLM:
+    from rbirag.generation.openai_compat import ModelHealth
+
+    return OpenAICompatibleLLM(
+        "gemini-3.8-flash",
+        fallbacks=["gemini-3.7-flash", "gemini-3.5-flash"],
+        api_key=SECRET,
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=lambda s: None,
+        backoff_base_seconds=0.01,
+        health=health or ModelHealth(cooldown_seconds=300),
+        **kw,
+    )
+
+
+def by_model(
+    responses: dict[str, list[int]], calls: list[str]
+) -> Callable[[httpx.Request], httpx.Response]:
+    """Per-model scripted status codes (the last one repeats); 200 returns a completion."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        calls.append(model)
+        script = responses[model]
+        status = script.pop(0) if len(script) > 1 else script[0]
+        if status == 200:
+            return httpx.Response(200, json=completion(f"answer from {model}"))
+        return httpx.Response(status, json={"error": {"message": f"status {status} for {model}"}})
+
+    return handler
+
+
+def test_fallback_after_two_503s_and_cooldown() -> None:
+    from rbirag.generation.openai_compat import ModelHealth
+
+    now = {"t": 0.0}
+    health = ModelHealth(cooldown_seconds=300, clock=lambda: now["t"])
+    calls: list[str] = []
+    responses = {
+        "gemini-3.8-flash": [503, 503, 200],
+        "gemini-3.7-flash": [200],
+        "gemini-3.5-flash": [200],
+    }
+    llm = chain_llm(by_model(responses, calls), health)
+    first = llm.generate(MSGS)
+    assert calls == ["gemini-3.8-flash", "gemini-3.8-flash", "gemini-3.7-flash"]
+    assert first.model == "gemini-3.7-flash"  # the model that actually answered
+    assert health.in_cooldown("gemini-3.8-flash")
+    calls.clear()
+    llm.generate(MSGS)
+    assert calls == ["gemini-3.7-flash"]  # the overloaded model is skipped while cooling down
+    now["t"] = 301.0
+    calls.clear()
+    third = llm.generate(MSGS)
+    assert calls == ["gemini-3.8-flash"]  # cooldown over: back to the primary
+    assert third.model == "gemini-3.8-flash"
+
+
+def test_single_503_is_retried_on_same_model() -> None:
+    calls: list[str] = []
+    responses = {
+        "gemini-3.8-flash": [503, 200],
+        "gemini-3.7-flash": [200],
+        "gemini-3.5-flash": [200],
+    }
+    assert chain_llm(by_model(responses, calls)).generate(MSGS).model == "gemini-3.8-flash"
+    assert calls == ["gemini-3.8-flash", "gemini-3.8-flash"]
+
+
+def test_all_models_overloaded_gives_up_with_retry_budget() -> None:
+    calls: list[str] = []
+    responses = {m: [503] for m in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash")}
+    with pytest.raises(LLMError, match="giving up"):
+        chain_llm(by_model(responses, calls), max_retries=6).generate(MSGS)
+    assert set(calls) == {"gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash"}
+
+
+def test_404_drops_model_and_continues_without_retry() -> None:
+    calls: list[str] = []
+    responses = {"gemini-3.8-flash": [404], "gemini-3.7-flash": [200], "gemini-3.5-flash": [200]}
+    llm = chain_llm(by_model(responses, calls))
+    assert llm.generate(MSGS).model == "gemini-3.7-flash"
+    assert calls == ["gemini-3.8-flash", "gemini-3.7-flash"]
+    calls.clear()
+    llm.generate(MSGS)
+    assert calls == ["gemini-3.7-flash"]  # dropped for the rest of the run
+
+
+def test_every_model_fatal_aborts_with_clear_message() -> None:
+    from rbirag.generation.llm import ConfigurationError
+
+    calls: list[str] = []
+    responses = {"gemini-3.8-flash": [404], "gemini-3.7-flash": [403], "gemini-3.5-flash": [404]}
+    with pytest.raises(ConfigurationError, match="every model in the chain") as exc:
+        chain_llm(by_model(responses, calls)).generate(MSGS)
+    assert calls == ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash"]  # no retries
+    assert SECRET not in str(exc.value)
+
+
+def test_single_model_fatal_401_no_retry() -> None:
+    from rbirag.generation.llm import ConfigurationError
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(401, json={"error": {"message": "API key not valid"}})
+
+    with pytest.raises(ConfigurationError, match="401"):
+        oai(handler).generate(MSGS)
+    assert calls["n"] == 1
+
+
+def test_daily_quota_moves_to_next_model() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        calls.append(model)
+        if model == "gemini-3.8-flash":
+            return httpx.Response(
+                429, json={"error": {"message": "GenerateRequestsPerDayPerProjectPerModel"}}
+            )
+        return httpx.Response(200, json=completion("ok"))
+
+    assert chain_llm(handler).generate(MSGS).model == "gemini-3.7-flash"
+    assert calls == ["gemini-3.8-flash", "gemini-3.7-flash"]
+
+
+def test_client_side_rpd_exhaustion_moves_to_next_model(tmp_path: Path) -> None:
+    lim = RequestLimiter(rpm=1000, rpd=1, state_dir=tmp_path, today=lambda: "d")
+    calls: list[str] = []
+    responses = {m: [200] for m in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash")}
+    llm = chain_llm(by_model(responses, calls), limiter=lim)
+    assert [llm.generate(MSGS).model for _ in range(3)] == [
+        "gemini-3.8-flash",
+        "gemini-3.7-flash",
+        "gemini-3.5-flash",
+    ]
+    with pytest.raises(QuotaExhaustedError):
+        llm.generate(MSGS)
+
+
+# ----------------------------------------------------------------------------- cache hygiene
+
+
+def test_cache_never_stores_errors(tmp_path: Path) -> None:
+    from rbirag.generation.llm import LLMResponse
+
+    attempts = {"n": 0}
+
+    class Flaky(ScriptedLLM):
+        def generate(self, messages, **kw):  # type: ignore[no-untyped-def,override]
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise LLMError("HTTP 503: overloaded")
+            if attempts["n"] == 2:
+                return LLMResponse(text="partial", model="m", backend="b", stop_reason="error")
+            if attempts["n"] == 3:
+                return LLMResponse(text="not json at all", model="m", backend="b")
+            return LLMResponse(text='{"ok": true}', model="m", backend="b")
+
+    llm = CachedLLM(Flaky(replies=[]), tmp_path)
+    schema = {"type": "object"}
+    with pytest.raises(LLMError):
+        llm.generate(MSGS, json_schema=schema)
+    assert not any(tmp_path.rglob("*.json"))  # the exception was not cached
+    assert llm.generate(MSGS, json_schema=schema).stop_reason == "error"
+    assert not any(tmp_path.rglob("*.json"))  # error stop not cached
+    assert llm.generate(MSGS, json_schema=schema).text == "not json at all"
+    assert not any(tmp_path.rglob("*.json"))  # invalid JSON for a JSON request not cached
+    assert llm.generate(MSGS, json_schema=schema).text == '{"ok": true}'
+    assert len(list(tmp_path.rglob("*.json"))) == 1
+    assert llm.generate(MSGS, json_schema=schema).cached
+    assert attempts["n"] == 4
+
+
+def test_fallback_settings_parse_comma_lists(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rbirag.config import Settings
+
+    monkeypatch.setenv("RBIRAG_JUDGE_MODEL_FALLBACKS", "gemini-3.7-flash, gemini-3.6-flash")
+    monkeypatch.setenv("RBIRAG_OAI_MODEL_FALLBACKS", "")
+    s = Settings()
+    assert s.judge_model_fallbacks == ["gemini-3.7-flash", "gemini-3.6-flash"]
+    assert s.oai_model_fallbacks == []
+    assert s.qa_model_fallbacks == ["gemini-3.7-flash", "gemini-3.5-flash"]
