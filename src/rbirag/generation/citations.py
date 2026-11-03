@@ -8,9 +8,15 @@ from pydantic import BaseModel, Field
 
 from rbirag.generation.prompts import REFUSAL_TEXT
 
-# [1] | [1, 3] | [1,2,3] | [1-3] | [1\u20133]
-_CITATION_RE = re.compile(r"\[\s*(\d+(?:\s*(?:,|-|\u2013)\s*\d+)*)\s*\]")
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])(?:\s*\[[\d,\s\-\u2013]+\])*\s+(?=[A-Z0-9(\"'])")
+# [1] | [1, 3] | [1,2,3] | [1-3] | [1\u20133]; ids have 1-3 digits, so "[1949]" or "[2024]"
+# (years, section numbers) are never read as citations.
+_ID = r"\d{1,3}"
+_CITATION_RE = re.compile(r"\[\s*(" + _ID + r"(?:\s*(?:,|-|\u2013)\s*" + _ID + r")*)\s*\]")
+# A citation written after the full stop ("... two years. [2] The limit ...") belongs to the
+# sentence before it: move it in front of the punctuation before splitting.
+_TRAILING_CITES = re.compile(
+    r"([.!?])((?:\s*\[\s*" + _ID + r"(?:\s*(?:,|-|\u2013)\s*" + _ID + r")*\s*\])+)"
+)
 _REFUSAL_MARKERS = (
     "i don't know",
     "i do not know",
@@ -28,8 +34,8 @@ class SentenceCitations(BaseModel):
 
 
 class CitationReport(BaseModel):
-    cited_ids: list[int]  # unique, in order of first appearance
-    invalid_ids: list[int]  # cited ids that do not match a source
+    cited_ids: list[int]  # unique ids within 1..n_sources, in order of first appearance
+    invalid_ids: list[int]  # 1-3 digit bracketed ids beyond the sources (flagged)
     sentences: list[SentenceCitations]
     uncited_sentences: list[str]
     is_refusal: bool
@@ -77,11 +83,16 @@ def is_refusal(text: str) -> bool:
 
 
 def split_sentences(text: str) -> list[str]:
-    """Answer sentences; trailing citations stay attached to their sentence."""
+    """Answer sentences, using the abbreviation-aware splitter of the chunkers (so
+    "Rs. 5 lakh" and "No. 45" do not split). Citations written after a sentence's full
+    stop are attached to that sentence."""
+    from rbirag.chunking.base import split_sentences as split_spans
+
     out: list[str] = []
     for para in re.split(r"\n+", text.strip()):
         para = re.sub(r"^\s*(?:[-*\u2022]|\d+[.)])\s+", "", para)  # list markers
-        out.extend(s.strip() for s in _SENTENCE_SPLIT.split(para) if s.strip())
+        para = _TRAILING_CITES.sub(lambda m: m.group(2).rstrip() + m.group(1), para)
+        out.extend(para[a:b] for a, b in split_spans(para, semicolons=False))
     return out
 
 
@@ -97,9 +108,9 @@ def parse_citations(answer: str, n_sources: int) -> CitationReport:
         SentenceCitations(sentence=s, citations=extract_citations(s))
         for s in split_sentences(answer)
     ]
-    all_ids = extract_citations(answer)
-    unique = list(dict.fromkeys(all_ids))
-    invalid = [i for i in unique if not 1 <= i <= n_sources]
+    all_ids = list(dict.fromkeys(extract_citations(answer)))
+    unique = [i for i in all_ids if 1 <= i <= n_sources]  # citations of real sources
+    invalid = [i for i in all_ids if not 1 <= i <= n_sources]  # [n] beyond the sources
     uncited = (
         []
         if refusal

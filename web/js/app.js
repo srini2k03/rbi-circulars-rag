@@ -123,7 +123,7 @@ async function onSearch(ev) {
 }
 
 function linkify(answer, n) {
-  return escapeHtml(answer).replace(/\[(\d+)\]/g, (s, d) => (+d >= 1 && +d <= n ? `<a href="#src-${d}">[${d}]</a>` : s));
+  return escapeHtml(answer).replace(/\[(\d{1,3})\]/g, (s, d) => (+d >= 1 && +d <= n ? `<a href="#src-${d}">[${d}]</a>` : s));
 }
 
 async function onAnswer() {

@@ -129,10 +129,14 @@ _ABBREVIATIONS = (
     "vs", "cf", "para", "paras", "sec", "art", "ch", "vol", "fig", "dt", "ltd", "pvt", "co",
     "govt", "dept", "approx", "inc", "st", "a.p", "u.s", "rbi",
 )  # fmt: skip
-_SENTENCE_END = re.compile(r"(?<=[.?!;])\s+(?=[\"'(\[]?[A-Z0-9]|\([a-z]{1,4}\)|\([0-9]{1,3}\))|\n+")
+_NEXT_SENTENCE = r"(?=[\"'(\[]?[A-Z0-9]|\([a-z]{1,4}\)|\([0-9]{1,3}\))"
+_SENTENCE_END = re.compile(r"(?<=[.?!;])\s+" + _NEXT_SENTENCE + r"|\n+")
+_SENTENCE_END_NO_SEMICOLON = re.compile(r"(?<=[.?!])\s+" + _NEXT_SENTENCE + r"|\n+")
 
 
-def split_sentences(text: str, start: int = 0, end: int | None = None) -> list[Span]:
+def split_sentences(
+    text: str, start: int = 0, end: int | None = None, *, semicolons: bool = True
+) -> list[Span]:
     """Sentence spans within ``text[start:end]`` (offsets are absolute into ``text``).
 
     Splits on terminal punctuation followed by a capital/digit, and on newlines; avoids
@@ -141,7 +145,8 @@ def split_sentences(text: str, start: int = 0, end: int | None = None) -> list[S
     end = len(text) if end is None else end
     spans: list[Span] = []
     seg_start = start
-    for m in _SENTENCE_END.finditer(text, start, end):
+    pattern = _SENTENCE_END if semicolons else _SENTENCE_END_NO_SEMICOLON
+    for m in pattern.finditer(text, start, end):
         before = text[seg_start : m.start()]
         if "\n" not in m.group(0):
             last_word = re.search(r"(\S+)$", before)
