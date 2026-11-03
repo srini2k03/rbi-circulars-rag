@@ -188,6 +188,10 @@ class FetcherConfig:
     backoff_max_seconds: float = 60.0
     timeout_seconds: float = 30.0
     fetch_pdfs: bool = True
+    # rbidocs serves an HTML interstitial to automated clients, and notification pages
+    # already carry the full text, so only fetch the PDF for near-empty HTML pages.
+    # None = always fetch.
+    pdf_only_below_html_chars: int | None = 400
     max_consecutive_misses: int = 300
     max_consecutive_errors: int = 20
     respect_robots: bool = True
@@ -334,7 +338,9 @@ class RBIFetcher:
                 "pdf_url": parsed.pdf_links[0] if parsed.pdf_links else None,
             }
         )
-        if self.config.fetch_pdfs and entry.pdf_url:
+        threshold = self.config.pdf_only_below_html_chars
+        needs_pdf = threshold is None or len(parsed.text) < threshold
+        if self.config.fetch_pdfs and entry.pdf_url and needs_pdf:
             entry = self._fetch_pdf(entry)
         return entry
 
