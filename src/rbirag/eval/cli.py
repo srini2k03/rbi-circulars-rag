@@ -263,6 +263,36 @@ def _load_per_query(results_dir: Path) -> list[Any]:
     return out
 
 
+def dev_test(s: Settings, pairs: Sequence[Any]) -> tuple[list[Any], list[Any]]:
+    """The document-level dev/test split used everywhere (selection/calibration on dev,
+    headline results on test)."""
+    from rbirag.eval.dataset import split
+
+    return split(pairs, s.dev_fraction, s.seed)
+
+
+def retrieval_rows_for(
+    s: Settings, pairs: Sequence[Any], *, rows: Sequence[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    """Retrieval rows recomputed on exactly ``pairs`` (e.g. the dev split), from the
+    per-query results. Without per-query results nothing can be restricted, so this
+    refuses rather than silently mixing splits."""
+    from rbirag.eval.report import resummarize_retrieval
+
+    rows = list(rows) if rows is not None else _load_rows(s.results_dir)
+    per_query = _load_per_query(s.results_dir)
+    if rows and not per_query:
+        raise typer.BadParameter(
+            "per-query retrieval results are missing; rerun `rbirag eval retrieval` "
+            "(they are needed to select configurations on the dev split only)"
+        )
+    questions = {p.qa_id: p.question for p in pairs}
+    edited = {p.qa_id for p in pairs if p.ai_review is not None and p.ai_review.decision == "edit"}
+    return resummarize_retrieval(
+        rows, per_query, questions, edited=edited, n_resamples=s.bootstrap_samples
+    )
+
+
 @eval_app.command("calibrate")
 def calibrate(
     config: Annotated[
@@ -271,18 +301,18 @@ def calibrate(
     qa: Annotated[Path | None, typer.Option()] = None,
     beta: Annotated[float, typer.Option(help="F-beta of refusal; <1 favours precision.")] = 0.5,
 ) -> None:
-    """Choose the confidence-gate threshold on the dev split."""
+    """Choose the confidence-gate threshold on the dev split. The default config is the
+    best hybrid_rerank config *on the dev split* (test pairs are never looked at)."""
     from rbirag.eval.calibrate import calibrate_threshold
-    from rbirag.eval.dataset import split
 
     s = get_settings()
-    rows = [r for r in _load_rows(s.results_dir) if r["mode"] == "hybrid_rerank"]
+    pairs = load_qa(s, qa)
+    dev, _ = dev_test(s, pairs)
     if config is None:
+        rows = [r for r in retrieval_rows_for(s, dev) if r["mode"] == "hybrid_rerank"]
         if not rows:
             raise typer.BadParameter("no hybrid_rerank rows; run `rbirag eval retrieval` first")
         config = max(rows, key=lambda r: r.get("chunk_ndcg@10") or 0)["config"]
-    pairs = load_qa(s, qa)
-    dev, _ = split(pairs, s.dev_fraction, s.seed)
     dev_ids = {p.qa_id: p.answerable for p in dev}
     dev_questions = {p.qa_id: p.question for p in dev}
     probs: list[float] = []
@@ -328,21 +358,24 @@ def plan(
 
     s = get_settings()
     pairs = load_qa(s, qa)
+    dev, test = dev_test(s, pairs)
+    # configurations are chosen on dev; generation runs (and is reported) on test only
     p = plan_generation(
-        _load_rows(s.results_dir),
-        pairs,
+        retrieval_rows_for(s, dev),
+        test,
         full_configs=full_configs,
         subset_configs=subset_configs,
         subset_size=subset_size,
         seed=s.seed,
     )
-    calls = planned_calls(p, pairs, _csv(backends))
+    calls = planned_calls(p, test, _csv(backends))
     out = s.results_dir / "generation" / "plan.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         json.dumps({**p.model_dump(), "planned_calls": calls}, indent=2), encoding="utf-8"
     )
-    typer.echo(f"full set ({len(p.all_ids)} q): {p.full}")
+    typer.echo(f"split by document: {len(dev)} dev (selection) / {len(test)} test (reported)")
+    typer.echo(f"full test set ({len(p.all_ids)} q): {p.full}")
     typer.echo(f"subset ({len(p.subset_ids)} q): {p.subset}")
     typer.echo("planned LLM calls (upper bound; the confidence gate skips some):")
     for k, v in calls.items():
@@ -506,21 +539,34 @@ def report(
         data.pop("config", None)
         cal = Calibration.model_validate(data)
     pairs, ai_rejected = load_test_set(s, qa)
-    questions = {p.qa_id: p.question for p in pairs}
+    dev, test = dev_test(s, pairs)
+    from rbirag.eval.dataset import split_summary
+
+    split_info = split_summary(dev, test, dev_fraction=s.dev_fraction, seed=s.seed)
+    # headline numbers use the test split only; dev was used to pick configs and tau
+    questions = {p.qa_id: p.question for p in test}
+    dev_questions = {p.qa_id: p.question for p in dev}
     edited = {p.qa_id for p in pairs if p.ai_review is not None and p.ai_review.decision == "edit"}
-    ai_questions = {p.qa_id: p.question for p in pairs if p.ai_review is not None}
-    # results for AI-rejected pairs, or run before an edit, do not count
+    ai_questions = {p.qa_id: p.question for p in test if p.ai_review is not None}
+    # results for AI-rejected pairs, dev pairs, or runs before an edit do not count
     records = current_items(records, questions, edited)
     retrieval_rows = _load_rows(s.results_dir)
     per_query = _load_per_query(s.results_dir)
     ai_rows: list[dict[str, Any]] = []
+    dev_rows: list[dict[str, Any]] = []
     if per_query:
         ai_rows = resummarize_retrieval(
             retrieval_rows, per_query, ai_questions, edited=edited, n_resamples=s.bootstrap_samples
         )
+        dev_rows = resummarize_retrieval(
+            retrieval_rows, per_query, dev_questions, edited=edited, n_resamples=s.bootstrap_samples
+        )
         retrieval_rows = resummarize_retrieval(
             retrieval_rows, per_query, questions, edited=edited, n_resamples=s.bootstrap_samples
         )
+    elif retrieval_rows:
+        typer.echo("no per-query results: retrieval rows cannot be split; omitted", err=True)
+        retrieval_rows = []
 
     model_mix: dict[str, str] = {}
     for backend in sorted({r.backend for r in records}):
@@ -534,6 +580,7 @@ def report(
     meta = run_metadata(
         pairs,
         test_set=qa_path(s, qa).as_posix(),
+        split=split_info,
         ai_rejected=len(ai_rejected),
         model_mix=model_mix,
         judge_model=model_mix.get("judge", s.judge_model),
@@ -562,6 +609,7 @@ def report(
         planned=planned,
         n_resamples=s.bootstrap_samples,
         ai_reviewed_retrieval_rows=ai_rows,
+        dev_retrieval_rows=dev_rows,
         ai_reviewed_generation_records=[r for r in records if r.qa_id in ai_questions],
     )
     for p in written:
