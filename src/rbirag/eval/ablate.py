@@ -31,7 +31,13 @@ from rbirag.eval.nli import NLIScorer, nli_check
 from rbirag.eval.retrieval_metrics import DEFAULT_KS, query_metrics
 from rbirag.eval.stats import bootstrap_ci
 from rbirag.generation.citations import strip_citations
-from rbirag.generation.llm import LLM, ConfigurationError, LLMError, QuotaExhaustedError
+from rbirag.generation.llm import (
+    LLM,
+    ConfigurationError,
+    LLMError,
+    QuotaExhaustedError,
+    RequestRejectedError,
+)
 from rbirag.generation.rag import RAGPipeline
 from rbirag.index.build import IndexBundle, build_index, chunk_documents
 from rbirag.index.embedder import Embedder, FloatArray
@@ -401,7 +407,14 @@ def run_generation_eval(
         rec = existing.get(key)
         try:
             if rec is None or rec.error is not None:
-                ans = pipeline.answer(pair.question)
+                try:
+                    ans = pipeline.answer(pair.question)
+                except RequestRejectedError as exc:  # per-item: record, retry on rerun
+                    logger.warning("answer for %s rejected: %s", pair.qa_id, str(exc)[:160])
+                    rec = _error_record(pair, config, backend, f"rejected: {str(exc)[:200]}")
+                    existing[key] = rec
+                    append_jsonl(records_path, [rec.model_dump()])
+                    continue
                 sources = [s.text for s in ans.sources]
                 rec = GenerationRecord(
                     qa_id=pair.qa_id,
@@ -467,6 +480,15 @@ def run_generation_eval(
                 stopped_because=type(exc).__name__,
             )
     return GenerationRun(complete=True, generated=generated, judged=judged, skipped=skipped)
+
+
+def _error_record(pair: QAPair, config: str, backend: str, error: str) -> GenerationRecord:
+    return GenerationRecord(
+        qa_id=pair.qa_id, config=config, backend=backend, model=None,
+        answerable=pair.answerable, question=pair.question, answer="", refused=False,
+        refusal_reason=None, citation_valid=False, n_citations=0, n_invalid_citations=0,
+        n_uncited_sentences=0, error=error,
+    )  # fmt: skip
 
 
 def _sources_for(pipeline: RAGPipeline, question: str) -> list[str]:

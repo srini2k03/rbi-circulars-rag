@@ -185,6 +185,11 @@ class QuotaExhaustedError(LLMError):
     """The (daily) request budget is used up; rerun later to resume from the cache."""
 
 
+class RequestRejectedError(LLMError):
+    """The provider rejected this particular request (HTTP 400/413/422, e.g. Groq's
+    ``json_validate_failed``). Not retried; callers skip the item and continue."""
+
+
 class ConfigurationError(LLMError):
     """Fatal setup problem (unknown model, bad or unauthorised key). Never retried: the
     run must stop and nothing it produced may be committed."""

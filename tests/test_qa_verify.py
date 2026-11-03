@@ -170,3 +170,21 @@ def test_review_accept_edit_reject_and_resume(tmp_path: Path) -> None:
     )  # fmt: skip
     assert len(shown) == 1
     assert sum(p.verified for p in read_qa_jsonl(out)) == 3
+
+
+def test_rejected_items_are_skipped_and_the_run_continues(chunks: list[Chunk]) -> None:
+    from rbirag.generation.llm import RequestRejectedError
+
+    calls = {"n": 0}
+
+    def flaky(messages: Sequence[Message], system: str | None) -> str:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RequestRejectedError("HTTP 400: json_validate_failed")
+        return scripted_qa(messages, system)
+
+    run = generate_candidates(ScriptedLLM(flaky), chunks, n_answerable=5, n_unanswerable=2)
+    n_samples = len(stratified_samples(chunks, 5))
+    assert run.complete
+    assert sum(p.answerable for p in run.pairs) == n_samples - 1  # one skipped
+    assert sum(not p.answerable for p in run.pairs) == 2

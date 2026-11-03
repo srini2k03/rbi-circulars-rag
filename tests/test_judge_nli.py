@@ -117,3 +117,15 @@ def test_nli_skips_refusals() -> None:
 
     res = nli_check(FakeNLI(), parse_citations(REFUSAL_TEXT, 1), ["s"])
     assert res.faithfulness is None
+
+
+def test_judge_rejected_request_is_a_per_item_error() -> None:
+    from rbirag.generation.llm import RequestRejectedError
+
+    def reject(messages: object, system: object) -> str:
+        raise RequestRejectedError("HTTP 400: json_validate_failed")
+
+    res = judge_answer(ScriptedLLM(reject, model="openai/gpt-oss-120b"), "Q", "A [1].", ["s"])
+    assert res.verdict is None
+    assert res.error is not None
+    assert res.error.startswith("rejected:")

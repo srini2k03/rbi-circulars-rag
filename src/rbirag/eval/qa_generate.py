@@ -28,6 +28,7 @@ from rbirag.generation.llm import (
     LLMError,
     Message,
     QuotaExhaustedError,
+    RequestRejectedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -248,12 +249,17 @@ def build_prompt(sample: Sample) -> str:
 
 
 def generate_pair(llm: LLM, sample: Sample) -> QAPair | None:
-    response = llm.generate(
-        [Message(role="user", content=build_prompt(sample))],
-        system=QA_SYSTEM,
-        max_tokens=1024,
-        json_schema=QA_SCHEMA,
-    )
+    """One candidate, or ``None`` if the model's output is unusable (the item is skipped)."""
+    try:
+        response = llm.generate(
+            [Message(role="user", content=build_prompt(sample))],
+            system=QA_SYSTEM,
+            max_tokens=1024,
+            json_schema=QA_SCHEMA,
+        )
+    except RequestRejectedError as exc:
+        logger.warning("skipping %s: request rejected (%s)", sample.key, str(exc)[:160])
+        return None
     if response.refused or not response.text.strip():
         return None
     try:
@@ -318,12 +324,16 @@ def generate_unanswerable(llm: LLM, n: int, *, date_range: str, batch: int = 10)
         if round_:
             prompt += f"\n\n(Batch {round_ + 1}: avoid repeating earlier topics.)"
         round_ += 1
-        response = llm.generate(
-            [Message(role="user", content=prompt)],
-            system=QA_SYSTEM,
-            max_tokens=2048,
-            json_schema=UNANSWERABLE_SCHEMA,
-        )
+        try:
+            response = llm.generate(
+                [Message(role="user", content=prompt)],
+                system=QA_SYSTEM,
+                max_tokens=2048,
+                json_schema=UNANSWERABLE_SCHEMA,
+            )
+        except RequestRejectedError as exc:
+            logger.warning("skipping an unanswerable batch: %s", str(exc)[:160])
+            continue
         try:
             questions = extract_json_object(response.text).get("questions", [])
         except JudgeParseError:

@@ -32,6 +32,7 @@ from rbirag.generation.llm import (
     LLMResponse,
     Message,
     QuotaExhaustedError,
+    RequestRejectedError,
     StreamChunk,
     TokenUsage,
     fatal_http_message,
@@ -292,7 +293,7 @@ class OpenAICompatibleLLM:
                     model = self.health.pick(self.chain)
                     continue
                 if status not in RETRYABLE:
-                    raise LLMError(last_error)
+                    raise RequestRejectedError(last_error)
                 retry_after = resp.headers.get("retry-after")
             if status == 503:
                 consecutive_503 += 1
@@ -352,9 +353,18 @@ class OpenAICompatibleLLM:
         json_schema: dict[str, Any] | None = None,
     ) -> LLMResponse:
         started = time.perf_counter()
-        resp, served_by = self._send(
-            self.payload(messages, system=system, max_tokens=max_tokens, json_schema=json_schema)
-        )
+        body = self.payload(messages, system=system, max_tokens=max_tokens, json_schema=json_schema)
+        try:
+            resp, served_by = self._send(body)
+        except RequestRejectedError as exc:
+            # Groq's JSON mode rejects a generation that is not valid JSON
+            # (json_validate_failed). Retry once without JSON mode; callers parse the
+            # JSON out of the text and skip the item if that fails too.
+            if "response_format" not in body or "json_validate_failed" not in str(exc):
+                raise
+            logger.warning("JSON mode rejected the output; retrying once without it")
+            body = {k: v for k, v in body.items() if k != "response_format"}
+            resp, served_by = self._send(body)
         try:
             data = json.loads(resp.read())
         finally:

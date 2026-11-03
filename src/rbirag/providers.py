@@ -39,22 +39,24 @@ GROQ = ProviderPreset(
     name="groq",
     base_url="https://api.groq.com/openai/v1",
     api_key_env="GROQ_API_KEY",
-    # Fast 8B generator (high daily quota), different from the judge models.
-    generator=("llama-3.1-8b-instant", "openai/gpt-oss-20b"),
-    judge=("llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"),
-    qa_writer=("llama-3.3-70b-versatile", "openai/gpt-oss-120b", "qwen/qwen3-32b"),
-    rpm=25,  # published free tier: 30 RPM (60 for qwen3-32b)
+    # Chains use only chat models listed for the project's key (GET /openai/v1/models,
+    # 2026-11): llama-3.3-70b-versatile and llama-3.1-8b-instant returned 404 / are not
+    # listed. The generator (20B) differs from the judge (120B).
+    generator=("openai/gpt-oss-20b", "qwen/qwen3.8-27b"),
+    judge=("openai/gpt-oss-120b", "qwen/qwen3.8-27b"),
+    qa_writer=("openai/gpt-oss-120b", "qwen/qwen3.8-27b"),
+    rpm=25,  # published free tier: 30 RPM
     json_mode="json_object",
-    default_rpd=950,  # published: 1,000/day for the larger models
-    rpd={"llama-3.1-8b-instant": 14_000},  # published: 14,400/day
-    # published free-tier TPM: 70B 12k, 8B 6k, gpt-oss 8k, qwen3-32b 6k
+    default_rpd=950,  # published: 1,000/day
+    # published free-tier TPM: gpt-oss 8k; the Qwen budget is a conservative guess
     tpm={
-        "llama-3.3-70b-versatile": 11_000,
-        "llama-3.1-8b-instant": 5_500,
         "openai/gpt-oss-120b": 7_500,
         "openai/gpt-oss-20b": 7_500,
-        "qwen/qwen3-32b": 5_500,
+        "qwen/qwen3.8-27b": 5_500,
+        "llama-3.3-70b-versatile": 11_000,
+        "llama-3.1-8b-instant": 5_500,
     },
+    rpd={"llama-3.1-8b-instant": 14_000},
 )
 
 GEMINI = ProviderPreset(
