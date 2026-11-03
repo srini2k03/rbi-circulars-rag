@@ -11,6 +11,7 @@ import httpx
 
 from rbirag.generation.llm import (
     ConfigurationError,
+    LLMError,
     LLMResponse,
     Message,
     StreamChunk,
@@ -20,8 +21,9 @@ from rbirag.generation.llm import (
 )
 
 
-class OllamaError(RuntimeError):
-    pass
+class OllamaError(LLMError):
+    """Ollama failed (HTTP error, error event, or server unreachable). An LLMError, so
+    evaluation runs stop cleanly and resume instead of crashing."""
 
 
 class OllamaLLM:
@@ -76,6 +78,14 @@ class OllamaLLM:
         return body
 
     def _chunks(self, body: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        try:
+            yield from self._chunks_raw(body)
+        except httpx.TransportError as exc:
+            raise OllamaError(
+                f"Ollama server not reachable at {self.base_url} ({type(exc).__name__})"
+            ) from exc
+
+    def _chunks_raw(self, body: dict[str, Any]) -> Iterator[dict[str, Any]]:
         with self.client.stream("POST", f"{self.base_url}/api/chat", json=body) as resp:
             if resp.status_code != 200:
                 resp.read()

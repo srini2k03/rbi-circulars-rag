@@ -311,3 +311,49 @@ def test_cached_answers_are_flagged_and_add_no_tokens(
     assert rows["b"]["n_cached"] == len(second)
     assert rows["a"]["input_tokens"] > 0
     assert "latency_ms_p50" not in rows["b"]  # cached answers have no meaningful latency
+
+
+def test_unreachable_ollama_stops_cleanly_instead_of_crashing(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    import httpx
+
+    from rbirag.generation.llm import LLMError
+    from rbirag.generation.ollama import OllamaError, OllamaLLM
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    llm = OllamaLLM(client=httpx.Client(transport=httpx.MockTransport(down)))
+    assert issubclass(OllamaError, LLMError)
+    run = run_generation_eval(
+        make_pipeline(fixture_docs, llm), qa, config="c", records_path=tmp_path / "r.jsonl"
+    )
+    assert not run.complete
+    assert run.stopped_because == "OllamaError"
+
+
+def test_judge_only_never_generates(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    from rbirag.eval.ablate import JudgeOnlyLLM
+
+    records = tmp_path / "r.jsonl"
+    # answers exist for the first two questions only, without verdicts
+    run_generation_eval(
+        make_pipeline(fixture_docs, FakeLLM()), qa[:2], config="c", records_path=records
+    )
+    judge = ScriptedLLM(lambda m, s: JUDGE_JSON, model="judge")
+    run = run_generation_eval(
+        make_pipeline(fixture_docs, JudgeOnlyLLM("fake")), qa, config="c", records_path=records,
+        judge=judge, judge_only=True,
+    )  # fmt: skip
+    assert run.complete
+    assert run.generated == 0
+    assert run.skipped == len(qa)  # nothing generated: existing and missing answers are skipped
+    recs = load_records(records)
+    assert len(recs) == 2
+    assert all(
+        r.judge_faithfulness is not None for r in recs.values() if r.answerable and not r.refused
+    )
+    assert run.judged == len(judge.calls)

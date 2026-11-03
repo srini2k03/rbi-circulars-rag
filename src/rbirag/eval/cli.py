@@ -23,14 +23,18 @@ eval_app = typer.Typer(
 
 
 @contextmanager
-def fatal_errors_exit() -> Iterator[None]:
-    """Turn a fatal configuration error into a clear message and exit code 2."""
+def fatal_errors_exit(marker: Path | None = None) -> Iterator[None]:
+    """Turn a fatal configuration error into a clear message and exit code 2. With
+    ``marker``, also write it (workflows then refuse to commit anything from the run)."""
     from rbirag.generation.llm import ConfigurationError
 
     try:
         yield
     except ConfigurationError as exc:
         typer.echo(f"::error::{exc}", err=True)
+        if marker is not None:
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(json.dumps({"error": str(exc)[:500]}), encoding="utf-8")
         raise typer.Exit(code=2) from exc
 
 
@@ -366,6 +370,9 @@ def generate(
     docs: Annotated[Path | None, typer.Option()] = None,
     qa: Annotated[Path | None, typer.Option()] = None,
     judge: Annotated[bool, typer.Option("--judge/--no-judge")] = True,
+    judge_only: Annotated[
+        bool, typer.Option("--judge-only", help="Never generate; only judge existing answers.")
+    ] = False,
     nli: Annotated[str, typer.Option(help="model | fake | none")] = "model",
     embedder: Annotated[str | None, typer.Option()] = None,
     reranker: Annotated[str | None, typer.Option()] = None,
@@ -394,12 +401,20 @@ def generate(
     by_id = {p.qa_id: p for p in load_qa(s, qa)}
     documents = read_documents_jsonl(docs or s.documents_path)
     emb, rr = _models(s, embedder, reranker)
-    llm = build_llm(s, backend, model)
-    judge_llm = (
-        build_llm(s, s.judge_backend, s.judge_model, fallbacks=s.judge_model_fallbacks)
-        if judge
-        else None
-    )
+    marker = s.results_dir / "generation" / f"fatal-{backend}.json"
+    if judge_only:
+        from rbirag.eval.ablate import JudgeOnlyLLM
+
+        llm: Any = JudgeOnlyLLM(backend, model or "judge-only")
+    else:
+        with fatal_errors_exit(marker):
+            llm = build_llm(s, backend, model)
+    judge_llm = None
+    if judge:
+        with fatal_errors_exit(marker):
+            judge_llm = build_llm(
+                s, s.judge_backend, s.judge_model, fallbacks=s.judge_model_fallbacks
+            )
     scorer: NLIScorer | None = (
         CrossEncoderNLI(s.nli_model, device=s.device)
         if nli == "model"
@@ -429,7 +444,7 @@ def generate(
         )
         pipeline = RAGPipeline.from_settings(retriever, llm, s)
         records = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
-        with fatal_errors_exit():
+        with fatal_errors_exit(marker):
             run = run_generation_eval(
                 pipeline,
                 [by_id[i] for i in ids if i in by_id],
@@ -438,6 +453,7 @@ def generate(
                 judge=judge_llm,
                 nli=scorer,
                 embedder=emb,
+                judge_only=judge_only,
             )
         status["configs"][name] = vars(run)
         typer.echo(f"{name}: {vars(run)}")

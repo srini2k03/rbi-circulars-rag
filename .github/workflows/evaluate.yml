@@ -343,8 +343,9 @@ jobs:
 
   judge-ollama:
     needs: [select, generate-ollama, generate-api]
-    # A failed API job (e.g. a fatal model/key error) stops everything downstream.
-    if: ${{ always() && needs.select.result == 'success' && needs.generate-api.result == 'success' }}
+    # Judges whatever Ollama answers exist (judge-only: never needs an Ollama server). A
+    # fatal key/model error in the API job writes a fatal marker, which blocks the commit.
+    if: ${{ always() && needs.select.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
@@ -397,7 +398,7 @@ jobs:
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: rbirag eval generate --backend ollama
+        run: rbirag eval generate --backend ollama --judge-only
       - name: Save LLM cache
         if: always()
         uses: actions/cache/save@v4
@@ -413,9 +414,10 @@ jobs:
 
   report:
     needs: [preflight, retrieval, select, generate-api, judge-ollama]
-    # Never report/commit a run whose LLM jobs failed (fatal configuration errors exit 2).
-    # Quota exhaustion is not a failure: those jobs succeed with status "incomplete".
-    if: ${{ always() && needs.select.result == 'success' && needs.generate-api.result == 'success' && needs.judge-ollama.result == 'success' }}
+    # Reports what succeeded even if one backend's job failed: that backend's rows are
+    # "incomplete (k/N)". A fatal configuration error (exit 2) leaves a fatal-*.json
+    # marker in the artifacts, and then nothing from the run is committed.
+    if: ${{ always() && needs.select.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -426,7 +428,7 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[retrieval,eval]"
       - name: Drop status files from earlier runs (only this run's count)
-        run: rm -f results/generation/status-*.json
+        run: rm -f results/generation/status-*.json results/generation/fatal-*.json
       - uses: actions/download-artifact@v4
         if: ${{ needs.preflight.outputs.reuse != 'true' }}
         with:
@@ -442,7 +444,15 @@ jobs:
           name: generation-api
           path: results/generation
         continue-on-error: true
-      - uses: actions/download-artifact@v4
+      - name: Ollama answers from the matrix jobs (kept even if judging failed)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: generation-ollama-*
+          path: results/generation
+          merge-multiple: true
+        continue-on-error: true
+      - name: Judged Ollama answers (overwrite the unjudged copies)
+        uses: actions/download-artifact@v4
         with:
           name: generation-ollama-judged
           path: results/generation
@@ -462,6 +472,11 @@ jobs:
         env:
           RETRIEVAL_FRESH: ${{ needs.preflight.outputs.reuse != 'true' }}
         run: |
+          if ls results/generation/fatal-*.json >/dev/null 2>&1; then
+            cat results/generation/fatal-*.json
+            echo "::error::A fatal configuration error (unknown model or rejected key) occurred in this run; nothing is committed."
+            exit 1
+          fi
           items=$(python3 - <<'PY'
           import glob, json, os
           n = 0
