@@ -10,7 +10,7 @@ from typing import get_args
 from pydantic import BaseModel, Field
 
 from rbirag.chunking.base import Chunk
-from rbirag.config import RetrievalMode
+from rbirag.config import RetrievalMode, Settings
 from rbirag.index.bm25 import BM25Index
 from rbirag.index.dense import QdrantIndex
 from rbirag.index.store import ChunkStore
@@ -147,3 +147,34 @@ class Retriever:
         return RetrievalResult(
             query=query, mode=mode, results=results, timings_ms=timings, confidence=confidence
         )
+
+
+def make_retriever(
+    settings: Settings,
+    store: ChunkStore,
+    *,
+    bm25: BM25Index | None,
+    dense: QdrantIndex | None,
+    reranker: Reranker | None,
+    mode: RetrievalMode | None = None,
+    confidence_threshold: float | None = None,
+) -> Retriever:
+    """The one place a :class:`Retriever` is configured from settings (ablation, generation
+    eval, API and CLI all use it), so fusion weights, candidate depths and the confidence
+    temperature can never differ between the numbers reported and the system served."""
+    return Retriever(
+        store,
+        bm25=bm25,
+        dense=dense,
+        reranker=reranker,
+        mode=mode or settings.retrieval_mode,
+        candidate_k=settings.candidate_k,
+        rerank_k=settings.rerank_k,
+        rrf_k=settings.rrf_k,
+        bm25_weight=settings.bm25_weight,
+        dense_weight=settings.dense_weight,
+        confidence_threshold=(
+            settings.confidence_threshold if confidence_threshold is None else confidence_threshold
+        ),
+        confidence_temperature=settings.confidence_temperature,
+    )

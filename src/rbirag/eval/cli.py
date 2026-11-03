@@ -375,7 +375,7 @@ def generate(
     from rbirag.eval.ablate import RetrievalConfig, build_config_index, run_generation_eval
     from rbirag.eval.nli import CrossEncoderNLI, FakeNLI, NLIScorer
     from rbirag.generation.rag import RAGPipeline, build_llm
-    from rbirag.retrieval.pipeline import Retriever
+    from rbirag.retrieval.pipeline import make_retriever
 
     s = get_settings()
     plan_path = s.results_dir / "generation" / "plan.json"
@@ -418,17 +418,14 @@ def generate(
         cfg = RetrievalConfig.parse(name)
         _, bundle = build_config_index(documents, cfg.chunker, cfg.size, s, emb)
         mode: Any = cfg.mode
-        retriever = Retriever(
+        retriever = make_retriever(
+            s,
             bundle.store,
             bm25=bundle.bm25,
             dense=bundle.dense,
             reranker=rr if cfg.mode == "hybrid_rerank" else None,
             mode=mode,
-            candidate_k=s.candidate_k,
-            rerank_k=s.rerank_k,
-            rrf_k=s.rrf_k,
             confidence_threshold=threshold,
-            confidence_temperature=s.confidence_temperature,
         )
         pipeline = RAGPipeline.from_settings(retriever, llm, s)
         records = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
