@@ -10,7 +10,7 @@ on:
   # the candidate set has reached its targets, resumes until every planned call is done,
   # and otherwise exits cleanly.
   schedule:
-    - cron: "41 15 * * *"
+    - cron: "41 * * * *"  # hourly: resumes until done; exits early when done or quota is spent
   workflow_dispatch:
     inputs:
       provider:
