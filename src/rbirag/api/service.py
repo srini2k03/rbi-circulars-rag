@@ -430,6 +430,7 @@ def to_response(answer: RAGAnswer, request_id: str, backend: str) -> QueryRespon
             output_tokens=answer.usage.output_tokens,
         ),
         cost=CostOut(usd=answer.cost.usd, inr=answer.cost.inr),
+        cached=answer.cached,
     )
 
 
@@ -444,4 +445,5 @@ def response_log_fields(resp: QueryResponse) -> dict[str, Any]:
         "input_tokens": resp.usage.input_tokens,
         "output_tokens": resp.usage.output_tokens,
         "cost_usd": resp.cost.usd,
+        "cached": resp.cached,
     }

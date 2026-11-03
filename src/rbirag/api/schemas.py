@@ -130,6 +130,7 @@ class QueryResponse(BaseModel):
     timings_ms: dict[str, float]
     usage: Usage
     cost: CostOut
+    cached: bool = Field(default=False, description="Answer served from the LLM cache.")
 
 
 class IngestRequest(BaseModel):

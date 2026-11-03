@@ -255,3 +255,16 @@ def test_request_log_mirrors_to_jsonl(tmp_path: Path) -> None:
     assert s.latency["total"].p50_ms == 25.0
     assert s.tokens_per_answer == 15.0
     assert len(path.read_text().splitlines()) == 4
+
+
+def test_metrics_exclude_cached_from_latency_and_tokens() -> None:
+    log = RequestLog()
+    log.add(RequestLogEntry(request_id="1", endpoint="/query", status=200, model="m",
+                            timings_ms={"total": 100.0}, input_tokens=10, output_tokens=5))  # fmt: skip
+    log.add(RequestLogEntry(request_id="2", endpoint="/query", status=200, model="m", cached=True,
+                            timings_ms={"total": 1.0}, input_tokens=10, output_tokens=5))  # fmt: skip
+    s = log.summary()
+    assert s.latency["total"].count == 1
+    assert s.latency["total"].mean_ms == 100.0
+    assert s.input_tokens == 10
+    assert s.cached == 1

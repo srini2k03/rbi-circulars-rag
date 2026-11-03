@@ -129,6 +129,7 @@ class JudgeResult(BaseModel):
     model: str
     backend: str
     error: str | None = None
+    cached: bool = False
 
 
 def extract_json_object(text: str) -> dict[str, Any]:
@@ -208,6 +209,7 @@ def judge_answer(
             model=response.model,
             backend=response.backend,
             error=error,
+            cached=response.cached,
         )
 
     if response.refused:

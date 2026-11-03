@@ -141,9 +141,13 @@ def generation_rows(
             "n": len(recs),
             "n_answerable": sum(r.answerable for r in recs),
             **{f"refusal_{k}": v for k, v in refusal_counts(recs).items()},
-            "input_tokens": sum(r.input_tokens for r in recs),
-            "output_tokens": sum(r.output_tokens for r in recs),
-            "judge_tokens": sum(r.judge_input_tokens + r.judge_output_tokens for r in recs),
+            # token totals count only calls actually made (cached responses add none)
+            "n_cached": sum(r.cached for r in recs),
+            "input_tokens": sum(r.input_tokens for r in recs if not r.cached),
+            "output_tokens": sum(r.output_tokens for r in recs if not r.cached),
+            "judge_tokens": sum(
+                r.judge_input_tokens + r.judge_output_tokens for r in recs if not r.judge_cached
+            ),
         }
         for name, est in summary.items():
             row[name] = est.mean

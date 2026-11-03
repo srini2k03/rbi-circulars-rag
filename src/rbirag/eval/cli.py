@@ -528,9 +528,11 @@ def report(
         embedding_model=s.embedding_model,
         reranker_model=s.reranker_model,
         nli_model=s.nli_model,
-        llm_cost_usd=round(sum(r.cost_usd for r in records), 6),
-        llm_tokens=sum(r.input_tokens + r.output_tokens for r in records),
-        judge_tokens=sum(r.judge_input_tokens + r.judge_output_tokens for r in records),
+        llm_cost_usd=round(sum(r.cost_usd for r in records if not r.cached), 6),
+        llm_tokens=sum(r.input_tokens + r.output_tokens for r in records if not r.cached),
+        judge_tokens=sum(
+            r.judge_input_tokens + r.judge_output_tokens for r in records if not r.judge_cached
+        ),
     )
     planned: dict[str, int] = {}
     plan_path = s.results_dir / "generation" / "plan.json"
