@@ -438,6 +438,7 @@ def run_generation_eval(
                     input_tokens=ans.usage.input_tokens + ans.usage.cache_read_input_tokens,
                     output_tokens=ans.usage.output_tokens,
                     cost_usd=ans.cost.usd,
+                    cached=ans.cached,
                     latency_ms=ans.timings_ms,
                 )
                 if not ans.refused:
@@ -463,6 +464,7 @@ def run_generation_eval(
                         "judge_faithfulness": jr.verdict.faithfulness if jr.verdict else None,
                         "judge_relevance": jr.verdict.relevance_score if jr.verdict else None,
                         "judge_error": jr.error,
+                        "judge_cached": jr.cached,
                         "judge_input_tokens": jr.usage.input_tokens,
                         "judge_output_tokens": jr.usage.output_tokens,
                     }

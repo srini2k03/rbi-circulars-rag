@@ -282,3 +282,32 @@ def test_generation_eval_continues_after_rejected_items(
     judged = [r for r in recs.values() if r.judge_error and r.judge_error.startswith("rejected:")]
     assert len(judged) == 1
     assert sum(r.judge_faithfulness is not None for r in recs.values()) >= 1
+
+
+def test_cached_answers_are_flagged_and_add_no_tokens(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    from rbirag.eval.report import generation_rows
+    from rbirag.generation.cache import CachedLLM
+
+    llm = CachedLLM(
+        ScriptedLLM(lambda m, s: "Banks must update KYC [1].", model="m", backend="anthropic"),
+        tmp_path / "cache",
+    )
+    pipeline = make_pipeline(fixture_docs, llm)
+    judge = CachedLLM(
+        ScriptedLLM(lambda m, s: JUDGE_JSON, model="j", backend="anthropic"), tmp_path / "cache"
+    )
+    run_generation_eval(pipeline, qa, config="a", records_path=tmp_path / "a.jsonl", judge=judge)
+    run_generation_eval(pipeline, qa, config="b", records_path=tmp_path / "b.jsonl", judge=judge)
+    first = [r for r in load_records(tmp_path / "a.jsonl").values() if r.model]
+    second = [r for r in load_records(tmp_path / "b.jsonl").values() if r.model]
+    assert first and not any(r.cached for r in first)
+    assert second and all(r.cached for r in second)  # same prompts -> served from the cache
+    assert all(r.judge_cached for r in second if r.judge_model)
+    rows = {r["config"]: r for r in generation_rows(first + second, n_resamples=50)}
+    assert rows["b"]["input_tokens"] == 0
+    assert rows["b"]["judge_tokens"] == 0
+    assert rows["b"]["n_cached"] == len(second)
+    assert rows["a"]["input_tokens"] > 0
+    assert "latency_ms_p50" not in rows["b"]  # cached answers have no meaningful latency

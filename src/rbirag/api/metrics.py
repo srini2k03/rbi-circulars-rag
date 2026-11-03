@@ -30,6 +30,7 @@ class RequestLogEntry(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float = 0.0
+    cached: bool = False
     error: str | None = None
 
 
@@ -52,6 +53,7 @@ class MetricsSummary(BaseModel):
     output_tokens: int
     tokens_per_answer: float | None
     cost_usd: float
+    cached: int = 0
     since: str | None
 
 
@@ -87,9 +89,10 @@ class RequestLog:
         entries = self.entries()
         queries = [e for e in entries if e.endpoint.startswith("/query")]
         ok = [e for e in queries if e.error is None]
+        fresh = [e for e in ok if not e.cached]  # cache hits skew latency and add no tokens
         latency: dict[str, StageStats] = {}
         for stage in STAGES:
-            values = [e.timings_ms[stage] for e in ok if stage in e.timings_ms]
+            values = [e.timings_ms[stage] for e in fresh if stage in e.timings_ms]
             if values:
                 latency[stage] = _stats(values)
         answered = [e for e in ok if e.model]
@@ -103,10 +106,11 @@ class RequestLog:
             by_backend=dict(Counter(e.backend or "none" for e in ok)),
             by_mode=dict(Counter(e.mode or "none" for e in ok)),
             latency=latency,
-            input_tokens=sum(e.input_tokens for e in ok),
-            output_tokens=sum(e.output_tokens for e in ok),
+            input_tokens=sum(e.input_tokens for e in fresh),
+            output_tokens=sum(e.output_tokens for e in fresh),
             tokens_per_answer=round(sum(tokens) / len(tokens), 1) if tokens else None,
-            cost_usd=round(sum(e.cost_usd for e in ok), 8),
+            cost_usd=round(sum(e.cost_usd for e in fresh), 8),
+            cached=sum(1 for e in ok if e.cached),
             since=entries[0].ts if entries else None,
         )
 

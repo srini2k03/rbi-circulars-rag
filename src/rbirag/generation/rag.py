@@ -51,6 +51,7 @@ class RAGAnswer(BaseModel):
     usage: TokenUsage = Field(default_factory=TokenUsage)
     cost: Cost = Field(default_factory=lambda: Cost(usd=0.0, inr=0.0, priced=True))
     timings_ms: dict[str, float] = Field(default_factory=dict)
+    cached: bool = False  # the LLM response came from the on-disk cache
 
 
 class StreamEvent(BaseModel):
@@ -204,6 +205,7 @@ class RAGPipeline:
             usage=response.usage,
             cost=cost,
             timings_ms=timings,
+            cached=response.cached,
         )
 
     # -- public API ----------------------------------------------------------------------

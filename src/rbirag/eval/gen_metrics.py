@@ -49,7 +49,8 @@ class GenerationRecord(BaseModel):
     judge_input_tokens: int = 0
     judge_output_tokens: int = 0
     cost_usd: float = 0.0
-    cached: bool = False
+    cached: bool = False  # answer served from the LLM cache (no new tokens, no latency)
+    judge_cached: bool = False
     latency_ms: dict[str, float] = {}
     error: str | None = None
 
@@ -102,8 +103,12 @@ def summarize(
         out["latency_ms_p95"] = Estimate(
             mean=float(np.percentile(lat, 95)), low=float("nan"), high=float("nan"), n=len(lat)
         )
+    fresh = [r for r in ok if not r.cached]  # cached answers cost nothing new
     out["cost_usd_total"] = Estimate(
-        mean=float(sum(r.cost_usd for r in ok)), low=float("nan"), high=float("nan"), n=len(ok)
+        mean=float(sum(r.cost_usd for r in fresh)),
+        low=float("nan"),
+        high=float("nan"),
+        n=len(fresh),
     )
     out["tokens_per_answer"] = bootstrap_ci(
         [float(r.input_tokens + r.output_tokens) for r in ok if r.model],
