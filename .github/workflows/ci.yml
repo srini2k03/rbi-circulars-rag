@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint, types, tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (light extras only, no torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ingest,retrieval,dev]"
+
+      - name: Ruff lint
+        run: ruff check --output-format=github .
+
+      - name: Ruff format
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy
+
+      - name: Pytest
+        run: pytest --cov --cov-report=term-missing:skip-covered
+
+      - name: Assert heavy ML deps were not needed
+        run: |
+          python - <<'PY'
+          import importlib.util, sys
+          heavy = [m for m in ("torch", "sentence_transformers") if importlib.util.find_spec(m)]
+          sys.exit(f"heavy deps unexpectedly installed: {heavy}" if heavy else 0)
+          PY
+
+      - name: Offline end-to-end smoke on fixtures
+        run: ./scripts/smoke_fixtures.sh
