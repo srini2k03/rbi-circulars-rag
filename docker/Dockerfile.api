@@ -1,0 +1,35 @@
+# API image. EXTRAS controls what is installed: the default includes the ml extra
+# (CPU torch + sentence-transformers) for the real embedder/reranker; CI's smoke test
+# builds with EXTRAS=ingest,retrieval,llm,api and the fake models.
+FROM python:3.12-slim
+
+ARG EXTRAS=ingest,retrieval,llm,api,ml
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_HOME=/models \
+    RBIRAG_DATA_DIR=/data \
+    RBIRAG_RAW_DIR=/data/raw \
+    RBIRAG_PROCESSED_DIR=/data/processed \
+    RBIRAG_INDEX_DIR=/data/indexes \
+    RBIRAG_LLM_CACHE_DIR=/data/.cache/llm
+
+WORKDIR /app
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+RUN case ",${EXTRAS}," in *,ml,*) pip install torch --index-url "${TORCH_INDEX_URL}" ;; esac \
+    && pip install ".[${EXTRAS}]"
+
+COPY tests/fixtures/html /app/fixtures/html
+COPY docker/api-entrypoint.sh /usr/local/bin/api-entrypoint.sh
+RUN chmod +x /usr/local/bin/api-entrypoint.sh \
+    && useradd --create-home --uid 10001 app \
+    && mkdir -p /data /models && chown -R app /data /models
+USER app
+
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=10 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"
+ENTRYPOINT ["api-entrypoint.sh"]

@@ -449,7 +449,7 @@ jobs:
         continue-on-error: true
       - name: Build report
         run: |
-          rbirag eval report
+          rbirag eval report --update-readme README.md
           {
             echo "## Status"
             for f in results/generation/status-*.json; do [ -f "$f" ] && { echo "### $f"; echo '```json'; cat "$f"; echo '```'; }; done
@@ -480,8 +480,17 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add results
+          git add results README.md
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
           git commit -m "Update evaluation results (run ${{ github.run_id }}, ${GITHUB_SHA::7})"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          # Other bots (daily runs) may push meanwhile: rebase and retry with backoff.
+          for attempt in 1 2 3 4 5; do
+            if git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; then
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            echo "push attempt ${attempt} failed; retrying"
+            sleep $((attempt * 15))
+          done
+          echo "::error::could not push after 5 attempts"
+          exit 1
