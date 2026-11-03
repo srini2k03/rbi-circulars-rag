@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Iterator, Mapping
-from typing import Literal
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -262,21 +262,47 @@ def shared_limiter(settings: Settings) -> RequestLimiter:
     return _LIMITERS[key]
 
 
+_HEALTH: dict[float, Any] = {}
+
+
+def shared_health(settings: Settings) -> Any:
+    """One :class:`ModelHealth` per process, so cooldowns apply across all roles."""
+    from rbirag.generation.openai_compat import ModelHealth
+
+    key = settings.llm_model_cooldown_seconds
+    if key not in _HEALTH:
+        _HEALTH[key] = ModelHealth(cooldown_seconds=key)
+    return _HEALTH[key]
+
+
 def build_llm(
     settings: Settings,
     backend: str | None = None,
     model: str | None = None,
     *,
+    fallbacks: Sequence[str] | None = None,
     cache: bool | None = None,
 ) -> LLM:
-    """LLM for ``backend`` (default ``settings.llm_backend``), wrapped in the disk cache."""
+    """LLM for ``backend`` (default ``settings.llm_backend``), wrapped in the disk cache.
+
+    For the OpenAI-compatible backend, ``fallbacks`` is the model chain after ``model``;
+    by default the generator chain applies when no explicit model is given.
+    """
     backend = backend or settings.llm_backend
     llm: LLM
     if backend == "openai_compatible":
         from rbirag.generation.openai_compat import OpenAICompatibleLLM
 
+        chain = (
+            list(fallbacks)
+            if fallbacks is not None
+            else (settings.oai_model_fallbacks if model is None else [])
+        )
         llm = OpenAICompatibleLLM(
             model or settings.oai_model,
+            fallbacks=chain,
+            health=shared_health(settings),
+            switch_after_503=settings.llm_switch_after_503,
             base_url=settings.oai_base_url,
             api_key_env=settings.oai_api_key_env,
             reasoning_effort=settings.oai_reasoning_effort,

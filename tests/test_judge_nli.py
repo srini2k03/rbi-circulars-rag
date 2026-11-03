@@ -64,13 +64,13 @@ def test_extract_json_with_braces_in_strings() -> None:
 
 
 def test_judge_answer_end_to_end_with_mock() -> None:
-    llm = ScriptedLLM([CANNED_PLAIN], model="gemini-2.5-flash", backend="openai_compatible")
+    llm = ScriptedLLM([CANNED_PLAIN], model="gemini-3.8-flash", backend="openai_compatible")
     res = judge_answer(
         llm, "Q?", "KYC every two years [1]. Fee is Rs 500 [2].", ["src one", "src two"]
     )
     assert res.verdict is not None
     assert res.verdict.faithfulness == 0.5
-    assert res.model == "gemini-2.5-flash"
+    assert res.model == "gemini-3.8-flash"
     system, msgs = llm.calls[0]
     assert system is not None
     assert "[1] src one" in msgs[0].content

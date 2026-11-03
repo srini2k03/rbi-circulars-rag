@@ -47,6 +47,11 @@ class LLMResponse(BaseModel):
     latency_ms: float = 0.0
     cached: bool = False  # served from the on-disk LLM cache
 
+    @property
+    def ok(self) -> bool:
+        """A successful completion: not refused, not empty, not an error stop."""
+        return not self.refused and bool(self.text.strip()) and self.stop_reason != "error"
+
 
 @dataclass
 class StreamChunk:
@@ -178,3 +183,23 @@ class LLMError(RuntimeError):
 
 class QuotaExhaustedError(LLMError):
     """The (daily) request budget is used up; rerun later to resume from the cache."""
+
+
+class ConfigurationError(LLMError):
+    """Fatal setup problem (unknown model, bad or unauthorised key). Never retried: the
+    run must stop and nothing it produced may be committed."""
+
+
+FATAL_HTTP_STATUS = frozenset({401, 403, 404})
+
+
+def fatal_http_message(status: int, model: str, detail: str = "") -> str:
+    reason = {
+        401: "the API key was rejected (401 Unauthorized)",
+        403: "the API key is not permitted to use this model or endpoint (403 Forbidden)",
+        404: f"model {model!r} was not found or is not available to this key (404)",
+    }.get(status, f"HTTP {status}")
+    hint = " Check the model id (list the models available to the key) and the key secret."
+    return f"Fatal configuration error: {reason}.{hint}" + (
+        f" Provider said: {detail}" if detail else ""
+    )

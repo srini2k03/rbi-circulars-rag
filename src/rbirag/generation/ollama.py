@@ -9,7 +9,15 @@ from typing import Any
 
 import httpx
 
-from rbirag.generation.llm import LLMResponse, Message, StreamChunk, TokenUsage, timed_ms
+from rbirag.generation.llm import (
+    ConfigurationError,
+    LLMResponse,
+    Message,
+    StreamChunk,
+    TokenUsage,
+    fatal_http_message,
+    timed_ms,
+)
 
 
 class OllamaError(RuntimeError):
@@ -71,6 +79,11 @@ class OllamaLLM:
         with self.client.stream("POST", f"{self.base_url}/api/chat", json=body) as resp:
             if resp.status_code != 200:
                 resp.read()
+                if resp.status_code == 404:
+                    raise ConfigurationError(
+                        fatal_http_message(404, self._model, resp.text[:200])
+                        + f" For Ollama, run: ollama pull {self._model}"
+                    )
                 raise OllamaError(f"Ollama HTTP {resp.status_code}: {resp.text[:300]}")
             for line in resp.iter_lines():
                 if not line.strip():

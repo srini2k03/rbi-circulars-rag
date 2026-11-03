@@ -19,7 +19,15 @@ from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager
 from typing import Any
 
-from rbirag.generation.llm import LLMResponse, Message, StreamChunk, TokenUsage, timed_ms
+from rbirag.generation.llm import (
+    ConfigurationError,
+    LLMResponse,
+    Message,
+    StreamChunk,
+    TokenUsage,
+    fatal_http_message,
+    timed_ms,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -122,6 +130,17 @@ class AnthropicLLM:
             params["fallbacks"] = "default"
         return params
 
+    def _fatal_errors(self) -> tuple[type[BaseException], ...]:
+        try:
+            import anthropic
+        except ImportError:
+            return ()
+        return (
+            anthropic.NotFoundError,
+            anthropic.AuthenticationError,
+            anthropic.PermissionDeniedError,
+        )
+
     def _open_stream(self, params: dict[str, Any]) -> AbstractContextManager[Any]:
         if "betas" in params:
             return self.client.beta.messages.stream(**params)  # type: ignore[no-any-return]
@@ -157,8 +176,12 @@ class AnthropicLLM:
             messages, system=system, max_tokens=max_tokens, json_schema=json_schema
         )
         started = time.perf_counter()
-        with self._open_stream(params) as stream:
-            message = stream.get_final_message()
+        try:
+            with self._open_stream(params) as stream:
+                message = stream.get_final_message()
+        except self._fatal_errors() as exc:
+            status = int(getattr(exc, "status_code", 404) or 404)
+            raise ConfigurationError(fatal_http_message(status, self._model)) from exc
         return self._response(message, started)
 
     def stream(
@@ -170,9 +193,13 @@ class AnthropicLLM:
     ) -> Iterator[StreamChunk]:
         params = self.request_params(messages, system=system, max_tokens=max_tokens)
         started = time.perf_counter()
-        with self._open_stream(params) as stream:
-            for text in stream.text_stream:
-                if text:
-                    yield StreamChunk(text=text)
-            message = stream.get_final_message()
+        try:
+            with self._open_stream(params) as stream:
+                for text in stream.text_stream:
+                    if text:
+                        yield StreamChunk(text=text)
+                message = stream.get_final_message()
+        except self._fatal_errors() as exc:
+            status = int(getattr(exc, "status_code", 404) or 404)
+            raise ConfigurationError(fatal_http_message(status, self._model)) from exc
         yield StreamChunk(final=self._response(message, started))
