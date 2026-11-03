@@ -15,6 +15,10 @@ on:
         description: "Gemini model id for question writing"
         type: string
         default: "gemini-3.8-flash"
+      model_fallbacks:
+        description: "Comma-separated fallback models (used on 503 overload, 404/403, or exhausted quota)"
+        type: string
+        default: "gemini-3.7-flash,gemini-3.5-flash"
       requests_per_day:
         description: "Client-side daily request budget per model (free tier)"
         type: string
@@ -31,6 +35,7 @@ env:
   PYTHONUNBUFFERED: "1"
   RBIRAG_QA_BACKEND: openai_compatible
   RBIRAG_QA_MODEL: ${{ inputs.model }}
+  RBIRAG_QA_MODEL_FALLBACKS: ${{ inputs.model_fallbacks }}
   RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
   RBIRAG_LLM_RPM: "10"
 
@@ -90,17 +95,21 @@ jobs:
           N_ANS: ${{ inputs.n_answerable }}
           N_UNANS: ${{ inputs.n_unanswerable }}
         run: |
+          set +e
           rbirag eval qa-generate --chunks indexes/section/chunks.jsonl \
-            --n-answerable "$N_ANS" --n-unanswerable "$N_UNANS" | tee /tmp/qa_stats.json
+            --n-answerable "$N_ANS" --n-unanswerable "$N_UNANS" --stats-out /tmp/qa_stats.json
+          status=$?
+          set -e
           {
             echo "## Q/A candidates"
-            echo '```json'
-            cat /tmp/qa_stats.json
-            echo '```'
+            if [ -f /tmp/qa_stats.json ]; then echo '```json'; cat /tmp/qa_stats.json; echo '```'; fi
+            [ "$status" -eq 2 ] && echo "**Fatal configuration error** (see log); nothing is committed."
+            [ "$status" -eq 3 ] && echo "**No Q/A pairs were produced**; nothing is committed."
           } >> "$GITHUB_STEP_SUMMARY"
-          if grep -q '"complete": false' /tmp/qa_stats.json; then
-            echo "::warning::Daily request budget reached. Re-run this workflow later; finished pairs and cached responses are reused."
+          if [ -f /tmp/qa_stats.json ] && grep -q '"complete": false' /tmp/qa_stats.json; then
+            echo "::warning::Stopped early (quota or provider errors). Re-run later; finished pairs and cached responses are reused."
           fi
+          exit "$status"
 
       - name: Save LLM cache
         if: always()
@@ -109,15 +118,20 @@ jobs:
           path: .cache/llm
           key: llm-cache-${{ github.run_id }}
 
-      - name: Commit candidates
+      - name: Commit candidates (only when this run produced new pairs)
+        # Runs even if generation stopped early, so partial progress is kept; skipped
+        # cleanly when there is nothing new (no stats file = fatal error or crash).
+        if: always()
         run: |
+          if [ ! -f /tmp/qa_stats.json ]; then echo "no stats from this run; nothing to commit"; exit 0; fi
+          new_items=$(python -c "import json; print(json.load(open('/tmp/qa_stats.json'))['new_items'])")
+          if [ "$new_items" -le 0 ] || [ ! -f data/eval/qa_candidates.jsonl ]; then
+            echo "no new Q/A pairs; nothing to commit"; exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/eval/qa_candidates.jsonl
-          if git diff --cached --quiet; then
-            echo "no changes"
-            exit 0
-          fi
-          git commit -m "Update Q/A candidates (run ${{ github.run_id }})"
+          git add -- data/eval/qa_candidates.jsonl
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git commit -m "Update Q/A candidates: +${new_items} (run ${{ github.run_id }})"
           git pull --rebase origin "${GITHUB_REF_NAME}"
           git push origin "HEAD:${GITHUB_REF_NAME}"

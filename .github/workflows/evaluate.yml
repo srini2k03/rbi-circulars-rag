@@ -11,11 +11,19 @@ on:
       generator_model:
         description: "Gemini model for answers"
         type: string
-        default: "gemini-2.5-flash-lite"
+        default: "gemini-3.5-flash-lite"
+      generator_fallbacks:
+        description: "Comma-separated fallback models for answers (503 overload, 404/403, quota)"
+        type: string
+        default: "gemini-3.1-flash-lite"
       judge_model:
         description: "Gemini model for the LLM judge"
         type: string
-        default: "gemini-2.5-flash"
+        default: "gemini-3.8-flash"
+      judge_fallbacks:
+        description: "Comma-separated fallback models for the judge"
+        type: string
+        default: "gemini-3.7-flash,gemini-3.5-flash"
       ollama_model:
         description: "Local Ollama model evaluated alongside"
         type: string
@@ -54,8 +62,10 @@ env:
   RBIRAG_EMBEDDER: sentence-transformers
   RBIRAG_RERANKER: cross-encoder
   RBIRAG_OAI_MODEL: ${{ inputs.generator_model }}
+  RBIRAG_OAI_MODEL_FALLBACKS: ${{ inputs.generator_fallbacks }}
   RBIRAG_JUDGE_BACKEND: openai_compatible
   RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model }}
+  RBIRAG_JUDGE_MODEL_FALLBACKS: ${{ inputs.judge_fallbacks }}
   RBIRAG_OLLAMA_MODEL: ${{ inputs.ollama_model }}
   RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
   RBIRAG_LLM_RPM: "10"
@@ -69,6 +79,14 @@ jobs:
         with:
           name: GEMINI_API_KEY
           value: ${{ secrets.GEMINI_API_KEY }}
+      - name: List Gemini models available to this key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          curl -fsS -H "Authorization: Bearer ${GEMINI_API_KEY}" \
+            "https://generativelanguage.googleapis.com/v1beta/openai/models" \
+            | python3 -c "import json,sys; print('\n'.join(sorted(m['id'] for m in json.load(sys.stdin)['data'])))" \
+            || echo "::warning::could not list models"
       - name: Check the test set exists
         run: |
           if [ ! -f data/eval/qa_v1.jsonl ] && [ ! -f data/eval/qa_candidates.jsonl ]; then
@@ -277,7 +295,8 @@ jobs:
 
   judge-ollama:
     needs: [select, generate-ollama, generate-gemini]
-    if: ${{ always() && needs.select.result == 'success' }}
+    # A failed Gemini job (e.g. a fatal model/key error) stops everything downstream.
+    if: ${{ always() && needs.select.result == 'success' && needs.generate-gemini.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
@@ -343,7 +362,9 @@ jobs:
 
   report:
     needs: [preflight, retrieval, select, generate-gemini, judge-ollama]
-    if: ${{ always() && needs.select.result == 'success' }}
+    # Never report/commit a run whose LLM jobs failed (fatal configuration errors exit 2).
+    # Quota exhaustion is not a failure: those jobs succeed with status "incomplete".
+    if: ${{ always() && needs.select.result == 'success' && needs.generate-gemini.result == 'success' && needs.judge-ollama.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -353,6 +374,8 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[retrieval,eval]"
+      - name: Drop status files from earlier runs (only this run's count)
+        run: rm -f results/generation/status-*.json
       - uses: actions/download-artifact@v4
         if: ${{ !inputs.reuse_retrieval }}
         with:
@@ -384,8 +407,26 @@ jobs:
           if grep -qs '"complete": false' results/generation/status-*.json; then
             echo "::warning::Generation is incomplete (free-tier quota). Re-run this workflow with reuse_retrieval=true after the quota resets."
           fi
-      - name: Commit results
+      - name: Commit results (only if this run produced successful items)
+        env:
+          RETRIEVAL_FRESH: ${{ !inputs.reuse_retrieval }}
         run: |
+          items=$(python3 - <<'PY'
+          import glob, json, os
+          n = 0
+          for f in glob.glob("results/generation/status-*.json"):
+              n += int(json.load(open(f)).get("successful_items", 0))
+          if os.environ.get("RETRIEVAL_FRESH") == "true":
+              for f in glob.glob("results/retrieval/rows-*.json"):
+                  n += len(json.load(open(f)))
+          print(n)
+          PY
+          )
+          echo "successful items in this run: ${items}"
+          if [ "${items}" -le 0 ]; then
+            echo "::warning::This run produced no successful items; nothing is committed."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add results
