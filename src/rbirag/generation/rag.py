@@ -257,7 +257,10 @@ def shared_limiter(settings: Settings) -> RequestLimiter:
     key = str(state_dir.resolve())
     if key not in _LIMITERS:
         _LIMITERS[key] = RequestLimiter(
-            rpm=settings.llm_rpm, rpd=settings.llm_rpd, state_dir=state_dir
+            rpm=settings.llm_rpm,
+            rpd=settings.rpd_for,
+            tpm=settings.tpm_for,
+            state_dir=state_dir,
         )
     return _LIMITERS[key]
 

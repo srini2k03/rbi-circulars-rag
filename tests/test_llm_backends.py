@@ -72,9 +72,7 @@ def test_openai_compat_generate_payload_and_usage() -> None:
     llm = oai(handler)
     resp = llm.generate(MSGS, system="sys", max_tokens=50, json_schema={"type": "object"})
     req = seen[0]
-    assert (
-        str(req.url) == "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-    )
+    assert str(req.url) == "https://api.groq.com/openai/v1/chat/completions"
     assert req.headers["authorization"] == f"Bearer {SECRET}"
     body = json.loads(req.content)
     assert body["messages"][0] == {"role": "system", "content": "sys"}
@@ -571,7 +569,158 @@ def test_fallback_settings_parse_comma_lists(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setenv("RBIRAG_JUDGE_MODEL_FALLBACKS", "gemini-3.7-flash, gemini-3.6-flash")
     monkeypatch.setenv("RBIRAG_OAI_MODEL_FALLBACKS", "")
-    s = Settings()
+    s = Settings(llm_provider="gemini")
     assert s.judge_model_fallbacks == ["gemini-3.7-flash", "gemini-3.6-flash"]
     assert s.oai_model_fallbacks == []
     assert s.qa_model_fallbacks == ["gemini-3.7-flash", "gemini-3.5-flash"]
+
+
+# ----------------------------------------------------------------------------- providers
+
+
+def test_groq_is_the_default_provider() -> None:
+    from rbirag.config import Settings
+
+    s = Settings()
+    assert s.llm_provider == "groq"
+    assert s.oai_base_url == "https://api.groq.com/openai/v1"
+    assert s.oai_api_key_env == "GROQ_API_KEY"
+    assert (s.judge_model, s.qa_model) == ("llama-3.3-70b-versatile", "llama-3.3-70b-versatile")
+    assert s.judge_model_fallbacks == ["openai/gpt-oss-120b", "qwen/qwen3-32b"]
+    assert (s.oai_model, s.oai_model_fallbacks) == ("llama-3.1-8b-instant", ["openai/gpt-oss-20b"])
+    assert s.oai_model != s.judge_model  # generator differs from the judge
+    assert s.llm_rpm == 25
+    assert s.rpd_for("llama-3.3-70b-versatile") <= 1000
+    assert s.rpd_for("llama-3.1-8b-instant") <= 14_400
+    assert 0 < s.tpm_for("llama-3.3-70b-versatile") <= 12_000
+    assert s.prices["llama-3.3-70b-versatile"].input == 0.0
+
+
+def test_provider_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rbirag.config import Settings
+
+    monkeypatch.setenv("RBIRAG_JUDGE_MODEL", "openai/gpt-oss-120b")
+    monkeypatch.setenv("RBIRAG_LLM_RPD", "50")
+    s = Settings()
+    assert s.judge_model == "openai/gpt-oss-120b"
+    # an explicit primary keeps the rest of the preset chain as fallbacks
+    assert s.judge_model_fallbacks == ["llama-3.3-70b-versatile", "qwen/qwen3-32b"]
+    assert s.rpd_for("llama-3.1-8b-instant") == 50
+    g = Settings(llm_provider="gemini", llm_rpd=0)
+    assert g.oai_base_url.startswith("https://generativelanguage.googleapis.com")
+    assert g.oai_api_key_env == "GEMINI_API_KEY"
+    assert g.llm_rpm == 10
+    assert g.tpm_for("gemini-3.8-flash") == 0
+
+
+def test_custom_provider_requires_explicit_settings() -> None:
+    from pydantic import ValidationError
+
+    from rbirag.config import Settings
+
+    with pytest.raises(ValidationError, match="requires"):
+        Settings(llm_provider="custom")
+    s = Settings(
+        llm_provider="custom", oai_base_url="https://openrouter.ai/api/v1", oai_api_key_env="OPENROUTER_API_KEY",
+        oai_model="m1", qa_model="m2", judge_model="m3",
+    )  # fmt: skip
+    assert s.judge_model_fallbacks == []
+    assert s.rpd_for("m1") == 200
+
+
+def test_limiter_per_model_rpd_and_tpm_budget() -> None:
+    clock = Clock()
+    lim = RequestLimiter(
+        rpm=1000,
+        rpd=lambda m: 2 if m == "big" else 100,
+        tpm=lambda m: 1000 if m == "big" else 0,
+        clock=clock.clock,
+        sleep=clock.sleep,
+        today=lambda: "d",
+    )
+    lim.acquire("big", tokens=600)
+    lim.settle("big", 700)  # actual usage replaces the estimate
+    clock.now += 10
+    lim.acquire("big", tokens=400)  # 700 + 400 > 1000: wait until the first leaves the window
+    assert clock.sleeps[-1] == pytest.approx(50.0, abs=0.1)
+    with pytest.raises(QuotaExhaustedError):
+        lim.acquire("big")  # rpd 2 reached
+    for _ in range(5):
+        lim.acquire("small", tokens=10_000)  # no TPM budget for this model
+    assert lim.remaining_today("small") == 95
+
+
+def test_groq_daily_token_limit_moves_to_next_model() -> None:
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        calls.append(model)
+        if model == "llama-3.3-70b-versatile":
+            msg = ("Rate limit reached for model `llama-3.3-70b-versatile` on tokens per day (TPD): "
+                   "Limit 100000, Used 99000, Requested 3000.")  # fmt: skip
+            return httpx.Response(
+                429,
+                json={"error": {"message": msg, "type": "tokens", "code": "rate_limit_exceeded"}},
+            )
+        return httpx.Response(200, json=completion("ok"))
+
+    llm = OpenAICompatibleLLM(
+        "llama-3.3-70b-versatile", fallbacks=["openai/gpt-oss-120b"], api_key=SECRET,
+        client=httpx.Client(transport=httpx.MockTransport(handler)), sleep=lambda s: None,
+    )  # fmt: skip
+    assert llm.generate(MSGS).model == "openai/gpt-oss-120b"
+    assert calls == ["llama-3.3-70b-versatile", "openai/gpt-oss-120b"]
+
+
+def test_groq_tpm_429_retries_same_model_with_retry_after() -> None:
+    calls: list[str] = []
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(json.loads(request.content)["model"])
+        if len(calls) == 1:
+            msg = "Rate limit reached for model `llama-3.1-8b-instant` on tokens per minute (TPM)"
+            return httpx.Response(
+                429, json={"error": {"message": msg}}, headers={"retry-after": "3"}
+            )
+        return httpx.Response(200, json=completion("ok"))
+
+    llm = OpenAICompatibleLLM(
+        "llama-3.1-8b-instant", fallbacks=["openai/gpt-oss-20b"], api_key=SECRET,
+        client=httpx.Client(transport=httpx.MockTransport(handler)), sleep=sleeps.append,
+    )  # fmt: skip
+    assert llm.generate(MSGS).model == "llama-3.1-8b-instant"
+    assert calls == ["llama-3.1-8b-instant", "llama-3.1-8b-instant"]
+    assert sleeps == [3.0]
+
+
+def test_groq_preset_uses_json_object_and_strips_reasoning() -> None:
+    from rbirag.config import Settings
+    from rbirag.generation.openai_compat import strip_reasoning
+
+    assert Settings().oai_json_mode == "json_object"
+    assert Settings(llm_provider="gemini").oai_json_mode == "json_schema"
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json=completion('<think>\nweigh {options}\n</think>\n{"a": 1}'))
+
+    llm = oai(handler, json_mode="json_object")
+    assert llm.generate(MSGS, json_schema={"type": "object"}).text == '{"a": 1}'
+    assert seen[0]["response_format"] == {"type": "json_object"}
+    assert strip_reasoning("plain answer [1].") == "plain answer [1]."
+    assert strip_reasoning("<think>unfinished") == ""
+
+
+def test_groq_stream_usage_in_x_groq() -> None:
+    events = [
+        {"choices": [{"delta": {"content": "ok"}, "finish_reason": "stop"}],
+         "x_groq": {"usage": {"prompt_tokens": 11, "completion_tokens": 2}}},
+    ]  # fmt: skip
+    body = "".join(f"data: {json.dumps(e)}\n\n" for e in events) + "data: [DONE]\n\n"
+    chunks = list(oai(lambda r: httpx.Response(200, text=body)).stream(MSGS))
+    final = chunks[-1].final
+    assert final is not None
+    assert (final.usage.input_tokens, final.usage.output_tokens) == (11, 2)

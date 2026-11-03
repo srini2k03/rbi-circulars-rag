@@ -1,4 +1,5 @@
-"""Client-side request limits for free-tier APIs: requests/minute and requests/day.
+"""Client-side limits for free-tier APIs, per model: requests/minute, requests/day and an
+optional tokens/minute budget.
 
 The per-day counter is persisted (``<state_dir>/usage-YYYY-MM-DD.json``, UTC) so separate
 processes and resumed workflow runs share one budget.
@@ -9,6 +10,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,14 +23,17 @@ class RequestLimiter:
         self,
         *,
         rpm: float,
-        rpd: int,
+        rpd: int | Callable[[str], int],
+        tpm: Callable[[str], int] | None = None,
         state_dir: Path | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
         today: Callable[[], str] = lambda: datetime.now(UTC).date().isoformat(),
     ) -> None:
         self.min_interval = 60.0 / rpm
-        self.rpd = rpd
+        self._rpd = rpd
+        self._tpm = tpm
+        self._tokens: dict[str, deque[list[float]]] = {}  # model -> [[time, tokens], ...]
         self.state_dir = state_dir
         self._clock = clock
         self._sleep = sleep
@@ -63,23 +68,32 @@ class RequestLimiter:
         tmp.write_text(json.dumps(counts, sort_keys=True), encoding="utf-8")
         tmp.replace(path)
 
+    def rpd_for(self, key: str) -> int:
+        return self._rpd(key) if callable(self._rpd) else self._rpd
+
+    def tpm_for(self, key: str) -> int:
+        return self._tpm(key) if self._tpm is not None else 0
+
     def used_today(self, key: str) -> int:
         return self._load(self._today()).get(key, 0)
 
     def remaining_today(self, key: str) -> int:
-        return max(0, self.rpd - self.used_today(key))
+        return max(0, self.rpd_for(key) - self.used_today(key))
 
     # -- acquire -----------------------------------------------------------------------
-    def acquire(self, key: str) -> None:
-        """Block until a request for ``key`` (e.g. a model id) may be sent, and count it."""
+    def acquire(self, key: str, tokens: int = 0) -> None:
+        """Block until a request for ``key`` (a model id) estimated at ``tokens`` may be
+        sent, and count it."""
         with self._lock:
             day = self._today()
             counts = self._load(day)
-            if counts.get(key, 0) >= self.rpd:
+            rpd = self.rpd_for(key)
+            if counts.get(key, 0) >= rpd:
                 raise QuotaExhaustedError(
-                    f"daily request budget for {key} reached ({self.rpd}/day); "
+                    f"daily request budget for {key} reached ({rpd}/day); "
                     "rerun later - cached responses will be reused"
                 )
+            self._wait_for_tokens(key, tokens)
             now = self._clock()
             last = self._last.get(key)
             if last is not None:
@@ -88,5 +102,34 @@ class RequestLimiter:
                     self._sleep(wait)
                     now = self._clock()
             self._last[key] = now
+            if self.tpm_for(key):
+                self._tokens.setdefault(key, deque()).append([now, float(tokens)])
             counts[key] = counts.get(key, 0) + 1
             self._save(day, counts)
+
+    # -- tokens per minute -------------------------------------------------------------
+    def _window(self, key: str, now: float) -> deque[list[float]]:
+        window = self._tokens.setdefault(key, deque())
+        while window and now - window[0][0] >= 60.0:
+            window.popleft()
+        return window
+
+    def _wait_for_tokens(self, key: str, tokens: int) -> None:
+        budget = self.tpm_for(key)
+        if not budget or tokens <= 0:
+            return
+        while True:
+            now = self._clock()
+            window = self._window(key, now)
+            used = sum(t for _, t in window)
+            if not window or used + tokens <= budget:
+                return  # (a single oversized request is allowed once the window is empty)
+            # wait until the oldest entry leaves the 60 s window
+            self._sleep(max(0.05, 60.0 - (now - window[0][0])))
+
+    def settle(self, key: str, actual_tokens: int) -> None:
+        """Replace the estimate of the most recent request for ``key`` with actual usage."""
+        with self._lock:
+            window = self._tokens.get(key)
+            if window:
+                window[-1][1] = float(actual_tokens)

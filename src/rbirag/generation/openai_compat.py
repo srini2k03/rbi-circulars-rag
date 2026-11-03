@@ -1,13 +1,14 @@
 """OpenAI-compatible chat-completions backend over httpx (streaming SSE).
 
-Defaults target Google Gemini's OpenAI-compatible endpoint (free tier); Groq, OpenRouter
-or any other compatible server works by changing the base URL, model and the *name* of
-the environment variable holding the key. The key is read from the environment at
-construction, sent only in the Authorization header, and never logged.
+Defaults target Groq's free tier; Gemini (preset), OpenRouter or any other compatible
+server works by changing the base URL, model and the *name* of the environment variable
+holding the key. The key is read from the environment at construction, sent only in the
+Authorization header, and never logged.
 
-Free-tier hygiene: a client-side :class:`RequestLimiter` (RPM + persisted RPD), and
-exponential backoff on 429/5xx honouring ``Retry-After``. A 429 that names a *daily* quota
-raises :class:`QuotaExhaustedError` immediately instead of retrying.
+Free-tier hygiene: a client-side :class:`RequestLimiter` (per-model RPM, persisted RPD and
+a tokens-per-minute budget), and exponential backoff on 429/5xx honouring
+``Retry-After``. A 429 that names a *daily* limit (requests or tokens per day) moves on
+to the next model in the chain instead of retrying.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import json
 import logging
 import os
 import random
+import re
 import time
 from collections.abc import Callable, Iterator, Sequence
 from typing import Any
@@ -39,6 +41,7 @@ from rbirag.generation.llm import (
 logger = logging.getLogger(__name__)
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 RETRYABLE = frozenset({429, 500, 502, 503, 504})
 _DAILY_MARKERS = ("perday", "per day", "per_day", "daily")
 
@@ -106,6 +109,20 @@ def read_api_key(env_var: str) -> str:
     return key
 
 
+_THINK_RE = re.compile(r"<think>.*?(?:</think>|$)\s*", re.S | re.I)
+
+
+def strip_reasoning(text: str) -> str:
+    """Remove inline ``<think>...</think>`` reasoning some hosted models (e.g. Qwen3) emit."""
+    return _THINK_RE.sub("", text).strip() if "<think>" in text.lower() else text
+
+
+def _estimate_tokens(body: dict[str, Any]) -> int:
+    """Rough request size for the TPM budget: ~4 chars/token prompt + max output."""
+    chars = sum(len(str(m.get("content", ""))) for m in body.get("messages", []))
+    return chars // 4 + int(body.get("max_tokens", 0) or 0)
+
+
 def _error_detail(body: str) -> str:
     """The provider's error message (bodies never contain the key), shortened."""
     try:
@@ -130,8 +147,8 @@ class OpenAICompatibleLLM:
         self,
         model: str,
         *,
-        base_url: str = GEMINI_BASE_URL,
-        api_key_env: str = "GEMINI_API_KEY",
+        base_url: str = GROQ_BASE_URL,
+        api_key_env: str = "GROQ_API_KEY",
         api_key: str | None = None,
         reasoning_effort: str | None = None,
         json_mode: str = "json_schema",
@@ -238,7 +255,7 @@ class OpenAICompatibleLLM:
                 )
             try:
                 if self.limiter is not None:
-                    self.limiter.acquire(model)
+                    self.limiter.acquire(model, tokens=_estimate_tokens(body))
             except QuotaExhaustedError as exc:
                 logger.warning("%s; trying the next model", exc)
                 self.health.exhaust(model)
@@ -311,6 +328,9 @@ class OpenAICompatibleLLM:
     def _response(
         self, text: str, usage: TokenUsage, finish: str | None, started: float, model: str
     ) -> LLMResponse:
+        text = strip_reasoning(text)
+        if self.limiter is not None and usage.total_tokens:
+            self.limiter.settle(model, usage.total_tokens)
         refused = finish in {"content_filter", "safety"}
         return LLMResponse(
             text="" if refused else text,
@@ -371,6 +391,8 @@ class OpenAICompatibleLLM:
                 data = json.loads(data_str)
                 if data.get("usage"):
                     usage = self._usage(data["usage"])
+                elif (data.get("x_groq") or {}).get("usage"):
+                    usage = self._usage(data["x_groq"]["usage"])
                 for choice in data.get("choices") or []:
                     piece = (choice.get("delta") or {}).get("content") or ""
                     if piece:
