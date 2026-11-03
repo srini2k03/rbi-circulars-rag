@@ -7,6 +7,7 @@ import json
 import math
 import os
 import subprocess
+from collections import Counter
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -83,20 +84,54 @@ def retrieval_markdown(rows: Sequence[dict[str, Any]]) -> str:
 # ----------------------------------------------------------------------------- generation
 
 
+MIN_SUCCESS_FRACTION = 0.9
+
+
+def record_succeeded(r: GenerationRecord) -> bool:
+    """Answer generated without error and, if it needed judging, judged successfully."""
+    if r.error is not None:
+        return False
+    if r.answerable and not r.refused:
+        return r.judge_faithfulness is not None or r.judge_relevance is not None
+    return True
+
+
+def mix(models: Sequence[str | None]) -> str:
+    """``"gemini-3.8-flash 70%, gemini-3.7-flash 30%"`` (models that actually answered)."""
+    present = [m for m in models if m]
+    if not present:
+        return "-"
+    counts = Counter(present)
+    return ", ".join(f"{m} {100 * c / len(present):.0f}%" for m, c in counts.most_common())
+
+
 def generation_rows(
-    records: Sequence[GenerationRecord], *, n_resamples: int = 1000
+    records: Sequence[GenerationRecord],
+    *,
+    planned: dict[str, int] | None = None,
+    min_success: float = MIN_SUCCESS_FRACTION,
+    n_resamples: int = 1000,
 ) -> list[dict[str, Any]]:
+    """One row per (config, backend). ``status`` is ``measured`` only when at least
+    ``min_success`` of the planned questions were answered (and judged where needed);
+    otherwise ``incomplete (k/N)``, and the row is kept out of the headline table."""
     groups: dict[tuple[str, str], list[GenerationRecord]] = {}
     for r in records:
         groups.setdefault((r.config, r.backend), []).append(r)
     rows: list[dict[str, Any]] = []
     for (config, backend), recs in sorted(groups.items()):
         summary: dict[str, Estimate] = summarize(recs, n_resamples=n_resamples)
+        n_planned = max((planned or {}).get(config, 0), len(recs))
+        k = sum(record_succeeded(r) for r in recs)
+        measured = n_planned > 0 and k / n_planned >= min_success
         row: dict[str, Any] = {
             "config": config,
             "backend": backend,
-            "model": next((r.model for r in recs if r.model), None),
-            "judge_model": next((r.judge_model for r in recs if r.judge_model), None),
+            "status": "measured" if measured else f"incomplete ({k}/{n_planned})",
+            "successful": k,
+            "planned": n_planned,
+            "model": mix([r.model for r in recs]),
+            "judge_model": mix([r.judge_model for r in recs]),
             "n": len(recs),
             "n_answerable": sum(r.answerable for r in recs),
             **{f"refusal_{k}": v for k, v in refusal_counts(recs).items()},
@@ -111,7 +146,24 @@ def generation_rows(
     return rows
 
 
+def incomplete_markdown(rows: Sequence[dict[str, Any]]) -> str:
+    body = [
+        [r["config"], f"{r['backend']} ({r.get('model') or '-'})", r["status"]]
+        for r in rows
+        if r.get("status") != "measured"
+    ]
+    if not body:
+        return ""
+    return (
+        "Not reported as results: too many generation or judge calls failed or are still "
+        "pending (quota). Re-run the workflow to complete them.\n\n"
+        + markdown_table(["config", "backend (model)", "status"], body)
+    )
+
+
 def generation_markdown(rows: Sequence[dict[str, Any]]) -> str:
+    """Headline table: measured rows only."""
+    rows = [r for r in rows if r.get("status", "measured") == "measured"]
     headers = ["config", "backend (model)", "n", "faithfulness (judge)", "faithfulness (NLI)",
                "relevance (judge)", "citation acc. (NLI)", "citations valid", "refusal P",
                "refusal R", "p50 ms", "cost $"]  # fmt: skip
@@ -279,6 +331,7 @@ def build_report(
     generation_records: Sequence[GenerationRecord],
     calibration: Calibration | None,
     metadata: dict[str, Any],
+    planned: dict[str, int] | None = None,
     n_resamples: int = 1000,
 ) -> list[Path]:
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -290,7 +343,10 @@ def build_report(
         f"Generated {metadata.get('generated_at')} at commit `{metadata.get('commit')}`. "
         f"Questions: {metadata.get('questions')} ({metadata.get('answerable')} answerable, "
         f"{metadata.get('unanswerable')} unanswerable); human-verified: "
-        f"{metadata.get('human_verified')}. Judge: {metadata.get('judge_model')}.\n",
+        f"{metadata.get('human_verified')}.\n",
+        "Models that actually answered (share of calls):\n",
+        *[f"- {role}: {desc}" for role, desc in (metadata.get("model_mix") or {}).items()],
+        "",
     ]
     if retrieval_rows:
         write_csv(retrieval_rows, results_dir / "retrieval_ablation.csv")
@@ -307,9 +363,13 @@ def build_report(
             written.append(charts / name)
         written += [results_dir / "retrieval_ablation.csv", results_dir / "retrieval_ablation.md"]
     if generation_records:
-        rows = generation_rows(generation_records, n_resamples=n_resamples)
+        rows = generation_rows(generation_records, planned=planned, n_resamples=n_resamples)
         write_csv(rows, results_dir / "generation.csv")
-        md = generation_markdown(rows)
+        measured = [r for r in rows if r["status"] == "measured"]
+        md = generation_markdown(rows) if measured else "No configuration is complete yet.\n"
+        incomplete = incomplete_markdown(rows)
+        if incomplete:
+            md += "\n### Incomplete runs\n\n" + incomplete
         (results_dir / "generation.md").write_text(md, encoding="utf-8")
         md_parts += ["## Generation\n", md]
         written += [results_dir / "generation.csv", results_dir / "generation.md"]

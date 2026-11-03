@@ -31,7 +31,7 @@ from rbirag.eval.nli import NLIScorer, nli_check
 from rbirag.eval.retrieval_metrics import DEFAULT_KS, query_metrics
 from rbirag.eval.stats import bootstrap_ci
 from rbirag.generation.citations import strip_citations
-from rbirag.generation.llm import LLM, QuotaExhaustedError
+from rbirag.generation.llm import LLM, ConfigurationError, LLMError, QuotaExhaustedError
 from rbirag.generation.rag import RAGPipeline
 from rbirag.index.build import IndexBundle, build_index, chunk_documents
 from rbirag.index.embedder import Embedder, FloatArray
@@ -379,6 +379,7 @@ class GenerationRun:
     generated: int
     judged: int
     skipped: int
+    stopped_because: str | None = None
 
 
 def run_generation_eval(
@@ -452,10 +453,18 @@ def run_generation_eval(
                 judged += 1
                 existing[key] = rec
                 append_jsonl(records_path, [rec.model_dump()])
-        except QuotaExhaustedError as exc:
-            logger.warning("quota exhausted during %s/%s: %s", config, backend, exc)
+        except ConfigurationError:
+            raise
+        except (QuotaExhaustedError, LLMError) as exc:
+            # Quota, or the provider keeps failing (e.g. every model overloaded): stop
+            # cleanly; everything finished so far is saved and a rerun resumes.
+            logger.warning("stopping %s/%s early: %s", config, backend, exc)
             return GenerationRun(
-                complete=False, generated=generated, judged=judged, skipped=skipped
+                complete=False,
+                generated=generated,
+                judged=judged,
+                skipped=skipped,
+                stopped_because=type(exc).__name__,
             )
     return GenerationRun(complete=True, generated=generated, judged=judged, skipped=skipped)
 

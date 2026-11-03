@@ -22,7 +22,13 @@ from typing import Any
 from rbirag.chunking.base import Chunk
 from rbirag.eval.dataset import GoldSpan, QAPair, QuestionType
 from rbirag.eval.judge import JudgeParseError, extract_json_object
-from rbirag.generation.llm import LLM, Message, QuotaExhaustedError
+from rbirag.generation.llm import (
+    LLM,
+    ConfigurationError,
+    LLMError,
+    Message,
+    QuotaExhaustedError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -348,6 +354,7 @@ class GenerationRun:
     pairs: list[QAPair]
     complete: bool
     attempted: int
+    stopped_because: str | None = None
 
 
 def generate_candidates(
@@ -364,6 +371,7 @@ def generate_candidates(
     samples = stratified_samples(chunks, n_answerable, seed)
     attempted = 0
     complete = True
+    stopped: str | None = None
     try:
         for sample in samples:
             qid = qa_id_for(sample.key)
@@ -381,7 +389,12 @@ def generate_candidates(
                 llm, n_unanswerable - n_existing_unans, date_range=date_range
             ):
                 done.setdefault(p.qa_id, p)
-    except QuotaExhaustedError as exc:
+    except ConfigurationError:
+        raise
+    except (QuotaExhaustedError, LLMError) as exc:
         logger.warning("stopping early: %s", exc)
         complete = False
-    return GenerationRun(pairs=list(done.values()), complete=complete, attempted=attempted)
+        stopped = type(exc).__name__
+    return GenerationRun(
+        pairs=list(done.values()), complete=complete, attempted=attempted, stopped_because=stopped
+    )
