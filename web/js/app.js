@@ -200,4 +200,7 @@ for (const el of document.querySelectorAll("[data-example]")) {
   el.addEventListener("click", () => { $("#question").value = el.textContent; onSearch(); });
 }
 if (location.hash === "#evaluation") showTab("evaluation");
+window.addEventListener("hashchange", () =>
+  showTab(location.hash === "#evaluation" ? "evaluation" : "search"),
+);
 init();
