@@ -162,6 +162,21 @@ secret (`GROQ_API_KEY` or `GEMINI_API_KEY`), fail early (without printing it) if
 missing, and list the models the key can use. Each provider has its own concurrency
 group, so runs on the same provider never compete for its quota.
 
+Both also run on a daily schedule, to use each day's free-tier token allowance (scheduled
+runs use the input defaults):
+- `qa.yml` at 09:41 UTC. It stops early, successfully and without a commit, once the
+  candidate set has reached its targets (220 answerable + 30 unanswerable, allowing a 5%
+  shortfall for items the model keeps failing).
+- `evaluate.yml` at 15:41 UTC. It does nothing until the candidates reach their targets,
+  then resumes each day from the committed records until every planned generation and
+  judge call is done, and then stops early. Resumed runs reuse the committed retrieval
+  results.
+
+Until you have reviewed pairs with `rbirag eval verify`, evaluation runs on the
+model-generated candidates, and the results README says so in its first line
+("model-generated test set ..., 0 human-verified"). Once `data/eval/qa_v1.jsonl` exists it
+is used instead, and the line names it with its human-verified count.
+
 Run LLM workflows that use the same API key one at a time, including workflows in
 *other* repositories that share the key: free-tier limits are per key (or per
 organisation), so concurrent runs hit 429s together and slow each other down. Both stop cleanly when the daily free-tier quota

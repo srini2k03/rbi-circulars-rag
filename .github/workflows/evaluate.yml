@@ -6,6 +6,11 @@ name: Evaluate
 # resets and it continues from the committed records and the cached LLM responses.
 
 on:
+  # Daily at 15:41 UTC (the Q/A workflow runs at 09:41). A scheduled run only works once
+  # the candidate set has reached its targets, resumes until every planned call is done,
+  # and otherwise exits cleanly.
+  schedule:
+    - cron: "41 15 * * *"
   workflow_dispatch:
     inputs:
       provider:
@@ -57,8 +62,9 @@ on:
 permissions:
   contents: write  # commits results/
 
+# Scheduled runs have no inputs: every inputs.* reference falls back to its default.
 concurrency:
-  group: llm-quota-${{ inputs.provider }}
+  group: llm-quota-${{ inputs.provider || 'groq' }}
   cancel-in-progress: false
 
 env:
@@ -66,36 +72,76 @@ env:
   HF_HOME: ${{ github.workspace }}/.hf
   RBIRAG_EMBEDDER: sentence-transformers
   RBIRAG_RERANKER: cross-encoder
-  RBIRAG_LLM_PROVIDER: ${{ inputs.provider }}
-  RBIRAG_OAI_MODEL: ${{ inputs.generator_model }}
+  RBIRAG_LLM_PROVIDER: ${{ inputs.provider || 'groq' }}
+  RBIRAG_OAI_MODEL: ${{ inputs.generator_model || '' }}
   RBIRAG_OAI_MODEL_FALLBACKS: ${{ inputs.generator_fallbacks || 'auto' }}
   RBIRAG_JUDGE_BACKEND: openai_compatible
-  RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model }}
+  RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model || '' }}
   RBIRAG_JUDGE_MODEL_FALLBACKS: ${{ inputs.judge_fallbacks || 'auto' }}
-  RBIRAG_OLLAMA_MODEL: ${{ inputs.ollama_model }}
-  RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
+  RBIRAG_OLLAMA_MODEL: ${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
+  RBIRAG_LLM_RPD: ${{ inputs.requests_per_day || '0' }}
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      reuse: ${{ steps.gate.outputs.reuse }}
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/provider-key
+      - uses: actions/setup-python@v5
         with:
-          provider: ${{ inputs.provider }}
-          groq_key: ${{ secrets.GROQ_API_KEY }}
-          gemini_key: ${{ secrets.GEMINI_API_KEY }}
-          list_models: "true"
-      - name: Check the test set exists
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - run: pip install -e ".[retrieval]"
+      - name: Decide whether this run has work to do
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          REUSE_INPUT: ${{ inputs.reuse_retrieval || false }}
         run: |
           if [ ! -f data/eval/qa_v1.jsonl ] && [ ! -f data/eval/qa_candidates.jsonl ]; then
+            if [ "$EVENT" = "schedule" ]; then
+              echo "No test set yet; nothing to do."; echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
             echo "::error::No test set. Run the 'Generate Q/A candidates' workflow (and optionally 'rbirag eval verify') first."
             exit 1
           fi
+          if [ "$EVENT" != "schedule" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "reuse=${REUSE_INPUT}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          rbirag eval qa-status | tee /tmp/qa_status.json
+          met=$(python -c "import json; print(json.load(open('/tmp/qa_status.json'))['targets_met'])")
+          if [ "$met" != "True" ]; then
+            echo "Candidate targets not reached yet; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          rbirag eval progress | tee /tmp/progress.json
+          done_=$(python -c "import json; print(json.load(open('/tmp/progress.json'))['done'])")
+          if [ "$done_" = "True" ]; then
+            echo "All planned generation and judge calls are done; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          if ls results/retrieval/rows-*.json >/dev/null 2>&1; then
+            echo "reuse=true" >> "$GITHUB_OUTPUT"   # resume: retrieval results are committed
+          else
+            echo "reuse=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: ./.github/actions/provider-key
+        if: steps.gate.outputs.run == 'true'
+        with:
+          provider: ${{ inputs.provider || 'groq' }}
+          groq_key: ${{ secrets.GROQ_API_KEY }}
+          gemini_key: ${{ secrets.GEMINI_API_KEY }}
+          list_models: "true"
 
   retrieval:
     needs: preflight
-    if: ${{ !inputs.reuse_retrieval }}
+    if: ${{ needs.preflight.outputs.run == 'true' && needs.preflight.outputs.reuse != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     strategy:
@@ -137,7 +183,7 @@ jobs:
 
   select:
     needs: [preflight, retrieval]
-    if: ${{ always() && needs.preflight.result == 'success' && (needs.retrieval.result == 'success' || needs.retrieval.result == 'skipped') }}
+    if: ${{ always() && needs.preflight.result == 'success' && needs.preflight.outputs.run == 'true' && (needs.retrieval.result == 'success' || needs.retrieval.result == 'skipped') }}
     runs-on: ubuntu-latest
     outputs:
       configs: ${{ steps.plan.outputs.configs }}
@@ -150,7 +196,7 @@ jobs:
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[retrieval,eval]"
       - uses: actions/download-artifact@v4
-        if: ${{ !inputs.reuse_retrieval }}
+        if: ${{ needs.preflight.outputs.reuse != 'true' }}
         with:
           pattern: retrieval-*
           path: results/retrieval
@@ -160,9 +206,9 @@ jobs:
       - name: Plan generation and print the planned call count
         id: plan
         env:
-          FULL: ${{ inputs.full_configs }}
-          SUBSET: ${{ inputs.subset_configs }}
-          SIZE: ${{ inputs.subset_size }}
+          FULL: ${{ inputs.full_configs || '1' }}
+          SUBSET: ${{ inputs.subset_configs || '2' }}
+          SIZE: ${{ inputs.subset_size || '50' }}
         run: |
           rbirag eval plan --backends openai_compatible,ollama \
             --full-configs "$FULL" --subset-configs "$SUBSET" --subset-size "$SIZE" | tee /tmp/plan.txt
@@ -183,7 +229,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/provider-key
         with:
-          provider: ${{ inputs.provider }}
+          provider: ${{ inputs.provider || 'groq' }}
           groq_key: ${{ secrets.GROQ_API_KEY }}
           gemini_key: ${{ secrets.GEMINI_API_KEY }}
           list_models: "false"
@@ -216,8 +262,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-api
-          restore-keys: llm-cache-${{ inputs.provider }}-
+          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-api
+          restore-keys: llm-cache-${{ inputs.provider || 'groq' }}-
       - name: Generate with the API provider and judge (resumable)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -228,7 +274,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-api
+          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-api
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -264,10 +310,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ollama/models
-          key: ollama-${{ inputs.ollama_model }}
+          key: ollama-${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
       - name: Install and start Ollama
         env:
-          MODEL: ${{ inputs.ollama_model }}
+          MODEL: ${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
           sudo systemctl stop ollama 2>/dev/null || true
@@ -305,7 +351,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/provider-key
         with:
-          provider: ${{ inputs.provider }}
+          provider: ${{ inputs.provider || 'groq' }}
           groq_key: ${{ secrets.GROQ_API_KEY }}
           gemini_key: ${{ secrets.GEMINI_API_KEY }}
           list_models: "false"
@@ -343,10 +389,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-judge
+          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-judge
           restore-keys: |
-            llm-cache-${{ inputs.provider }}-${{ github.run_id }}-api
-            llm-cache-${{ inputs.provider }}-
+            llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-api
+            llm-cache-${{ inputs.provider || 'groq' }}-
       - name: Judge the Ollama answers (generation is skipped because records exist)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -357,7 +403,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}-judge
+          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-judge
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -382,7 +428,7 @@ jobs:
       - name: Drop status files from earlier runs (only this run's count)
         run: rm -f results/generation/status-*.json
       - uses: actions/download-artifact@v4
-        if: ${{ !inputs.reuse_retrieval }}
+        if: ${{ needs.preflight.outputs.reuse != 'true' }}
         with:
           pattern: retrieval-*
           path: results/retrieval
@@ -414,7 +460,7 @@ jobs:
           fi
       - name: Commit results (only if this run produced successful items)
         env:
-          RETRIEVAL_FRESH: ${{ !inputs.reuse_retrieval }}
+          RETRIEVAL_FRESH: ${{ needs.preflight.outputs.reuse != 'true' }}
         run: |
           items=$(python3 - <<'PY'
           import glob, json, os
