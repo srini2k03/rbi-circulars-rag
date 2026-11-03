@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -22,6 +22,9 @@ class GoldSpan(BaseModel):
     doc_id: str
     start: int = Field(ge=0)
     end: int = Field(ge=0)
+    # sha256 of doc.text[start:end] in the corpus the span was located in. The offsets
+    # are only meaningful for that corpus version; verify_gold() checks them.
+    text_sha256: str | None = None
 
 
 class AIReview(BaseModel):
@@ -126,3 +129,81 @@ def split_summary(
         "dev_documents": len({d for p in dev for d in p.gold_doc_ids}),
         "test_documents": len({d for p in test for d in p.gold_doc_ids}),
     }
+
+
+def span_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+class GoldCheck(BaseModel):
+    """Result of checking gold spans against the corpus in use."""
+
+    checked: int = 0
+    unpinned: int = 0  # pairs whose spans carry no hash (cannot be verified)
+    mismatched: list[str] = Field(default_factory=list)  # qa_ids excluded
+    missing_docs: list[str] = Field(default_factory=list)  # doc_ids not in the corpus
+
+    @property
+    def message(self) -> str:
+        if not self.mismatched:
+            return f"gold spans verified for {self.checked} pairs ({self.unpinned} unpinned)"
+        return (
+            f"{len(self.mismatched)} pairs EXCLUDED: their gold spans no longer match the "
+            "corpus (the corpus release changed since the pairs were made; re-locate or "
+            f"regenerate them). Missing documents: {len(self.missing_docs)}."
+        )
+
+
+def verify_gold(
+    pairs: Sequence[QAPair], texts: Mapping[str, str]
+) -> tuple[list[QAPair], GoldCheck]:
+    """Keep pairs whose gold spans still point at the same text in ``texts`` (doc_id ->
+    Document.text); pairs with a changed or missing span are excluded and reported."""
+    ok: list[QAPair] = []
+    check = GoldCheck()
+    missing: set[str] = set()
+    for p in pairs:
+        if not p.gold:
+            ok.append(p)
+            continue
+        bad = False
+        pinned = True
+        for g in p.gold:
+            text = texts.get(g.doc_id)
+            if text is None or g.end > len(text):
+                bad = True
+                if text is None:
+                    missing.add(g.doc_id)
+                continue
+            if g.text_sha256 is None:
+                pinned = False
+            elif span_sha256(text[g.start : g.end]) != g.text_sha256:
+                bad = True
+        if bad:
+            check.mismatched.append(p.qa_id)
+        else:
+            check.checked += 1
+            check.unpinned += int(not pinned)
+            ok.append(p)
+    check.missing_docs = sorted(missing)
+    return ok, check
+
+
+def pin_gold(pairs: Sequence[QAPair], texts: Mapping[str, str]) -> tuple[list[QAPair], int]:
+    """Add hashes to spans that have none, from ``texts`` (the corpus they were made in)."""
+    out: list[QAPair] = []
+    pinned = 0
+    for p in pairs:
+        changed = False
+        gold: list[GoldSpan] = []
+        for g in p.gold:
+            text = texts.get(g.doc_id)
+            if g.text_sha256 is None and text is not None and g.end <= len(text):
+                g = g.model_copy(update={"text_sha256": span_sha256(text[g.start : g.end])})
+                changed = True
+            gold.append(g)
+        if changed:
+            pinned += 1
+            p = p.model_copy(update={"gold": gold})
+        out.append(p)
+    return out, pinned

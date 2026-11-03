@@ -227,9 +227,10 @@ def retrieval(
     per_query = out / f"per_query-{tag}.jsonl"
     per_query.unlink(missing_ok=True)
     emb, rr = _models(s, embedder, reranker)
+    documents = read_documents_jsonl(docs or s.documents_path)
     rows = run_retrieval_ablation(
-        read_documents_jsonl(docs or s.documents_path),
-        load_qa(s, qa),
+        documents,
+        checked_pairs(load_qa(s, qa), documents, path=out / f"gold_check-{tag}.json"),
         settings=s,
         embedder=emb,
         reranker=rr,
@@ -261,6 +262,50 @@ def _load_per_query(results_dir: Path) -> list[Any]:
             if line.strip():
                 out.append(RetrievalQueryResult.model_validate_json(line))
     return out
+
+
+def checked_pairs(pairs: Sequence[Any], documents: Sequence[Any], *, path: Path) -> list[Any]:
+    """Drop pairs whose gold spans no longer match the corpus. The check is written to
+    ``path`` (a ``gold_check-*.json`` next to the run's outputs, so it travels with the
+    workflow artifacts) and the report states the exclusions."""
+    from rbirag.eval.dataset import verify_gold
+
+    ok, check = verify_gold(pairs, {d.doc_id: d.text for d in documents})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(check.model_dump_json(indent=2), encoding="utf-8")
+    if check.mismatched:
+        typer.echo(f"::warning::{check.message}", err=True)
+    else:
+        logger.info(check.message)
+    return ok
+
+
+def gold_excluded(s: Settings) -> list[str]:
+    """Union of the pairs excluded by every gold check of the current results."""
+    out: set[str] = set()
+    for path in s.results_dir.rglob("gold_check-*.json"):
+        out.update(json.loads(path.read_text(encoding="utf-8")).get("mismatched", []))
+    return sorted(out)
+
+
+@eval_app.command("pin-gold")
+def pin_gold_cmd(
+    docs: Annotated[
+        Path | None, typer.Option(help="The documents.jsonl the pairs were made from.")
+    ] = None,
+    candidates: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Add text hashes to gold spans that lack them (run once against the corpus version
+    the pairs were generated from), so later corpus changes are detected."""
+    from rbirag.document import read_documents_jsonl
+    from rbirag.eval.dataset import pin_gold, read_qa_jsonl, write_qa_jsonl
+
+    s = get_settings()
+    path = candidates or s.eval_dir / "qa_candidates.jsonl"
+    texts = {d.doc_id: d.text for d in read_documents_jsonl(docs or s.documents_path)}
+    pairs, n = pin_gold(read_qa_jsonl(path), texts)
+    write_qa_jsonl(pairs, path)
+    typer.echo(f"pinned {n} pairs in {path}")
 
 
 def dev_test(s: Settings, pairs: Sequence[Any]) -> tuple[list[Any], list[Any]]:
@@ -431,8 +476,9 @@ def generate(
     cal_path = s.results_dir / "calibration.json"
     if cal_path.exists():
         threshold = float(json.loads(cal_path.read_text(encoding="utf-8"))["threshold"])
-    by_id = {p.qa_id: p for p in load_qa(s, qa)}
     documents = read_documents_jsonl(docs or s.documents_path)
+    gold_path = s.results_dir / "generation" / f"gold_check-{backend}.json"
+    by_id = {p.qa_id: p for p in checked_pairs(load_qa(s, qa), documents, path=gold_path)}
     emb, rr = _models(s, embedder, reranker)
     marker = s.results_dir / "generation" / f"fatal-{backend}.json"
     if judge_only:
@@ -539,6 +585,8 @@ def report(
         data.pop("config", None)
         cal = Calibration.model_validate(data)
     pairs, ai_rejected = load_test_set(s, qa)
+    excluded = set(gold_excluded(s))
+    pairs = [p for p in pairs if p.qa_id not in excluded]
     dev, test = dev_test(s, pairs)
     from rbirag.eval.dataset import split_summary
 
@@ -581,6 +629,7 @@ def report(
         pairs,
         test_set=qa_path(s, qa).as_posix(),
         split=split_info,
+        gold_mismatch_excluded=sorted(excluded),
         ai_rejected=len(ai_rejected),
         model_mix=model_mix,
         judge_model=model_mix.get("judge", s.judge_model),

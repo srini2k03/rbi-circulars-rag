@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rbirag.chunking.base import Chunk
-from rbirag.eval.dataset import GoldSpan, QAPair, QuestionType
+from rbirag.eval.dataset import GoldSpan, QAPair, QuestionType, span_sha256
 from rbirag.eval.judge import JudgeParseError, extract_json_object
 from rbirag.generation.llm import (
     LLM,
@@ -245,7 +245,12 @@ def locate(evidence: str, chunk: Chunk) -> GoldSpan | None:
             first = found[0]
         pos = end = found[1]
     assert first is not None
-    return GoldSpan(doc_id=chunk.doc_id, start=chunk.start + first, end=chunk.start + end)
+    return GoldSpan(
+        doc_id=chunk.doc_id,
+        start=chunk.start + first,
+        end=chunk.start + end,
+        text_sha256=span_sha256(text[first:end]),
+    )
 
 
 def check_pair(
@@ -265,7 +270,11 @@ def check_pair(
                 or c.doc_id != located.doc_id
                 or not (c.start <= located.start < c.end)
             ):
-                gold.append(GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end))
+                gold.append(
+                    GoldSpan(
+                        doc_id=c.doc_id, start=c.start, end=c.end, text_sha256=span_sha256(c.text)
+                    )
+                )
     auto_ok = (
         located is not None
         and len(question.split()) >= 5
@@ -273,7 +282,10 @@ def check_pair(
         and not _DEICTIC.search(question)
     )
     if not gold:
-        gold = [GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end) for c in chunks]
+        gold = [
+            GoldSpan(doc_id=c.doc_id, start=c.start, end=c.end, text_sha256=span_sha256(c.text))
+            for c in chunks
+        ]
     return gold, auto_ok
 
 
@@ -292,6 +304,35 @@ def recheck(pairs: Sequence[QAPair], chunks: Sequence[Chunk]) -> tuple[list[QAPa
                 fixed += 1
         out.append(p)
     return out, fixed
+
+
+def pin_from_chunks(pairs: Sequence[QAPair], chunks: Sequence[Chunk]) -> tuple[list[QAPair], int]:
+    """Hash spans that have no hash yet, using the chunk texts (chunk.text equals
+    doc.text[chunk.start:chunk.end], so a span inside a chunk is a slice of it)."""
+    by_doc: dict[str, list[Chunk]] = {}
+    for c in chunks:
+        by_doc.setdefault(c.doc_id, []).append(c)
+    out: list[QAPair] = []
+    pinned = 0
+    for p in pairs:
+        gold: list[GoldSpan] = []
+        changed = False
+        for g in p.gold:
+            if g.text_sha256 is None:
+                host = next(
+                    (c for c in by_doc.get(g.doc_id, []) if c.start <= g.start and g.end <= c.end),
+                    None,
+                )
+                if host is not None:
+                    piece = host.text[g.start - host.start : g.end - host.start]
+                    g = g.model_copy(update={"text_sha256": span_sha256(piece)})
+                    changed = True
+            gold.append(g)
+        if changed:
+            pinned += 1
+            p = p.model_copy(update={"gold": gold})
+        out.append(p)
+    return out, pinned
 
 
 def qa_id_for(key: str) -> str:
@@ -424,6 +465,9 @@ def generate_candidates(
 ) -> GenerationRun:
     """Generate candidates; stops cleanly (``complete=False``) when the quota runs out."""
     rechecked, n_fixed = recheck(list(existing), chunks)
+    rechecked, n_pinned = pin_from_chunks(rechecked, chunks)
+    if n_pinned:
+        logger.info("pinned gold-span hashes for %d existing candidates", n_pinned)
     if n_fixed:
         logger.info("re-checked existing candidates: %d now pass the automatic checks", n_fixed)
     done = {p.qa_id: p for p in rechecked}
