@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 RetrievalMode = Literal["bm25", "dense", "hybrid", "hybrid_rerank"]
@@ -18,6 +18,30 @@ ChunkerName = Literal["fixed", "semantic", "section"]
 TokenizerName = Literal["regex", "whitespace", "tiktoken"]
 EmbedderBackend = Literal["sentence-transformers", "fake"]
 RerankerBackend = Literal["cross-encoder", "fake", "none"]
+LLMBackend = Literal["openai_compatible", "anthropic", "ollama", "fake"]
+Effort = Literal["low", "medium", "high", "xhigh", "max"]
+
+
+class ModelPrice(BaseModel):
+    """USD per million tokens."""
+
+    input: float = Field(ge=0)
+    output: float = Field(ge=0)
+    cache_read: float | None = Field(default=None, ge=0)
+    cache_write: float | None = Field(default=None, ge=0)
+
+
+# USD per 1M tokens. Gemini models are used on the free tier, so they cost $0 (tokens are
+# still recorded). Anthropic first-party list prices as of 2026-10 are kept for the
+# optional Anthropic backend; cache writes 1.25x input, cache reads 0.1x input. Claude Haiku
+# 5.5's price applies to prompts up to 100K tokens. Local Ollama models cost nothing.
+DEFAULT_PRICES: dict[str, ModelPrice] = {
+    "gemini-2.5-flash": ModelPrice(input=0.0, output=0.0),
+    "gemini-2.5-flash-lite": ModelPrice(input=0.0, output=0.0),
+    "claude-haiku-5-5": ModelPrice(input=0.10, output=0.50, cache_read=0.01, cache_write=0.125),
+    "claude-sonnet-5-5": ModelPrice(input=2.00, output=10.00, cache_read=0.20, cache_write=2.50),
+    "claude-opus-5-5": ModelPrice(input=4.00, output=20.00, cache_read=0.20, cache_write=5.00),
+}
 
 DEFAULT_USER_AGENT = (
     "rbi-circulars-rag research crawler (+https://github.com/srini2k03/rbi-circulars-rag)"
@@ -90,6 +114,55 @@ class Settings(BaseSettings):
     dense_weight: float = Field(default=1.0, ge=0)
     confidence_threshold: float = Field(default=0.5, ge=0, le=1)
     confidence_temperature: float = Field(default=1.0, gt=0)
+
+    # ------------------------------------------------------------- generation
+    llm_backend: LLMBackend = "openai_compatible"
+    # OpenAI-compatible chat-completions endpoint. Defaults to Google Gemini's free tier;
+    # Groq, OpenRouter, etc. work by changing base URL, model and the key's env var name.
+    # Keys are read from the environment variable *named* here and are never stored in
+    # settings, logged or echoed.
+    oai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    oai_api_key_env: str = "GEMINI_API_KEY"
+    oai_model: str = "gemini-2.5-flash-lite"
+    oai_reasoning_effort: str | None = None
+    oai_json_mode: Literal["json_schema", "json_object", "none"] = "json_schema"
+    oai_stream_usage: bool = True
+    oai_timeout_seconds: float = Field(default=120.0, gt=0)
+    # Client-side limits per model (free tier). Conservative defaults.
+    llm_rpm: float = Field(default=10.0, gt=0)
+    llm_rpd: int = Field(default=200, ge=1)
+    llm_max_retries: int = Field(default=6, ge=0)
+    llm_backoff_base_seconds: float = Field(default=5.0, gt=0)
+    # Disk cache of every LLM call, keyed by a hash of the full request.
+    llm_cache: bool = True
+    llm_cache_dir: Path = Path(".cache/llm")
+    # Optional Anthropic backend (used only when selected and ANTHROPIC_API_KEY is set).
+    anthropic_model: str = "claude-haiku-5-5"
+    anthropic_effort: Effort = "low"
+    anthropic_timeout_seconds: float = Field(default=120.0, gt=0)
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen2.5:3b-instruct"
+    ollama_num_ctx: int = Field(default=8192, ge=512)
+    ollama_timeout_seconds: float = Field(default=600.0, gt=0)
+    max_answer_tokens: int = Field(default=1024, ge=16)
+    answer_top_k: int = Field(default=5, ge=1)
+    # The gate refuses without calling the LLM when retrieval confidence is below the
+    # threshold. Only modes with a reranker produce a confidence.
+    confidence_gate: bool = True
+    prices: dict[str, ModelPrice] = Field(default_factory=lambda: dict(DEFAULT_PRICES))
+    usd_to_inr: float = Field(default=88.0, gt=0)
+
+    # ------------------------------------------------------------- evaluation
+    eval_dir: Path = Path("data/eval")
+    results_dir: Path = Path("results")
+    qa_backend: LLMBackend = "openai_compatible"
+    qa_model: str = "gemini-2.5-flash"
+    judge_backend: LLMBackend = "openai_compatible"
+    judge_model: str = "gemini-2.5-flash"
+    nli_model: str = "cross-encoder/nli-deberta-v3-base"
+    bootstrap_samples: int = Field(default=1000, ge=100)
+    dev_fraction: float = Field(default=0.3, gt=0, lt=1)
+    seed: int = 13
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Settings:

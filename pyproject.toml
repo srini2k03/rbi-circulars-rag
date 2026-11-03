@@ -24,6 +24,7 @@ dependencies = [
   "pydantic>=2.6",
   "pydantic-settings>=2.2",
   "typer>=0.12",
+  "rich>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +42,22 @@ retrieval = [
 # Real embedding / reranking models. Heavy (torch); never needed by the test-suite.
 ml = [
   "sentence-transformers>=3.0",
+]
+# LLM backends: Gemini/Groq/OpenRouter (OpenAI-compatible) and Ollama use httpx;
+# the optional Anthropic backend needs the official SDK.
+llm = [
+  "httpx>=0.27",
+]
+anthropic = [
+  "anthropic>=0.60",
+]
+# Evaluation reports (charts).
+eval = [
+  "matplotlib>=3.8",
+]
+# Optional RAGAS cross-check.
+ragas = [
+  "ragas>=0.2",
 ]
 # Optional BPE tokenizer for the fixed-size chunker (downloads its vocabulary on first use).
 tiktoken = [
@@ -77,10 +94,11 @@ ignore = [
   "PLC0415",  # lazy imports are intentional (heavy optional deps)
   "PLR0917",  # typer commands take many options
   "PLW2901",  # re-binding a loop variable after trimming is clearer here
+  "ARG002",   # protocol implementations (fakes) accept arguments they ignore
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["ARG", "PLR", "PT018"]
+"tests/**" = ["ARG", "PLR", "PT018", "E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["rbirag"]
@@ -95,7 +113,7 @@ plugins = ["pydantic.mypy"]
 warn_unreachable = true
 
 [[tool.mypy.overrides]]
-module = ["rank_bm25", "sentence_transformers", "sentence_transformers.*", "tiktoken", "fitz", "pymupdf", "pymupdf.*"]
+module = ["anthropic", "anthropic.*", "rank_bm25", "ragas", "ragas.*", "matplotlib", "matplotlib.*", "sentence_transformers", "sentence_transformers.*", "tiktoken", "fitz", "pymupdf", "pymupdf.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
