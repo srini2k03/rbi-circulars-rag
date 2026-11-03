@@ -33,6 +33,8 @@ class Source(BaseModel):
     circular_number: str | None
     score: float
     text: str
+    pdf_url: str | None = None
+    section: str | None = None
 
 
 class RAGAnswer(BaseModel):
@@ -73,6 +75,8 @@ def to_sources(results: list[ScoredChunk]) -> list[Source]:
                 circular_number=_s(md.get("circular_number")),
                 score=r.score,
                 text=r.chunk.text,
+                pdf_url=_s(md.get("pdf_url")),
+                section=r.chunk.section,
             )
         )
     return out
