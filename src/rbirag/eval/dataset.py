@@ -85,15 +85,44 @@ def usable(pairs: Sequence[QAPair]) -> list[QAPair]:
     return [p for p in pairs if p.review_status != "rejected" and p.auto_check is not False]
 
 
-def split_of(qa_id: str, dev_fraction: float, seed: int = 13) -> Literal["dev", "test"]:
+SPLIT_METHOD = (
+    "by document: every pair whose gold evidence comes from the same notification lands in "
+    "the same split (seeded SHA-256 of the gold doc id; unanswerable pairs, which have no "
+    "document, are split by qa_id)"
+)
+
+
+def split_key(pair: QAPair) -> str:
+    """The unit of splitting: the (first) gold document, so no document's questions are in
+    both splits; unanswerable pairs have none and are split individually."""
+    docs = sorted(pair.gold_doc_ids)
+    return f"doc:{docs[0]}" if docs else f"qa:{pair.qa_id}"
+
+
+def split_of(key: str, dev_fraction: float, seed: int = 13) -> Literal["dev", "test"]:
     """Stable hash split, independent of file order and of how many pairs exist."""
-    h = hashlib.sha256(f"{seed}:{qa_id}".encode()).digest()
+    h = hashlib.sha256(f"{seed}:{key}".encode()).digest()
     return "dev" if int.from_bytes(h[:8], "big") / 2**64 < dev_fraction else "test"
 
 
 def split(
     pairs: Sequence[QAPair], dev_fraction: float = 0.3, seed: int = 13
 ) -> tuple[list[QAPair], list[QAPair]]:
-    dev = [p for p in pairs if split_of(p.qa_id, dev_fraction, seed) == "dev"]
-    test = [p for p in pairs if split_of(p.qa_id, dev_fraction, seed) == "test"]
+    """Deterministic dev/test split by document (see :data:`SPLIT_METHOD`)."""
+    dev = [p for p in pairs if split_of(split_key(p), dev_fraction, seed) == "dev"]
+    test = [p for p in pairs if split_of(split_key(p), dev_fraction, seed) == "test"]
     return dev, test
+
+
+def split_summary(
+    dev: Sequence[QAPair], test: Sequence[QAPair], *, dev_fraction: float, seed: int
+) -> dict[str, object]:
+    return {
+        "method": SPLIT_METHOD,
+        "seed": seed,
+        "dev_fraction": dev_fraction,
+        "dev_questions": len(dev),
+        "test_questions": len(test),
+        "dev_documents": len({d for p in dev for d in p.gold_doc_ids}),
+        "test_documents": len({d for p in test for d in p.gold_doc_ids}),
+    }

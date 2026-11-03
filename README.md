@@ -187,6 +187,9 @@ python -m http.server -d web 8080           # open http://localhost:8080
   - The threshold τ is chosen on a dev split by maximising F0.5 of refusals: refusing an
     answerable question is treated as worse than letting the LLM see weak context
     (it may still refuse).
+  - The split is by document (seeded): all questions about one notification are in the
+    same split. The generation configuration and τ are chosen on dev only; every
+    reported number is on test, and the results state both split sizes.
   - The calibration curve is in `results/charts/calibration.png`.
 - **A small embedder everywhere.**
   - `bge-small-en-v1.5` (384-d) and `ms-marco-MiniLM-L-6-v2` run on CPU in CI and have
