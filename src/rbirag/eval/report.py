@@ -311,15 +311,37 @@ def git_sha() -> str | None:
         return None
 
 
-def run_metadata(qa: Sequence[QAPair], **extra: Any) -> dict[str, Any]:
+def is_reviewed_set(source: str | None) -> bool:
+    return bool(source) and Path(str(source)).name == "qa_v1.jsonl"
+
+
+def human_verified(source: str | None, qa: Sequence[QAPair]) -> int:
+    """Human verification only exists in the reviewed set; candidates count as 0."""
+    return sum(p.verified for p in qa) if source is None or is_reviewed_set(source) else 0
+
+
+def describe_test_set(source: str | None, qa: Sequence[QAPair]) -> str:
+    """How the results README describes the test set that was used."""
+    verified = human_verified(source, qa)
+    if is_reviewed_set(source):
+        return f"reviewed test set (`{source}`), {len(qa)} questions, {verified} human-verified"
+    return (
+        f"model-generated test set (`{source or 'qa_candidates.jsonl'}`), {len(qa)} questions, "
+        f"{verified} human-verified"
+    )
+
+
+def run_metadata(qa: Sequence[QAPair], test_set: str | None = None, **extra: Any) -> dict[str, Any]:
     return {
+        "test_set_file": test_set,
+        "test_set": describe_test_set(test_set, qa),
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "commit": git_sha(),
         "questions": len(qa),
         "answerable": sum(p.answerable for p in qa),
         "unanswerable": sum(not p.answerable for p in qa),
-        "human_verified": sum(p.verified for p in qa),
-        "unverified_model_generated": sum(not p.verified for p in qa),
+        "human_verified": human_verified(test_set, qa),
+        "unverified_model_generated": len(qa) - human_verified(test_set, qa),
         **extra,
     }
 
@@ -340,6 +362,7 @@ def build_report(
     written: list[Path] = []
     md_parts = [
         "# Evaluation results\n",
+        f"**Test set: {metadata.get('test_set') or describe_test_set(None, [])}.**\n",
         f"Generated {metadata.get('generated_at')} at commit `{metadata.get('commit')}`. "
         f"Questions: {metadata.get('questions')} ({metadata.get('answerable')} answerable, "
         f"{metadata.get('unanswerable')} unanswerable); human-verified: "
