@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from rbirag.chunking import SectionChunker
@@ -76,3 +78,50 @@ def test_mode_validation(retriever: Retriever, fixture_docs: list[Document]) -> 
     no_rerank = Retriever(retriever.store, bm25=retriever.bm25, dense=retriever.dense)
     with pytest.raises(ValueError, match="reranker"):
         no_rerank.retrieve("deposits", mode="hybrid_rerank")
+
+
+def test_make_retriever_uses_every_retrieval_setting(fixture_docs: list[Document]) -> None:
+    from rbirag.config import Settings
+    from rbirag.retrieval.pipeline import make_retriever
+
+    chunks = chunk_documents(fixture_docs, SectionChunker(max_tokens=120, min_tokens=30))
+    b = build_index(chunks, embedder=FakeEmbedder(32))
+    s = Settings(candidate_k=7, rerank_k=4, rrf_k=10, bm25_weight=0.5, dense_weight=2.0,
+                 confidence_threshold=0.3, confidence_temperature=4.0, retrieval_mode="hybrid")  # fmt: skip
+    r = make_retriever(s, b.store, bm25=b.bm25, dense=b.dense, reranker=FakeReranker())
+    assert (r.candidate_k, r.rerank_k, r.rrf_k) == (7, 4, 10)
+    assert (r.bm25_weight, r.dense_weight) == (0.5, 2.0)
+    assert (r.confidence_threshold, r.confidence_temperature, r.mode) == (0.3, 4.0, "hybrid")
+    assert (
+        make_retriever(
+            s, b.store, bm25=b.bm25, dense=b.dense, reranker=None, confidence_threshold=0.9
+        ).confidence_threshold
+        == 0.9
+    )
+
+
+def test_ablation_and_generation_share_confidence_temperature(
+    fixture_docs: list[Document], tmp_path: Path
+) -> None:
+    import json
+
+    from rbirag.config import Settings
+    from rbirag.eval.ablate import run_retrieval_ablation
+    from rbirag.eval.dataset import QAPair
+    from rbirag.retrieval.confidence import sigmoid
+
+    qa = [
+        QAPair(
+            qa_id="q",
+            question="periodic updation of KYC for high risk customers",
+            answer="",
+            qtype="unanswerable",
+            answerable=False,
+        )
+    ]
+    path = tmp_path / "pq.jsonl"
+    run_retrieval_ablation(fixture_docs, qa, settings=Settings(confidence_temperature=5.0), embedder=FakeEmbedder(32),
+                           reranker=FakeReranker(), chunkers=["section"], sizes=[128], modes=["hybrid_rerank"],
+                           per_query_path=path)  # fmt: skip
+    item = json.loads(path.read_text().splitlines()[0])
+    assert item["confidence"] == pytest.approx(sigmoid(item["top_score"] / 5.0))

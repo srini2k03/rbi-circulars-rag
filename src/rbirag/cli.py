@@ -247,7 +247,7 @@ def query(
     """Answer a question with cited sources (or just retrieve with --retrieve-only)."""
     from rbirag.index.build import load_bundle
     from rbirag.index.embedder import build_embedder
-    from rbirag.retrieval.pipeline import Retriever
+    from rbirag.retrieval.pipeline import make_retriever
     from rbirag.retrieval.rerank import build_reranker
 
     s = get_settings()
@@ -273,7 +273,8 @@ def query(
         qdrant_url=s.qdrant_url,
         qdrant_path=None if s.qdrant_url else (s.qdrant_path or in_dir / "qdrant"),
     )
-    retriever = Retriever(
+    retriever = make_retriever(
+        s,
         bundle.store,
         bm25=bundle.bm25,
         dense=bundle.dense,
@@ -283,13 +284,6 @@ def query(
         if retrieval_mode == "hybrid_rerank"
         else None,
         mode=retrieval_mode,
-        candidate_k=s.candidate_k,
-        rerank_k=s.rerank_k,
-        rrf_k=s.rrf_k,
-        bm25_weight=s.bm25_weight,
-        dense_weight=s.dense_weight,
-        confidence_threshold=s.confidence_threshold,
-        confidence_temperature=s.confidence_temperature,
     )
     try:
         if retrieve_only:

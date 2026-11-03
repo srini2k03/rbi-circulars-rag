@@ -29,7 +29,7 @@ from rbirag.generation.rag import RAGAnswer, RAGPipeline, StreamEvent, build_llm
 from rbirag.index.build import IndexBundle, build_index, chunk_documents, load_bundle, save_bundle
 from rbirag.index.embedder import Embedder, build_embedder
 from rbirag.providers import get_preset
-from rbirag.retrieval.pipeline import Retriever
+from rbirag.retrieval.pipeline import make_retriever
 from rbirag.retrieval.rerank import Reranker, build_reranker
 
 logger = logging.getLogger(__name__)
@@ -319,21 +319,14 @@ class RAGService:
         bundle = self.bundle
         if mode != "bm25" and bundle.dense is None:
             raise ServiceUnavailableError("dense index unavailable; use mode=bm25")
-        retriever = Retriever(
+        retriever = make_retriever(
+            self.settings,
             bundle.store,
             bm25=bundle.bm25,
             dense=bundle.dense,
             reranker=self.reranker if mode == "hybrid_rerank" else None,
             mode=mode,
-            candidate_k=self.settings.candidate_k,
-            rerank_k=self.settings.rerank_k,
-            rrf_k=self.settings.rrf_k,
-            bm25_weight=self.settings.bm25_weight,
-            dense_weight=self.settings.dense_weight,
-            confidence_threshold=req.threshold
-            if req.threshold is not None
-            else self.settings.confidence_threshold,
-            confidence_temperature=self.settings.confidence_temperature,
+            confidence_threshold=req.threshold,
         )
         backend = req.backend or default_backend(self.settings)
         pipeline = RAGPipeline.from_settings(retriever, self.llm(backend), self.settings)

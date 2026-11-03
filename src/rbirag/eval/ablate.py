@@ -41,7 +41,7 @@ from rbirag.generation.llm import (
 from rbirag.generation.rag import RAGPipeline
 from rbirag.index.build import IndexBundle, build_index, chunk_documents
 from rbirag.index.embedder import Embedder, FloatArray
-from rbirag.retrieval.pipeline import Retriever
+from rbirag.retrieval.pipeline import Retriever, make_retriever
 from rbirag.retrieval.rerank import Reranker
 
 logger = logging.getLogger(__name__)
@@ -241,16 +241,8 @@ def run_retrieval_ablation(
                 len(chunks),
                 time.perf_counter() - t0,
             )
-            retriever = Retriever(
-                bundle.store,
-                bm25=bundle.bm25,
-                dense=bundle.dense,
-                reranker=reranker,
-                candidate_k=settings.candidate_k,
-                rerank_k=settings.rerank_k,
-                rrf_k=settings.rrf_k,
-                bm25_weight=settings.bm25_weight,
-                dense_weight=settings.dense_weight,
+            retriever = make_retriever(
+                settings, bundle.store, bm25=bundle.bm25, dense=bundle.dense, reranker=reranker
             )
             for mode in modes:
                 if mode == "hybrid_rerank" and reranker is None:
