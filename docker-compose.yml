@@ -1,0 +1,64 @@
+# Full stack: API (FastAPI), UI (Streamlit), Qdrant, and optionally Ollama.
+#   docker compose up -d --build                       # api + ui + qdrant (Groq by default)
+#   docker compose --profile ollama up -d --build      # + local Ollama (pulls the model once)
+# Put GROQ_API_KEY (and any RBIRAG_* overrides) in .env.
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RBIRAG_QDRANT_URL: http://qdrant:6333
+      RBIRAG_OLLAMA_URL: http://ollama:11434
+    volumes:
+      - rbirag_data:/data
+      - hf_models:/models
+    ports:
+      - "8000:8000"
+    depends_on:
+      - qdrant
+
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    environment:
+      RBIRAG_API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
+  ollama:
+    image: ollama/ollama:0.5.7
+    profiles: ["ollama"]
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  ollama-pull:
+    image: ollama/ollama:0.5.7
+    profiles: ["ollama"]
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 5 && ollama pull \"${RBIRAG_OLLAMA_MODEL:-qwen2.5:3b-instruct}\""]
+    restart: "no"
+
+volumes:
+  qdrant_data:
+  rbirag_data:
+  hf_models:
+  ollama_models:

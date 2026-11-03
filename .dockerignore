@@ -1,0 +1,17 @@
+.git
+.venv
+venv
+.cache
+.mypy_cache
+.ruff_cache
+.pytest_cache
+**/__pycache__
+data/raw
+data/processed
+indexes
+results
+web
+docs
+.smoke
+_site
+node_modules

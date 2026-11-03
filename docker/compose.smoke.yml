@@ -1,0 +1,16 @@
+# Overrides for CI's docker-smoke job: light image (no torch), fake models and LLM, and a
+# fixture index built on start-up. Usage:
+#   docker compose -f docker-compose.yml -f docker/compose.smoke.yml up -d --build qdrant api ui
+services:
+  api:
+    build:
+      args:
+        EXTRAS: ingest,retrieval,llm,api
+    environment:
+      RBIRAG_BOOTSTRAP_FIXTURES: "1"
+      RBIRAG_LLM_BACKEND: fake
+      RBIRAG_EMBEDDER: fake
+      RBIRAG_RERANKER: fake
+      RBIRAG_CHUNK_SIZE: "128"
+      RBIRAG_CHUNK_OVERLAP: "16"
+      RBIRAG_SECTION_MIN_TOKENS: "24"
