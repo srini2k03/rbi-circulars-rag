@@ -270,3 +270,41 @@ def test_ai_review_filters_edits_and_labels_the_report(workspace: Path) -> None:
     assert "ai_review" not in path.read_text()
     status = json.loads(invoke("eval", "qa-status", "--candidates", str(path)))
     assert (status["ai_reviewed"], status["ai_rejected"], status["human_verified"]) == (4, 2, 1)
+
+
+def test_report_updates_readme_results_section(workspace: Path) -> None:
+    from rbirag.eval.report import README_END, README_START
+
+    invoke(
+        "eval",
+        "retrieval",
+        "--chunkers",
+        "section",
+        "--sizes",
+        "64",
+        "--modes",
+        "bm25,hybrid_rerank",
+        "--tag",
+        "r",
+    )
+    readme = workspace / "README.md"
+    readme.write_text(
+        f"# Title\n\n## Results\n{README_START}\nold placeholder\n{README_END}\n\n## After\n"
+    )
+    out = invoke("eval", "report", "--update-readme", str(readme))
+    assert "updated results section" in out
+    text = readme.read_text()
+    assert "old placeholder" not in text
+    assert "**Test set: reviewed test set" in text
+    assert "section-64-hybrid_rerank" in text
+    assert (
+        text.index(README_START)
+        < text.index("Test set")
+        < text.index(README_END)
+        < text.index("## After")
+    )
+    plain = workspace / "PLAIN.md"
+    plain.write_text("no markers")
+    result = runner.invoke(app, ["eval", "report", "--update-readme", str(plain)])
+    assert result.exit_code == 0
+    assert plain.read_text() == "no markers"
