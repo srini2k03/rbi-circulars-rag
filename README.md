@@ -41,9 +41,8 @@ sources and says "I don't know" when retrieval confidence is low.
 
   Free-tier hygiene:
   - client-side limits per model: requests per minute, requests per day and a
-    tokens-per-minute budget (Groq defaults: 25 requests/min; 950/day for the 70B-class
-    models and 14,000/day for Llama 3.1 8B; a token budget just under the published
-    per-minute limits);
+    tokens-per-minute budget (Groq defaults: 25 requests/min, 950 requests/day and
+    7,500 tokens/min per model, just under the published free-tier limits);
   - exponential backoff on 429 and 5xx;
   - a fallback chain of models: after 2 consecutive 503 "overloaded" responses the
     request moves to the next model, and the overloaded model is skipped for a few
@@ -72,22 +71,25 @@ sources and says "I don't know" when retrieval confidence is low.
 
 ### Which models produce the numbers
 
-Groq free tier (Llama 3.3 70B judge, Llama 3.1 8B generator), plus local Ollama
+Groq free tier (GPT-OSS 120B judge, GPT-OSS 20B generator), plus local Ollama
 Qwen2.5-3B.
 
 - **API models (Groq), configurable per role:**
 
   | Role | Primary model | Fallbacks |
   |---|---|---|
-  | API generator | `llama-3.1-8b-instant` | `openai/gpt-oss-20b` |
-  | Judge | `llama-3.3-70b-versatile` (a different, larger model than the generator) | `openai/gpt-oss-120b`, `qwen/qwen3-32b` |
-  | Q/A writer | `llama-3.3-70b-versatile` | `openai/gpt-oss-120b`, `qwen/qwen3-32b` |
+  | API generator | `openai/gpt-oss-20b` | `qwen/qwen3.8-27b` |
+  | Judge | `openai/gpt-oss-120b` (a different, larger model than the generator) | `qwen/qwen3.8-27b` |
+  | Q/A writer | `openai/gpt-oss-120b` | `qwen/qwen3.8-27b` |
+
+  The chains use only chat models that the project's Groq key lists; Llama 3.3 70B and
+  Llama 3.1 8B are not available to it (404).
 
   Every record stores the model that actually answered, and `results/README.md` reports
-  the mix (for example "judge: llama-3.3-70b-versatile 70%, openai/gpt-oss-120b 30%").
-  The first four Q/A candidates were written by Gemini (`gemini-3.5-flash`) before the
-  switch to Groq; each pair records its writer model, and the results README shows the
-  writer mix.
+  the mix (for example "judge: openai/gpt-oss-120b 90%, qwen/qwen3.8-27b 10%").
+  Of the current 123 Q/A candidates, 4 were written by Gemini (`gemini-3.5-flash`)
+  before the switch to Groq and 119 by `openai/gpt-oss-120b`; each pair records its
+  writer model, and the results README shows the writer mix.
 - **Local model:** Ollama `qwen2.5:3b-instruct` is evaluated alongside, and judged by
   the same Groq judge.
 - **Judge-independent check:** NLI-based faithfulness and citation accuracy are reported
@@ -158,7 +160,11 @@ used and are reported as model-generated.
 Both take a `provider` input (`groq` or `gemini`). They need the matching repository
 secret (`GROQ_API_KEY` or `GEMINI_API_KEY`), fail early (without printing it) if it is
 missing, and list the models the key can use. Each provider has its own concurrency
-group, so runs on the same provider never compete for its quota. Both stop cleanly when the daily free-tier quota
+group, so runs on the same provider never compete for its quota.
+
+Run LLM workflows that use the same API key one at a time, including workflows in
+*other* repositories that share the key: free-tier limits are per key (or per
+organisation), so concurrent runs hit 429s together and slow each other down. Both stop cleanly when the daily free-tier quota
 runs out: rerun them later and they continue from the committed records and the cached
 LLM responses. `evaluate.yml` prints the planned number of LLM calls before generating.
 

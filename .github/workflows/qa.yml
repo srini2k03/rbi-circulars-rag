@@ -17,11 +17,11 @@ on:
         options: [groq, gemini]
         default: groq
       model:
-        description: "Q/A writer model (blank = provider default: groq llama-3.3-70b-versatile, gemini gemini-3.8-flash)"
+        description: "Q/A writer model (blank = provider default: groq openai/gpt-oss-120b, gemini gemini-3.8-flash)"
         type: string
         default: ""
       model_fallbacks:
-        description: "Comma-separated fallbacks (blank = provider default: groq openai/gpt-oss-120b,qwen/qwen3-32b)"
+        description: "Comma-separated fallbacks (blank = provider default: groq qwen/qwen3.8-27b)"
         type: string
         default: ""
       requests_per_day:
