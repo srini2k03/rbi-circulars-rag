@@ -372,6 +372,29 @@ def _print_answer(
     )
 
 
+@app.command()
+def serve(
+    host: Annotated[str | None, typer.Option()] = None,
+    port: Annotated[int | None, typer.Option()] = None,
+    reload: Annotated[bool, typer.Option(help="Auto-reload (development).")] = False,
+) -> None:
+    """Run the HTTP API (FastAPI) with JSON logs."""
+    import uvicorn
+
+    from rbirag.api.logging import configure_json_logging
+
+    s = get_settings()
+    configure_json_logging()
+    uvicorn.run(
+        "rbirag.api.main:create_app",
+        factory=True,
+        host=host or s.api_host,
+        port=port or s.api_port,
+        reload=reload,
+        log_config=None,
+    )
+
+
 from rbirag.eval.cli import eval_app  # noqa: E402
 
 app.add_typer(eval_app, name="eval")

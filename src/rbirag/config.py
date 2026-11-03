@@ -173,6 +173,12 @@ class Settings(BaseSettings):
     prices: dict[str, ModelPrice] = Field(default_factory=lambda: dict(DEFAULT_PRICES))
     usd_to_inr: float = Field(default=88.0, gt=0)
 
+    # -------------------------------------------------------------------- api
+    # JSONL mirror of the API request log (None = in memory only).
+    request_log_path: Path | None = None
+    api_host: str = "0.0.0.0"
+    api_port: int = Field(default=8000, ge=1, le=65535)
+
     # ------------------------------------------------------------- evaluation
     eval_dir: Path = Path("data/eval")
     results_dir: Path = Path("results")
