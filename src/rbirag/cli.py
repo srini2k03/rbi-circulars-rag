@@ -5,11 +5,22 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from rbirag.config import ChunkerName, EmbedderBackend, RerankerBackend, RetrievalMode, get_settings
+from rbirag.config import (
+    ChunkerName,
+    EmbedderBackend,
+    LLMBackend,
+    RerankerBackend,
+    RetrievalMode,
+    Settings,
+    get_settings,
+)
+
+if TYPE_CHECKING:
+    from rbirag.retrieval.pipeline import Retriever
 
 app = typer.Typer(
     help="Hybrid-retrieval RAG over RBI notifications.", no_args_is_help=True, add_completion=False
@@ -220,9 +231,20 @@ def query(
     embedder: Annotated[EmbedderBackend | None, typer.Option()] = None,
     reranker: Annotated[RerankerBackend | None, typer.Option()] = None,
     index_dir: Annotated[Path | None, typer.Option()] = None,
+    retrieve_only: Annotated[
+        bool, typer.Option("--retrieve-only", help="Only retrieve; do not call an LLM.")
+    ] = False,
+    llm: Annotated[
+        LLMBackend | None, typer.Option(help="openai_compatible | anthropic | ollama | fake")
+    ] = None,
+    model: Annotated[str | None, typer.Option(help="Override the backend's model id.")] = None,
+    stream: Annotated[bool, typer.Option("--stream/--no-stream", help="Stream tokens.")] = True,
+    gate: Annotated[
+        bool, typer.Option("--gate/--no-gate", help="Refuse when retrieval confidence is low.")
+    ] = True,
     as_json: Annotated[bool, typer.Option("--json", help="Print the full result as JSON.")] = False,
 ) -> None:
-    """Retrieve chunks for a question (generation arrives in a later phase)."""
+    """Answer a question with cited sources (or just retrieve with --retrieve-only)."""
     from rbirag.index.build import load_bundle
     from rbirag.index.embedder import build_embedder
     from rbirag.retrieval.pipeline import Retriever
@@ -269,9 +291,18 @@ def query(
         confidence_threshold=s.confidence_threshold,
         confidence_temperature=s.confidence_temperature,
     )
-    result = retriever.retrieve(text, top_k=top_k or s.top_k)
-    if bundle.dense is not None:
-        bundle.dense.close()
+    try:
+        if retrieve_only:
+            _print_retrieval(retriever, text, top_k or s.top_k, as_json)
+        else:
+            _print_answer(retriever, text, s, llm, model, top_k, stream, gate, as_json)
+    finally:
+        if bundle.dense is not None:
+            bundle.dense.close()
+
+
+def _print_retrieval(retriever: Retriever, text: str, top_k: int, as_json: bool) -> None:
+    result = retriever.retrieve(text, top_k=top_k)
     if as_json:
         typer.echo(result.model_dump_json(indent=2))
         return
@@ -286,6 +317,64 @@ def query(
             f"({md.get('date')}, {md.get('circular_number')})"
         )
         typer.echo("    " + r.chunk.text[:200].replace("\n", " "))
+
+
+def _print_answer(
+    retriever: Retriever,
+    text: str,
+    s: Settings,
+    backend: str | None,
+    model: str | None,
+    top_k: int | None,
+    stream: bool,
+    gate: bool,
+    as_json: bool,
+) -> None:
+    from rbirag.generation.rag import RAGAnswer, RAGPipeline, build_llm
+
+    pipeline = RAGPipeline.from_settings(retriever, build_llm(s, backend, model), s)
+    pipeline.gate = gate and s.confidence_gate
+    if top_k:
+        pipeline.top_k = top_k
+    answer: RAGAnswer | None = None
+    if stream and not as_json:
+        for event in pipeline.stream(text):
+            if event.type == "delta":
+                typer.echo(event.text, nl=False)
+            elif event.type == "done":
+                answer = event.answer
+        typer.echo("")
+    else:
+        answer = pipeline.answer(text)
+    assert answer is not None
+    if as_json:
+        typer.echo(answer.model_dump_json(indent=2))
+        return
+    if not stream:
+        typer.echo(answer.answer)
+    typer.echo("")
+    for src in answer.sources:
+        if src.n in answer.citations.cited_ids:
+            typer.echo(f"[{src.n}] {src.title} ({src.date}, {src.circular_number}) {src.url or ''}")
+    flags = []
+    if answer.refused:
+        flags.append(f"refused={answer.refusal_reason}")
+    if answer.citations.invalid_ids:
+        flags.append(f"invalid citations={answer.citations.invalid_ids}")
+    if answer.citations.uncited_sentences:
+        flags.append(f"uncited sentences={len(answer.citations.uncited_sentences)}")
+    conf = f"{answer.confidence.probability:.3f}" if answer.confidence else "n/a"
+    typer.echo(
+        f"-- {answer.backend or '-'}:{answer.model or '-'} confidence={conf} "
+        f"tokens={answer.usage.input_tokens}+{answer.usage.output_tokens} "
+        f"cost=${answer.cost.usd:.6f} (INR {answer.cost.inr:.4f}) "
+        f"timings_ms={answer.timings_ms} {' '.join(flags)}"
+    )
+
+
+from rbirag.eval.cli import eval_app  # noqa: E402
+
+app.add_typer(eval_app, name="eval")
 
 
 if __name__ == "__main__":  # pragma: no cover
