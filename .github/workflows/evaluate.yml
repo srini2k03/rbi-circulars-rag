@@ -14,19 +14,19 @@ on:
         options: [groq, gemini]
         default: groq
       generator_model:
-        description: "API generator (blank = provider default: groq llama-3.1-8b-instant, gemini gemini-3.5-flash-lite)"
+        description: "API generator (blank = provider default: groq openai/gpt-oss-20b, gemini gemini-3.5-flash-lite)"
         type: string
         default: ""
       generator_fallbacks:
-        description: "Comma-separated generator fallbacks (blank = provider default: groq openai/gpt-oss-20b)"
+        description: "Comma-separated generator fallbacks (blank = provider default: groq qwen/qwen3.8-27b)"
         type: string
         default: ""
       judge_model:
-        description: "LLM judge (blank = provider default: groq llama-3.3-70b-versatile, gemini gemini-3.8-flash)"
+        description: "LLM judge (blank = provider default: groq openai/gpt-oss-120b, gemini gemini-3.8-flash)"
         type: string
         default: ""
       judge_fallbacks:
-        description: "Comma-separated judge fallbacks (blank = provider default: groq openai/gpt-oss-120b,qwen/qwen3-32b)"
+        description: "Comma-separated judge fallbacks (blank = provider default: groq qwen/qwen3.8-27b)"
         type: string
         default: ""
       ollama_model:
