@@ -17,7 +17,8 @@ export function buildUserPrompt(question, chunks) {
 
 export function citedIds(answer) {
   const ids = [];
-  for (const m of answer.matchAll(/\[\s*(\d+(?:\s*(?:,|-)\s*\d+)*)\s*\]/g)) {
+  // 1-3 digit ids only, as in rbirag.generation.citations ("[1949]" is not a citation)
+  for (const m of answer.matchAll(/\[\s*(\d{1,3}(?:\s*(?:,|-)\s*\d{1,3})*)\s*\]/g)) {
     for (const part of m[1].split(/\s*,\s*/)) {
       const r = part.match(/^(\d+)\s*-\s*(\d+)$/);
       if (r) for (let i = +r[1]; i <= +r[2] && i - +r[1] <= 20; i++) ids.push(i);

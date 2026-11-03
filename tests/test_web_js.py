@@ -76,7 +76,7 @@ def test_js_matches_python(tmp_path: Path) -> None:
                 }
             ],
         },
-        "cited": "Yes [1]. Also [2, 4] and [5-6].",
+        "cited": "Yes [1]. Also [2, 4] and [5-6] in [1949].",
         "dense": {
             "query": vecs[0].tolist(),
             "q": q.flatten().tolist(),

@@ -77,3 +77,30 @@ def test_split_sentences_keeps_trailing_citations() -> None:
         "Another rule applies [2][3].",
         "Bullet item [1].",
     ]
+
+
+def test_citation_after_full_stop_attaches_to_previous_sentence() -> None:
+    report = parse_citations("KYC is updated every two years. [2] The limit is Rs 5 lakh [1].", 2)
+    assert [s.citations for s in report.sentences] == [[2], [1]]
+    assert report.uncited_sentences == []
+    assert report.valid
+
+
+def test_abbreviations_do_not_split_sentences() -> None:
+    assert split_sentences(
+        "The limit is Rs. 5 lakh per account [1]. See Circular No. 45 for details [2]."
+    ) == [
+        "The limit is Rs. 5 lakh per account [1].",
+        "See Circular No. 45 for details [2].",
+    ]
+    report = parse_citations("The limit is Rs. 5 lakh per account [1].", 1)
+    assert len(report.sentences) == 1
+    assert report.uncited_sentences == []
+
+
+def test_four_digit_brackets_and_out_of_range_ids() -> None:
+    report = parse_citations("The Banking Regulation Act [1949] applies here [1]. Also see [7].", 2)
+    assert report.cited_ids == [1]  # [1949] is not a citation
+    assert report.invalid_ids == [7]  # a 1-3 digit id beyond the sources is flagged
+    assert extract_citations("in [2024] and [12]") == [12]
+    assert strip_citations("Act [1949] applies [1].") == "Act [1949] applies."
