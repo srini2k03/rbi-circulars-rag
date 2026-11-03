@@ -1,6 +1,10 @@
 name: Generate Q/A candidates
 
 on:
+  # Daily, to use each day's free-tier token slice. 09:41 UTC is offset from the jobpost
+  # repository's 03:23 UTC run so the shared key is never used concurrently.
+  schedule:
+    - cron: "41 9 * * *"
   workflow_dispatch:
     inputs:
       n_answerable:
@@ -32,17 +36,21 @@ on:
 permissions:
   contents: write  # commits data/eval/qa_candidates.jsonl
 
+# Scheduled runs have no inputs: every inputs.* reference falls back to its default.
 concurrency:
-  group: llm-quota-${{ inputs.provider }}  # one run at a time per provider quota (shared with evaluate.yml)
+  group: llm-quota-${{ inputs.provider || 'groq' }}  # one run at a time per provider quota (shared with evaluate.yml)
   cancel-in-progress: false
 
 env:
   PYTHONUNBUFFERED: "1"
-  RBIRAG_LLM_PROVIDER: ${{ inputs.provider }}
+  PROVIDER: ${{ inputs.provider || 'groq' }}
+  N_ANS: ${{ inputs.n_answerable || '220' }}
+  N_UNANS: ${{ inputs.n_unanswerable || '30' }}
+  RBIRAG_LLM_PROVIDER: ${{ inputs.provider || 'groq' }}
   RBIRAG_QA_BACKEND: openai_compatible
-  RBIRAG_QA_MODEL: ${{ inputs.model }}
+  RBIRAG_QA_MODEL: ${{ inputs.model || '' }}
   RBIRAG_QA_MODEL_FALLBACKS: ${{ inputs.model_fallbacks || 'auto' }}
-  RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
+  RBIRAG_LLM_RPD: ${{ inputs.requests_per_day || '0' }}
 
 jobs:
   qa:
@@ -50,13 +58,6 @@ jobs:
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
-
-      - uses: ./.github/actions/provider-key
-        with:
-          provider: ${{ inputs.provider }}
-          groq_key: ${{ secrets.GROQ_API_KEY }}
-          gemini_key: ${{ secrets.GEMINI_API_KEY }}
-          list_models: "true"
 
       - uses: actions/setup-python@v5
         with:
@@ -69,7 +70,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[ingest,retrieval,llm]"
 
+      - name: Are the candidate targets already met?
+        id: gate
+        run: |
+          rbirag eval qa-status --n-answerable "$N_ANS" --n-unanswerable "$N_UNANS" | tee /tmp/qa_status.json
+          met=$(python -c "import json; print(str(json.load(open('/tmp/qa_status.json'))['targets_met']).lower())")
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$met" = "true" ]; then
+            echo "Targets met; nothing to do on this scheduled run."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: ./.github/actions/provider-key
+        if: steps.gate.outputs.skip != 'true'
+        with:
+          provider: ${{ inputs.provider || 'groq' }}
+          groq_key: ${{ secrets.GROQ_API_KEY }}
+          gemini_key: ${{ secrets.GEMINI_API_KEY }}
+          list_models: "true"
+
       - name: Download corpus (release corpus-v1)
+        if: steps.gate.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -79,21 +101,22 @@ jobs:
           echo "documents: $(wc -l < data/processed/documents.jsonl)"
 
       - name: Restore LLM response cache and quota counters
+        if: steps.gate.outputs.skip != 'true'
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}
-          restore-keys: llm-cache-${{ inputs.provider }}-
+          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}
+          restore-keys: llm-cache-${{ inputs.provider || 'groq' }}-
 
       - name: Build the chunk store (section-aware, 512 tokens, no embeddings)
+        if: steps.gate.outputs.skip != 'true'
         run: rbirag index --chunker section --no-dense
 
       - name: Generate candidates (resumable; stops cleanly when the daily quota is used)
+        if: steps.gate.outputs.skip != 'true'
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          N_ANS: ${{ inputs.n_answerable }}
-          N_UNANS: ${{ inputs.n_unanswerable }}
         run: |
           set +e
           rbirag eval qa-generate --chunks indexes/section/chunks.jsonl \
@@ -112,16 +135,16 @@ jobs:
           exit "$status"
 
       - name: Save LLM cache
-        if: always()
+        if: always() && steps.gate.outputs.skip != 'true'
         uses: actions/cache/save@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}
+          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}
 
       - name: Commit candidates (only when this run produced new pairs)
         # Runs even if generation stopped early, so partial progress is kept; skipped
         # cleanly when there is nothing new (no stats file = fatal error or crash).
-        if: always()
+        if: always() && steps.gate.outputs.skip != 'true'
         run: |
           if [ ! -f /tmp/qa_stats.json ]; then echo "no stats from this run; nothing to commit"; exit 0; fi
           new_items=$(python -c "import json; print(json.load(open('/tmp/qa_stats.json'))['new_items'])")
