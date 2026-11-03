@@ -1,0 +1,177 @@
+name: Build corpus
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe_only:
+        description: "Only run the probe (fetch ~5 ids and print parser diagnostics)"
+        type: boolean
+        default: true
+      start_id:
+        description: "Highest notification id to scan down from"
+        type: string
+        default: "13050"
+      max_docs:
+        description: "Stop after this many notifications are stored"
+        type: string
+        default: "2200"
+
+permissions:
+  contents: write  # needed to create/update the corpus-v1 release
+
+concurrency:
+  group: corpus
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: corpus-v1
+  RBIRAG_RAW_DIR: data/raw
+  RBIRAG_PROCESSED_DIR: data/processed
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    # 2,200 docs + PDFs at >= 1.5 s/request is ~2-3 h; the job resumes from the
+    # manifest in the previous release if it has to be re-run.
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ingest,retrieval]"
+
+      - name: Validate inputs
+        env:
+          START_ID: ${{ inputs.start_id }}
+          MAX_DOCS: ${{ inputs.max_docs }}
+        run: |
+          [[ "$START_ID" =~ ^[0-9]+$ ]] || { echo "start_id must be an integer"; exit 1; }
+          [[ "$MAX_DOCS" =~ ^[0-9]+$ ]] || { echo "max_docs must be an integer"; exit 1; }
+
+      - name: Probe RBI (parser diagnostics)
+        env:
+          START_ID: ${{ inputs.start_id }}
+        run: |
+          mkdir -p data/processed
+          rbirag fetch --probe --start-id "$START_ID" --probe-out data/processed/probe.json
+          python - <<'PY'
+          import json
+          report = json.load(open("data/processed/probe.json"))
+          print("\n=== probe summary")
+          for r in report:
+              d = r.get("diagnostics", {})
+              strategies = {k: v.get("chars") for k, v in d.get("strategies", {}).items() if v.get("matched")}
+              print(f"id={r['id']} http={r.get('http_status')} final={r.get('final_url')} "
+                    f"chosen={r.get('chosen_strategy')} not_found={r.get('looks_not_found')} "
+                    f"title={r.get('title')!r}")
+              print(f"   selector_hits={d.get('selector_hits')}")
+              print(f"   strategy_chars={strategies} metadata={r.get('metadata')} pdf={r.get('pdf')}")
+          PY
+
+      - name: Restore previous manifest (resume)
+        if: ${{ !inputs.probe_only }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/raw
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release download "$RELEASE_TAG" --pattern 'raw-*.tar.gz' --dir /tmp/prev || true
+            if ls /tmp/prev/raw-*.tar.gz >/dev/null 2>&1; then
+              tar -xzf /tmp/prev/raw-*.tar.gz -C data
+              echo "resumed from previous raw archive: $(wc -l < data/raw/manifest.jsonl) manifest lines"
+            fi
+          fi
+
+      - name: Fetch
+        if: ${{ !inputs.probe_only }}
+        env:
+          START_ID: ${{ inputs.start_id }}
+          MAX_DOCS: ${{ inputs.max_docs }}
+        run: |
+          set +e
+          rbirag fetch --start-id "$START_ID" --max-docs "$MAX_DOCS" > data/processed/fetch.log 2>&1
+          status=$?
+          tail -n 40 data/processed/fetch.log
+          if [ "$status" -eq 2 ]; then
+            echo "::warning::RBI blocked the crawler (see log). Fallback to the Master Directions/Circulars index pages is required."
+          fi
+          exit 0
+
+      - name: Ingest and stats
+        if: ${{ !inputs.probe_only }}
+        run: |
+          rbirag ingest --stats-out data/processed/stats.json > /dev/null
+          python - <<'PY'
+          import json
+          import os
+          from collections import Counter
+          s = json.load(open("data/processed/stats.json"))
+          print("=== corpus stats")
+          print(f"documents: {s['documents']}")
+          print(f"date range: {s['date_range']}")
+          print("parse strategies:", json.dumps(s["parse_strategies"]))
+          print("source types:", json.dumps(s["source_types"]))
+          print("metadata coverage %:")
+          for k, v in s["metadata_coverage_pct"].items():
+              print(f"  {k:16s} {v:5.1f}")
+          print("docs per year:", json.dumps(s["docs_per_year"]))
+          print("top departments:", json.dumps(s["departments"], indent=1))
+          statuses = Counter()
+          if os.path.exists("data/raw/manifest.jsonl"):
+              for line in open("data/raw/manifest.jsonl"):
+                  if line.strip():
+                      statuses[json.loads(line)["status"]] += 1
+          print("manifest status counts (records, incl. retries):", dict(statuses))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as fh:
+              fh.write(f"## Corpus\n\n- documents: **{s['documents']}**\n")
+              fh.write(f"- date range: {s['date_range']}\n")
+              fh.write(f"- parse strategies: `{json.dumps(s['parse_strategies'])}`\n")
+              fh.write(f"- metadata coverage %: `{json.dumps(s['metadata_coverage_pct'])}`\n")
+          if s["documents"] < 2000:
+              print(f"::warning::only {s['documents']} documents parsed (target 2000)")
+          PY
+
+      - name: Package
+        if: ${{ !inputs.probe_only }}
+        run: |
+          mkdir -p dist
+          gzip -c data/processed/documents.jsonl > dist/documents.jsonl.gz
+          cp data/raw/manifest.jsonl dist/manifest.jsonl
+          cp data/processed/stats.json data/processed/probe.json dist/
+          tar -czf dist/raw-html-pdf.tar.gz -C data raw
+          ls -lh dist
+
+      - name: Upload workflow artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-${{ github.run_id }}
+          path: |
+            dist/
+            data/processed/probe.json
+            data/processed/fetch.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish release corpus-v1
+        if: ${{ !inputs.probe_only }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docs=$(python -c "import json; print(json.load(open('dist/stats.json'))['documents'])")
+          notes="Processed RBI notifications corpus: ${docs} documents. Built by run ${{ github.run_id }} at commit ${{ github.sha }}."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --notes "$notes"
+          else
+            gh release create "$RELEASE_TAG" --title "Corpus v1" --notes "$notes" --target "${{ github.sha }}"
+          fi
+          gh release upload "$RELEASE_TAG" dist/* --clobber
