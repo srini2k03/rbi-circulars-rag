@@ -3,45 +3,140 @@
 Hybrid-retrieval RAG over 2,000+ Reserve Bank of India notifications. It cites its
 sources and says "I don't know" when retrieval confidence is low.
 
-> **Status: work in progress.** Ingestion, chunking and retrieval are implemented.
-> Generation, evaluation, the API, the UI and the full write-up are coming next.
-> No results are reported yet: every number in this README will come from a real,
-> reproducible run.
+> **Status: work in progress.** Ingestion, retrieval, generation and the evaluation
+> harness are implemented. The API, the UI and the full write-up come next. No results
+> are reported yet: every number in this README will come from a real, reproducible run
+> whose date, commit, judge model and human-verified count are recorded in
+> `results/run_metadata.json`.
 
 ## What exists today
 
 - **Ingestion:**
-  - A polite, resumable crawler for RBI notification pages and their PDFs. It keeps 1 s
-    or more between requests, retries with backoff, records a SHA-256 manifest, and has
-    a `--probe` mode.
-  - HTML and PDF parsing, using defensive selector strategies with a fallback to
-    main-content extraction.
-  - Text cleaning, and metadata extraction: date, circular and reference numbers,
-    department, addressee and sections.
-- **Chunking:** fixed-size token windows, semantic chunking (split on embedding-similarity
-  drops) and section-aware chunking (headings and numbered paragraphs).
-- **Retrieval:**
-  - BM25 (rank_bm25) and dense search (`BAAI/bge-small-en-v1.5` on Qdrant).
-  - Reciprocal Rank Fusion (k=60) and a cross-encoder reranker
-    (`cross-encoder/ms-marco-MiniLM-L-6-v2`).
-  - A confidence score computed from the reranker scores.
+  - A polite, resumable crawler for RBI notification pages (at least 1 s between
+    requests, retries with backoff, a SHA-256 manifest, and a `--probe` mode).
+  - HTML/PDF parsing with defensive selector strategies, text cleaning, and metadata:
+    date, circular and reference numbers, department, addressee and sections.
+- **Chunking:** fixed-size token windows, semantic (split on embedding-similarity drops)
+  and section-aware (headings and numbered paragraphs).
+- **Retrieval:** BM25 + dense (`BAAI/bge-small-en-v1.5` on Qdrant), Reciprocal Rank
+  Fusion (k=60), a cross-encoder reranker (`cross-encoder/ms-marco-MiniLM-L-6-v2`), and a
+  confidence score from the reranker.
+- **Generation:**
+  - A prompt with numbered sources that asks for `[n]` citations after every factual
+    sentence.
+  - Citation parsing and validation: every cited id must exist, and uncited sentences
+    are flagged.
+  - A confidence gate that answers "I don't know" without calling the LLM when retrieval
+    is weak.
+  - Streaming, plus token and cost accounting.
+- **LLM backends:**
+  - **Google Gemini, free tier** (the default API backend, through Gemini's
+    OpenAI-compatible endpoint). Any OpenAI-compatible provider, such as Groq or
+    OpenRouter, works by changing the base URL, the model and the name of the
+    key's environment variable.
+  - **Ollama** for a local model (`qwen2.5:3b-instruct` by default).
+  - An optional **Anthropic** backend, used only when selected and `ANTHROPIC_API_KEY`
+    is set.
+
+  Free-tier hygiene:
+  - client-side requests-per-minute and requests-per-day limits;
+  - exponential backoff on 429;
+  - a clean stop when the daily quota is used up;
+  - an on-disk cache of every LLM call, so reruns cost nothing.
+- **Evaluation:**
+  - A test set: about 220 candidate questions sampled by year and department (factual,
+    numeric, procedural, multi-chunk), plus about 30 deliberately unanswerable ones,
+    which you then review by hand.
+  - Retrieval metrics: Recall@k, MRR@10 and nDCG@10, scored at both document and chunk
+    level against character-span gold evidence, so different chunkers are compared
+    fairly.
+  - Generation metrics:
+    - faithfulness from the LLM judge (it splits each answer into claims and checks
+      each one);
+    - answer relevance, from the judge and from embedding similarity;
+    - citation accuracy and an NLI faithfulness cross-check (DeBERTa NLI, no API
+      needed);
+    - precision and recall of refusals on the unanswerable set.
+  - Bootstrap 95% CIs, an ablation over 4 retrieval modes × 3 chunkers × 3 chunk sizes,
+    and calibration of the confidence gate on a dev split.
+  - CSV/Markdown tables and matplotlib charts in `results/`.
+
+### Which models produce the numbers
+
+- **Answers and judge:** Gemini on the free tier. Answers come from
+  `gemini-2.5-flash-lite` and the judge is `gemini-2.5-flash`, a stronger model than the
+  one being judged. Both are configurable.
+- **Local model:** Ollama `qwen2.5:3b-instruct` is evaluated alongside, and judged by
+  the same Gemini judge.
+- **Judge-independent check:** NLI-based faithfulness and citation accuracy are reported
+  next to the judge's scores, because a small free judge can be lenient.
+- **Cost:** the free tier is reported as **$0**; token counts are still recorded per
+  answer.
 
 ## Quick start
 
 ```bash
-pip install -e ".[ingest,retrieval,dev]"     # light: no torch
-make check                                    # ruff, mypy, pytest (offline)
-make smoke                                    # offline end-to-end run on fixtures
+pip install -e ".[ingest,retrieval,llm,eval,dev]"   # light: no torch
+make check                                         # ruff, mypy, pytest (offline)
+make smoke                                         # offline end-to-end run on fixtures
 
-pip install -e ".[ml]"                        # real embedder + reranker
-rbirag fetch --probe                          # check the parser against live RBI pages
+pip install -e ".[ml]"                             # real embedder, reranker, NLI model
+export GEMINI_API_KEY=...                          # free key from Google AI Studio
 rbirag fetch --max-docs 2200 && rbirag ingest
 rbirag index --chunker section
-rbirag query "What is the KYC updation period for high risk customers?" --mode hybrid_rerank
+rbirag query "What is the KYC updation period for high risk customers?"
+rbirag query "..." --llm ollama                    # local model
+rbirag query "..." --retrieve-only --json          # retrieval only
 ```
 
-The corpus is built on GitHub Actions (`corpus.yml`) and published as the `corpus-v1`
-release asset. It is not committed to the repository.
+## Reviewing the test set (about 30–40 minutes, on your own machine)
+
+The `qa.yml` workflow writes model-generated candidates to `data/eval/qa_candidates.jsonl`.
+Reviewing them by hand is what makes the test set "human-verified"; the README will state
+exactly how many pairs were reviewed.
+
+```bash
+git clone https://github.com/srini2k03/rbi-circulars-rag && cd rbi-circulars-rag
+python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
+pip install -e .                                      # the review tool needs no extras
+rbirag eval verify --limit 50                         # review 50 random pairs
+```
+
+For each pair you see the source passage (with the evidence highlighted), the question
+and the reference answer. Press:
+
+- **a** to accept;
+- **e** to edit the question and/or answer (press Enter to keep a field as it is);
+- **r** to reject, with an optional reason;
+- **s** to skip;
+- **q** to quit.
+
+Every decision is saved immediately to `data/eval/qa_v1.jsonl`. Run the command again to
+continue where you stopped. When you are done:
+
+```bash
+git add data/eval/qa_v1.jsonl
+git commit -m "Review Q/A pairs"
+git push
+```
+
+`verified: true` marks pairs a human accepted or edited. Rejected pairs are excluded from
+evaluation, as are pairs that failed the automatic checks; unreviewed pairs are still
+used and are reported as model-generated.
+
+## Workflows
+
+| Workflow | What it does |
+|---|---|
+| `ci.yml` | ruff, mypy, pytest (Python 3.11/3.12, no network, no torch) and the fixture smoke run |
+| `corpus.yml` | Crawls RBI and publishes the processed corpus as release `corpus-v1` |
+| `qa.yml` | Generates Q/A candidates with Gemini and commits `data/eval/qa_candidates.jsonl` |
+| `evaluate.yml` | Runs the retrieval ablation, gate calibration, generation (Gemini and Ollama), judging and the report, then commits `results/` |
+
+`qa.yml` and `evaluate.yml` need a `GEMINI_API_KEY` repository secret and fail early
+(without printing it) if it is missing. Both stop cleanly when the daily free-tier quota
+runs out: rerun them later and they continue from the committed records and the cached
+LLM responses. `evaluate.yml` prints the planned number of LLM calls before generating.
 
 ## License
 
