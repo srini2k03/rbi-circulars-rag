@@ -129,3 +129,13 @@ def test_judge_rejected_request_is_a_per_item_error() -> None:
     assert res.verdict is None
     assert res.error is not None
     assert res.error.startswith("rejected:")
+
+
+def test_nli_citation_accuracy_dedupes_ids_within_a_sentence() -> None:
+    sources = ["periodic updation of kyc every two years for high risk customers", "unrelated"]
+    report = parse_citations(
+        "Periodic updation of KYC is every two years for high risk customers [1][1].", 2
+    )
+    res = nli_check(FakeNLI(), report, sources, threshold=0.99)
+    assert res.n_citation_pairs == 1
+    assert res.citation_accuracy == 1.0
