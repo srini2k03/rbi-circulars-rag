@@ -11,33 +11,38 @@ on:
         description: "Unanswerable candidates"
         type: string
         default: "30"
+      provider:
+        description: "LLM provider for the API backend (free tiers)"
+        type: choice
+        options: [groq, gemini]
+        default: groq
       model:
-        description: "Gemini model id for question writing"
+        description: "Q/A writer model (blank = provider default: groq llama-3.3-70b-versatile, gemini gemini-3.8-flash)"
         type: string
-        default: "gemini-3.8-flash"
+        default: ""
       model_fallbacks:
-        description: "Comma-separated fallback models (used on 503 overload, 404/403, or exhausted quota)"
+        description: "Comma-separated fallbacks (blank = provider default: groq openai/gpt-oss-120b,qwen/qwen3-32b)"
         type: string
-        default: "gemini-3.7-flash,gemini-3.5-flash"
+        default: ""
       requests_per_day:
-        description: "Client-side daily request budget per model (free tier)"
+        description: "Client-side daily request cap per model (0 = provider default)"
         type: string
-        default: "200"
+        default: "0"
 
 permissions:
   contents: write  # commits data/eval/qa_candidates.jsonl
 
 concurrency:
-  group: llm-quota  # shares the free-tier quota with evaluate.yml
+  group: llm-quota-${{ inputs.provider }}  # one run at a time per provider quota (shared with evaluate.yml)
   cancel-in-progress: false
 
 env:
   PYTHONUNBUFFERED: "1"
+  RBIRAG_LLM_PROVIDER: ${{ inputs.provider }}
   RBIRAG_QA_BACKEND: openai_compatible
   RBIRAG_QA_MODEL: ${{ inputs.model }}
-  RBIRAG_QA_MODEL_FALLBACKS: ${{ inputs.model_fallbacks }}
+  RBIRAG_QA_MODEL_FALLBACKS: ${{ inputs.model_fallbacks || 'auto' }}
   RBIRAG_LLM_RPD: ${{ inputs.requests_per_day }}
-  RBIRAG_LLM_RPM: "10"
 
 jobs:
   qa:
@@ -46,18 +51,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ./.github/actions/check-secret
+      - uses: ./.github/actions/provider-key
         with:
-          name: GEMINI_API_KEY
-          value: ${{ secrets.GEMINI_API_KEY }}
-      - name: List Gemini models available to this key
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          curl -fsS -H "Authorization: Bearer ${GEMINI_API_KEY}" \
-            "https://generativelanguage.googleapis.com/v1beta/openai/models" \
-            | python -c "import json,sys; print('\n'.join(sorted(m['id'] for m in json.load(sys.stdin)['data'])))" \
-            || echo "::warning::could not list models"
+          provider: ${{ inputs.provider }}
+          groq_key: ${{ secrets.GROQ_API_KEY }}
+          gemini_key: ${{ secrets.GEMINI_API_KEY }}
+          list_models: "true"
 
       - uses: actions/setup-python@v5
         with:
@@ -83,14 +82,15 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ github.run_id }}
-          restore-keys: llm-cache-
+          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}
+          restore-keys: llm-cache-${{ inputs.provider }}-
 
       - name: Build the chunk store (section-aware, 512 tokens, no embeddings)
         run: rbirag index --chunker section --no-dense
 
       - name: Generate candidates (resumable; stops cleanly when the daily quota is used)
         env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           N_ANS: ${{ inputs.n_answerable }}
           N_UNANS: ${{ inputs.n_unanswerable }}
@@ -116,7 +116,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .cache/llm
-          key: llm-cache-${{ github.run_id }}
+          key: llm-cache-${{ inputs.provider }}-${{ github.run_id }}
 
       - name: Commit candidates (only when this run produced new pairs)
         # Runs even if generation stopped early, so partial progress is kept; skipped

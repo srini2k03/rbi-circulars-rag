@@ -30,16 +30,20 @@ sources and says "I don't know" when retrieval confidence is low.
     is weak.
   - Streaming, plus token and cost accounting.
 - **LLM backends:**
-  - **Google Gemini, free tier** (the default API backend, through Gemini's
-    OpenAI-compatible endpoint). Any OpenAI-compatible provider, such as Groq or
-    OpenRouter, works by changing the base URL, the model and the name of the
-    key's environment variable.
+  - **Groq, free tier** (the default API backend, through Groq's OpenAI-compatible
+    endpoint). Google Gemini's free tier is a built-in alternative
+    (`RBIRAG_LLM_PROVIDER=gemini`); any other OpenAI-compatible provider, such as
+    OpenRouter, works with `RBIRAG_LLM_PROVIDER=custom` plus a base URL, models and the
+    name of the key's environment variable.
   - **Ollama** for a local model (`qwen2.5:3b-instruct` by default).
   - An optional **Anthropic** backend, used only when selected and `ANTHROPIC_API_KEY`
     is set.
 
   Free-tier hygiene:
-  - client-side requests-per-minute and requests-per-day limits;
+  - client-side limits per model: requests per minute, requests per day and a
+    tokens-per-minute budget (Groq defaults: 25 requests/min; 950/day for the 70B-class
+    models and 14,000/day for Llama 3.1 8B; a token budget just under the published
+    per-minute limits);
   - exponential backoff on 429 and 5xx;
   - a fallback chain of models: after 2 consecutive 503 "overloaded" responses the
     request moves to the next model, and the overloaded model is skipped for a few
@@ -68,18 +72,24 @@ sources and says "I don't know" when retrieval confidence is low.
 
 ### Which models produce the numbers
 
-- **Answers and judge:** Gemini on the free tier, configurable per role.
+Groq free tier (Llama 3.3 70B judge, Llama 3.1 8B generator), plus local Ollama
+Qwen2.5-3B.
+
+- **API models (Groq), configurable per role:**
 
   | Role | Primary model | Fallbacks |
   |---|---|---|
-  | API generator | `gemini-3.5-flash-lite` | `gemini-3.1-flash-lite` |
-  | Judge | `gemini-3.8-flash` (stronger than the generator) | `gemini-3.7-flash`, `gemini-3.5-flash` |
-  | Q/A writer | `gemini-3.8-flash` | `gemini-3.7-flash`, `gemini-3.5-flash` |
+  | API generator | `llama-3.1-8b-instant` | `openai/gpt-oss-20b` |
+  | Judge | `llama-3.3-70b-versatile` (a different, larger model than the generator) | `openai/gpt-oss-120b`, `qwen/qwen3-32b` |
+  | Q/A writer | `llama-3.3-70b-versatile` | `openai/gpt-oss-120b`, `qwen/qwen3-32b` |
 
   Every record stores the model that actually answered, and `results/README.md` reports
-  the mix (for example "judge: gemini-3.8-flash 70%, gemini-3.7-flash 30%").
+  the mix (for example "judge: llama-3.3-70b-versatile 70%, openai/gpt-oss-120b 30%").
+  The first four Q/A candidates were written by Gemini (`gemini-3.5-flash`) before the
+  switch to Groq; each pair records its writer model, and the results README shows the
+  writer mix.
 - **Local model:** Ollama `qwen2.5:3b-instruct` is evaluated alongside, and judged by
-  the same Gemini judge.
+  the same Groq judge.
 - **Judge-independent check:** NLI-based faithfulness and citation accuracy are reported
   next to the judge's scores, because a small free judge can be lenient.
 - **Cost:** the free tier is reported as **$0**; token counts are still recorded per
@@ -93,7 +103,7 @@ make check                                         # ruff, mypy, pytest (offline
 make smoke                                         # offline end-to-end run on fixtures
 
 pip install -e ".[ml]"                             # real embedder, reranker, NLI model
-export GEMINI_API_KEY=...                          # free key from Google AI Studio
+export GROQ_API_KEY=...                            # free key from console.groq.com
 rbirag fetch --max-docs 2200 && rbirag ingest
 rbirag index --chunker section
 rbirag query "What is the KYC updation period for high risk customers?"
@@ -142,11 +152,13 @@ used and are reported as model-generated.
 |---|---|
 | `ci.yml` | ruff, mypy, pytest (Python 3.11/3.12, no network, no torch) and the fixture smoke run |
 | `corpus.yml` | Crawls RBI and publishes the processed corpus as release `corpus-v1` |
-| `qa.yml` | Generates Q/A candidates with Gemini and commits `data/eval/qa_candidates.jsonl` |
-| `evaluate.yml` | Runs the retrieval ablation, gate calibration, generation (Gemini and Ollama), judging and the report, then commits `results/` |
+| `qa.yml` | Generates Q/A candidates with the API provider (Groq by default) and commits `data/eval/qa_candidates.jsonl` |
+| `evaluate.yml` | Runs the retrieval ablation, gate calibration, generation (API provider and Ollama), judging and the report, then commits `results/` |
 
-`qa.yml` and `evaluate.yml` need a `GEMINI_API_KEY` repository secret and fail early
-(without printing it) if it is missing. Both stop cleanly when the daily free-tier quota
+Both take a `provider` input (`groq` or `gemini`). They need the matching repository
+secret (`GROQ_API_KEY` or `GEMINI_API_KEY`), fail early (without printing it) if it is
+missing, and list the models the key can use. Each provider has its own concurrency
+group, so runs on the same provider never compete for its quota. Both stop cleanly when the daily free-tier quota
 runs out: rerun them later and they continue from the committed records and the cached
 LLM responses. `evaluate.yml` prints the planned number of LLM calls before generating.
 
