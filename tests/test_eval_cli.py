@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from rbirag.cli import app
-from rbirag.eval.dataset import GoldSpan, QAPair, read_qa_jsonl, write_qa_jsonl
+from rbirag.eval.dataset import GoldSpan, QAPair, write_qa_jsonl
 from tests.conftest import HTML_DIR, REAL_FIXTURES
 
 runner = CliRunner()
@@ -83,13 +83,13 @@ def test_eval_pipeline_cli(workspace: Path) -> None:
     assert len(plan["subset"]) == 2
 
     out = invoke("eval", "generate", "--backend", "fake", "--nli", "fake")
-    status = json.loads((workspace / "results/generation/status-fake.json").read_text())
+    status = json.loads((workspace / "results/generation/status-fake-all.json").read_text())
     assert status["complete"] is True
     records = list((workspace / "results/generation").glob("records-fake-*.jsonl"))
     assert len(records) == 3
     # rerun is a no-op (resumable)
     invoke("eval", "generate", "--backend", "fake", "--nli", "fake")
-    status = json.loads((workspace / "results/generation/status-fake.json").read_text())
+    status = json.loads((workspace / "results/generation/status-fake-all.json").read_text())
     assert all(c["generated"] == 0 for c in status["configs"].values())
 
     out = invoke("eval", "report")
@@ -97,16 +97,45 @@ def test_eval_pipeline_cli(workspace: Path) -> None:
     md = (workspace / "results/README.md").read_text()
     assert "## Retrieval ablation" in md
     assert "## Generation" in md
+    # the fake judge cannot produce valid verdicts, so no config counts as measured
+    assert "No configuration is complete yet." in md
+    assert "incomplete (" in md
+    assert "Models that actually answered" in md
     assert "human-verified: 1" in md
 
 
 def test_qa_generate_cli_with_fake_backend(workspace: Path) -> None:
     invoke("index", "--chunker", "section", "--no-dense")
-    out = invoke(
-        "eval", "qa-generate", "--chunks", str(workspace / "indexes/section/chunks.jsonl"),
-        "--n-answerable", "3", "--n-unanswerable", "0",
+    result = runner.invoke(
+        app,
+        ["eval", "qa-generate", "--chunks", str(workspace / "indexes/section/chunks.jsonl"),
+         "--n-answerable", "3", "--n-unanswerable", "0", "--stats-out", str(workspace / "stats.json")],
     )  # fmt: skip
-    stats = json.loads(out[out.index("{") :])
-    assert stats["complete"] is True
+    # the fake LLM refuses, so the run attempted work but produced nothing: exit code 3
+    assert result.exit_code == 3, result.output
+    stats = json.loads((workspace / "stats.json").read_text())
+    assert stats["new_items"] == 0
     assert stats["llm_calls_this_run"] == 3
-    assert read_qa_jsonl(workspace / "data/eval/qa_candidates.jsonl") == []  # the fake LLM refuses
+    assert not (workspace / "data/eval/qa_candidates.jsonl").exists()  # nothing to commit
+
+
+def test_fatal_configuration_error_aborts_without_output(
+    workspace: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import rbirag.generation.rag as rag
+    from rbirag.generation.llm import ConfigurationError, ScriptedLLM
+
+    def boom(messages: object, system: object) -> str:
+        raise ConfigurationError("Fatal configuration error: model 'x' was not found (404).")
+
+    monkeypatch.setattr(rag, "build_llm", lambda *a, **k: ScriptedLLM(boom))
+    invoke("index", "--chunker", "section", "--no-dense")
+    result = runner.invoke(
+        app,
+        ["eval", "qa-generate", "--chunks", str(workspace / "indexes/section/chunks.jsonl"),
+         "--n-answerable", "3", "--stats-out", str(workspace / "stats.json")],
+    )  # fmt: skip
+    assert result.exit_code == 2
+    assert "Fatal configuration error" in result.output
+    assert not (workspace / "stats.json").exists()
+    assert not (workspace / "data/eval/qa_candidates.jsonl").exists()

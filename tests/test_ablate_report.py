@@ -208,3 +208,45 @@ def test_report_writes_tables_and_charts(
     assert "human-verified: 0" in md
     meta = json.loads((out / "run_metadata.json").read_text())
     assert meta["questions"] == 4
+
+
+def test_incomplete_configs_are_not_headline_results() -> None:
+    from rbirag.eval.gen_metrics import GenerationRecord
+    from rbirag.eval.report import generation_markdown, generation_rows, incomplete_markdown, mix
+
+    def rec(
+        i: int, config: str, judged: bool, judge_model: str = "gemini-3.8-flash"
+    ) -> GenerationRecord:
+        return GenerationRecord(
+            qa_id=f"q{i}", config=config, backend="openai_compatible", model="gemini-3.5-flash-lite",
+            answerable=True, question="q", answer="a [1].", refused=False, refusal_reason=None,
+            citation_valid=True, n_citations=1, n_invalid_citations=0, n_uncited_sentences=0,
+            judge_model=judge_model if judged else None,
+            judge_faithfulness=1.0 if judged else None, judge_relevance=1.0 if judged else None,
+            judge_error=None if judged else "no JSON object found in judge output",
+        )  # fmt: skip
+
+    good = [
+        rec(i, "good", True, "gemini-3.8-flash" if i < 7 else "gemini-3.7-flash") for i in range(10)
+    ]
+    bad = [rec(i, "bad", i < 3) for i in range(10)]
+    partial = [rec(i, "partial", True) for i in range(4)]  # 4 of 10 planned
+    rows = generation_rows(
+        good + bad + partial, planned={"good": 10, "bad": 10, "partial": 10}, n_resamples=100
+    )
+    status = {r["config"]: r["status"] for r in rows}
+    assert status == {
+        "good": "measured",
+        "bad": "incomplete (3/10)",
+        "partial": "incomplete (4/10)",
+    }
+    headline = generation_markdown(rows)
+    assert "| good |" in headline
+    assert "| bad |" not in headline
+    assert "| partial |" not in headline
+    side = incomplete_markdown(rows)
+    assert "incomplete (3/10)" in side
+    assert "incomplete (4/10)" in side
+    good_row = next(r for r in rows if r["config"] == "good")
+    assert good_row["judge_model"] == "gemini-3.8-flash 70%, gemini-3.7-flash 30%"
+    assert mix([None, None]) == "-"

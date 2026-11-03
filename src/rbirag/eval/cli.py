@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+from collections import Counter
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -16,6 +20,25 @@ logger = logging.getLogger(__name__)
 eval_app = typer.Typer(
     help="Evaluation: test set, metrics, ablations, report.", no_args_is_help=True
 )
+
+
+@contextmanager
+def fatal_errors_exit() -> Iterator[None]:
+    """Turn a fatal configuration error into a clear message and exit code 2."""
+    from rbirag.generation.llm import ConfigurationError
+
+    try:
+        yield
+    except ConfigurationError as exc:
+        typer.echo(f"::error::{exc}", err=True)
+        raise typer.Exit(code=2) from exc
+
+
+def model_mix(models: Sequence[str]) -> dict[str, float]:
+    """Share of items served by each model, e.g. {"gemini-3.8-flash": 0.7, ...}."""
+    counts = Counter(models)
+    total = sum(counts.values())
+    return {m: round(c / total, 3) for m, c in counts.most_common()} if total else {}
 
 
 def _echo_json(data: object) -> None:
@@ -68,8 +91,13 @@ def qa_generate(
     backend: Annotated[LLMBackend | None, typer.Option()] = None,
     model: Annotated[str | None, typer.Option()] = None,
     seed: Annotated[int | None, typer.Option()] = None,
+    stats_out: Annotated[Path | None, typer.Option(help="Write run stats JSON here.")] = None,
 ) -> None:
-    """Generate candidate Q/A pairs (resumable: existing candidates are kept)."""
+    """Generate candidate Q/A pairs (resumable: existing candidates are kept).
+
+    Exit codes: 0 ok (possibly incomplete), 2 fatal configuration error (nothing written),
+    3 the run attempted work but produced no new pairs.
+    """
     from rbirag.eval.dataset import read_qa_jsonl, write_qa_jsonl
     from rbirag.eval.qa_generate import generate_candidates
     from rbirag.generation.rag import build_llm
@@ -78,29 +106,45 @@ def qa_generate(
     s = get_settings()
     out_path = out or s.eval_dir / "qa_candidates.jsonl"
     existing = read_qa_jsonl(out_path) if out_path.exists() else []
-    llm = build_llm(s, backend or s.qa_backend, model or s.qa_model)
-    store = ChunkStore.load(chunks)
-    run = generate_candidates(
-        llm,
-        list(store),
-        n_answerable=n_answerable,
-        n_unanswerable=n_unanswerable,
-        seed=s.seed if seed is None else seed,
-        existing=existing,
+    llm = build_llm(
+        s,
+        backend or s.qa_backend,
+        model or s.qa_model,
+        fallbacks=s.qa_model_fallbacks if model is None else [],
     )
-    n = write_qa_jsonl(sorted(run.pairs, key=lambda p: p.qa_id), out_path)
+    store = ChunkStore.load(chunks)
+    with fatal_errors_exit():
+        run = generate_candidates(
+            llm,
+            list(store),
+            n_answerable=n_answerable,
+            n_unanswerable=n_unanswerable,
+            seed=s.seed if seed is None else seed,
+            existing=existing,
+        )
+    new_items = len(run.pairs) - len(existing)
+    n = write_qa_jsonl(sorted(run.pairs, key=lambda p: p.qa_id), out_path) if new_items else 0
     stats = {
+        "new_items": new_items,
+        "total": len(run.pairs),
         "written": n,
         "answerable": sum(p.answerable for p in run.pairs),
         "unanswerable": sum(not p.answerable for p in run.pairs),
         "auto_check_failed": sum(p.auto_check is False for p in run.pairs),
         "llm_calls_this_run": run.attempted,
         "complete": run.complete,
-        "model": llm.model,
+        "stopped_because": run.stopped_because,
+        "models_used": model_mix([p.generator_model for p in run.pairs if p.generator_model]),
     }
     _echo_json(stats)
+    if stats_out:
+        stats_out.parent.mkdir(parents=True, exist_ok=True)
+        stats_out.write_text(json.dumps(stats, indent=2), encoding="utf-8")
     if not run.complete:
-        typer.echo("INCOMPLETE: request quota exhausted; rerun later to continue.", err=True)
+        typer.echo(f"INCOMPLETE ({run.stopped_because}); rerun later to continue.", err=True)
+    if run.attempted and new_items == 0:
+        typer.echo("::error::No Q/A pairs were produced in this run.", err=True)
+        raise typer.Exit(code=3)
 
 
 @eval_app.command("verify")
@@ -309,7 +353,11 @@ def generate(
     documents = read_documents_jsonl(docs or s.documents_path)
     emb, rr = _models(s, embedder, reranker)
     llm = build_llm(s, backend, model)
-    judge_llm = build_llm(s, s.judge_backend, s.judge_model) if judge else None
+    judge_llm = (
+        build_llm(s, s.judge_backend, s.judge_model, fallbacks=s.judge_model_fallbacks)
+        if judge
+        else None
+    )
     scorer: NLIScorer | None = (
         CrossEncoderNLI(s.nli_model, device=s.device)
         if nli == "model"
@@ -342,15 +390,16 @@ def generate(
         )
         pipeline = RAGPipeline.from_settings(retriever, llm, s)
         records = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
-        run = run_generation_eval(
-            pipeline,
-            [by_id[i] for i in ids if i in by_id],
-            config=name,
-            records_path=records,
-            judge=judge_llm,
-            nli=scorer,
-            embedder=emb,
-        )
+        with fatal_errors_exit():
+            run = run_generation_eval(
+                pipeline,
+                [by_id[i] for i in ids if i in by_id],
+                config=name,
+                records_path=records,
+                judge=judge_llm,
+                nli=scorer,
+                embedder=emb,
+            )
         status["configs"][name] = vars(run)
         typer.echo(f"{name}: {vars(run)}")
         if bundle.dense is not None:
@@ -359,7 +408,11 @@ def generate(
             complete = False
             break
     status["complete"] = complete
-    out = s.results_dir / "generation" / f"status-{backend}.json"
+    status["successful_items"] = sum(
+        c["generated"] + c["judged"] for c in status["configs"].values()
+    )
+    tag = re.sub(r"[^A-Za-z0-9_.-]+", "_", ",".join(sorted(wanted))) if wanted else "all"
+    out = s.results_dir / "generation" / f"status-{backend}-{tag}.json"
     out.write_text(json.dumps(status, indent=2), encoding="utf-8")
     if not complete:
         typer.echo("INCOMPLETE: request quota exhausted; rerun later to resume.", err=True)
@@ -376,7 +429,7 @@ def report(
     from rbirag.eval.ablate import load_records
     from rbirag.eval.calibrate import Calibration
     from rbirag.eval.gen_metrics import GenerationRecord
-    from rbirag.eval.report import build_report, run_metadata
+    from rbirag.eval.report import build_report, mix, run_metadata
 
     s = get_settings()
     records: list[GenerationRecord] = []
@@ -389,10 +442,20 @@ def report(
         data.pop("config", None)
         cal = Calibration.model_validate(data)
     pairs = load_qa(s, qa)
-    judge_models = sorted({r.judge_model for r in records if r.judge_model})
+
+    model_mix: dict[str, str] = {}
+    for backend in sorted({r.backend for r in records}):
+        model_mix[f"generator ({backend})"] = mix(
+            [r.model for r in records if r.backend == backend]
+        )
+    if any(r.judge_model for r in records):
+        model_mix["judge"] = mix([r.judge_model for r in records])
+    if any(p.generator_model for p in pairs):
+        model_mix["Q/A writer"] = mix([p.generator_model for p in pairs])
     meta = run_metadata(
         pairs,
-        judge_model=", ".join(judge_models) or s.judge_model,
+        model_mix=model_mix,
+        judge_model=model_mix.get("judge", s.judge_model),
         generator_models=sorted({f"{r.backend}:{r.model}" for r in records if r.model}),
         embedding_model=s.embedding_model,
         reranker_model=s.reranker_model,
@@ -401,12 +464,19 @@ def report(
         llm_tokens=sum(r.input_tokens + r.output_tokens for r in records),
         judge_tokens=sum(r.judge_input_tokens + r.judge_output_tokens for r in records),
     )
+    planned: dict[str, int] = {}
+    plan_path = s.results_dir / "generation" / "plan.json"
+    if plan_path.exists():
+        plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+        planned.update({c: len(plan_data["all_ids"]) for c in plan_data["full"]})
+        planned.update({c: len(plan_data["subset_ids"]) for c in plan_data["subset"]})
     written = build_report(
         s.results_dir,
         retrieval_rows=_load_rows(s.results_dir),
         generation_records=records,
         calibration=cal,
         metadata=meta,
+        planned=planned,
         n_resamples=s.bootstrap_samples,
     )
     for p in written:
