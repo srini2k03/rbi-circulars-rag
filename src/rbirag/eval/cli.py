@@ -49,13 +49,19 @@ def _csv(value: str | None) -> list[str]:
     return [v.strip() for v in (value or "").split(",") if v.strip()]
 
 
+def qa_path(settings: Settings, path: Path | None = None) -> Path:
+    """The human-reviewed set (``qa_v1.jsonl``) once it exists, else the candidates."""
+    if path is not None:
+        return path
+    reviewed = settings.eval_dir / "qa_v1.jsonl"
+    return reviewed if reviewed.exists() else settings.eval_dir / "qa_candidates.jsonl"
+
+
 def load_qa(settings: Settings, path: Path | None = None) -> list[Any]:
-    """The reviewed set if present, else the candidates; rejected/auto-failed dropped."""
+    """Usable pairs (rejected/auto-failed dropped) from :func:`qa_path`."""
     from rbirag.eval.dataset import read_qa_jsonl, usable
 
-    if path is None:
-        reviewed = settings.eval_dir / "qa_v1.jsonl"
-        path = reviewed if reviewed.exists() else settings.eval_dir / "qa_candidates.jsonl"
+    path = qa_path(settings, path)
     pairs = usable(read_qa_jsonl(path))
     logger.info("loaded %d usable Q/A pairs from %s", len(pairs), path)
     return pairs
@@ -460,6 +466,7 @@ def report(
         model_mix["Q/A writer"] = mix([p.generator_model for p in pairs])
     meta = run_metadata(
         pairs,
+        test_set=qa_path(s, qa).as_posix(),
         model_mix=model_mix,
         judge_model=model_mix.get("judge", s.judge_model),
         generator_models=sorted({f"{r.backend}:{r.model}" for r in records if r.model}),
@@ -487,3 +494,112 @@ def report(
     )
     for p in written:
         typer.echo(str(p))
+
+
+# ----------------------------------------------------------------------------- scheduling
+
+
+def candidate_status(
+    path: Path, n_answerable: int, n_unanswerable: int, tolerance: float
+) -> dict[str, Any]:
+    from rbirag.eval.dataset import read_qa_jsonl
+
+    # Targets count generated candidates (not human-rejected); pairs failing the automatic
+    # checks still count, because regenerating them would not change the sample.
+    pairs = (
+        [p for p in read_qa_jsonl(path) if p.review_status != "rejected"] if path.exists() else []
+    )
+    answerable = sum(p.answerable for p in pairs)
+    unanswerable = sum(not p.answerable for p in pairs)
+    need_ans = int(n_answerable * (1 - tolerance))
+    need_unans = int(n_unanswerable * (1 - tolerance))
+    return {
+        "answerable": answerable,
+        "unanswerable": unanswerable,
+        "passing_auto_checks": sum(p.auto_check is not False for p in pairs),
+        "target_answerable": n_answerable,
+        "target_unanswerable": n_unanswerable,
+        "tolerance": tolerance,
+        "targets_met": answerable >= need_ans and unanswerable >= need_unans,
+    }
+
+
+@eval_app.command("qa-status")
+def qa_status(
+    candidates: Annotated[Path | None, typer.Option()] = None,
+    n_answerable: Annotated[int, typer.Option(min=0)] = 220,
+    n_unanswerable: Annotated[int, typer.Option(min=0)] = 30,
+    tolerance: Annotated[
+        float, typer.Option(min=0, max=1, help="Allowed shortfall (items the model keeps failing).")
+    ] = 0.05,
+) -> None:
+    """Whether the candidate set has reached its targets (used by scheduled workflows)."""
+    s = get_settings()
+    _echo_json(
+        candidate_status(
+            candidates or s.eval_dir / "qa_candidates.jsonl",
+            n_answerable,
+            n_unanswerable,
+            tolerance,
+        )
+    )
+
+
+def generation_progress(
+    results_dir: Path, backends: Sequence[str], qa_ids: set[str]
+) -> dict[str, Any]:
+    """Pending work per (config, backend) of the plan. An item is pending if it has no
+    record, its answer errored (except permanent per-item rejections), or it still needs a
+    judge verdict that was never attempted or hit the quota."""
+    from rbirag.eval.ablate import load_records
+
+    plan_path = results_dir / "generation" / "plan.json"
+    if not plan_path.exists():
+        return {"plan_exists": False, "done": False, "pending": None, "configs": {}}
+    plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+    items = [(c, plan_data["all_ids"]) for c in plan_data["full"]] + [
+        (c, plan_data["subset_ids"]) for c in plan_data["subset"]
+    ]
+    configs: dict[str, dict[str, int]] = {}
+    total_pending = 0
+    for backend in backends:
+        records: dict[tuple[str, str, str], Any] = {}
+        for f in (results_dir / "generation").glob(f"records-{backend}-*.jsonl"):
+            records.update(load_records(f))
+        for config, ids in items:
+            pending = 0
+            for qa_id in ids:
+                if qa_id not in qa_ids:
+                    continue
+                rec = records.get((config, backend, qa_id))
+                if rec is None:
+                    pending += 1
+                elif rec.error is not None:
+                    pending += 0 if rec.error.startswith("rejected") else 1
+                elif (
+                    rec.answerable
+                    and not rec.refused
+                    and rec.judge_faithfulness is None
+                    and rec.judge_relevance is None
+                    and (rec.judge_error is None or rec.judge_error.startswith("quota"))
+                ):
+                    pending += 1
+            configs[f"{config}/{backend}"] = {"planned": len(ids), "pending": pending}
+            total_pending += pending
+    return {
+        "plan_exists": True,
+        "done": total_pending == 0,
+        "pending": total_pending,
+        "configs": configs,
+    }
+
+
+@eval_app.command("progress")
+def progress(
+    backends: Annotated[str, typer.Option()] = "openai_compatible,ollama",
+    qa: Annotated[Path | None, typer.Option()] = None,
+) -> None:
+    """Pending generation/judge work for the current plan (used by scheduled workflows)."""
+    s = get_settings()
+    ids = {p.qa_id for p in load_qa(s, qa)}
+    _echo_json(generation_progress(s.results_dir, _csv(backends), ids))

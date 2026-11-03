@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from rbirag.cli import app
-from rbirag.eval.dataset import GoldSpan, QAPair, write_qa_jsonl
+from rbirag.eval.dataset import GoldSpan, QAPair, read_qa_jsonl, write_qa_jsonl
 from tests.conftest import HTML_DIR, REAL_FIXTURES
 
 runner = CliRunner()
@@ -102,6 +102,25 @@ def test_eval_pipeline_cli(workspace: Path) -> None:
     assert "incomplete (" in md
     assert "Models that actually answered" in md
     assert "human-verified: 1" in md
+    assert (
+        "**Test set: reviewed test set (`data/eval/qa_v1.jsonl`), 6 questions, 1 human-verified.**"
+        in md
+    )
+    meta = json.loads((workspace / "results/run_metadata.json").read_text())
+    assert meta["test_set_file"] == "data/eval/qa_v1.jsonl"
+
+    # every planned item is answered and has a judge attempt -> nothing pending
+    prog = json.loads(invoke("eval", "progress", "--backends", "fake"))
+    assert prog["plan_exists"] is True
+    assert prog["done"] is True
+    # drop one record line -> that item is pending again
+    rec_file = sorted((workspace / "results/generation").glob("records-fake-*.jsonl"))[0]
+    lines = rec_file.read_text().splitlines()
+    first_id = json.loads(lines[0])["qa_id"]
+    rec_file.write_text("\n".join(x for x in lines if json.loads(x)["qa_id"] != first_id) + "\n")
+    prog = json.loads(invoke("eval", "progress", "--backends", "fake"))
+    assert prog["done"] is False
+    assert prog["pending"] >= 1
 
 
 def test_qa_generate_cli_with_fake_backend(workspace: Path) -> None:
@@ -139,3 +158,51 @@ def test_fatal_configuration_error_aborts_without_output(
     assert "Fatal configuration error" in result.output
     assert not (workspace / "stats.json").exists()
     assert not (workspace / "data/eval/qa_candidates.jsonl").exists()
+
+
+def test_candidates_are_used_and_labelled_until_reviewed_set_exists(workspace: Path) -> None:
+    reviewed = workspace / "data/eval/qa_v1.jsonl"
+    reviewed.rename(workspace / "data/eval/qa_candidates.jsonl")
+    assert json.loads(invoke("eval", "progress"))["plan_exists"] is False
+    invoke(
+        "eval",
+        "retrieval",
+        "--chunkers",
+        "section",
+        "--sizes",
+        "64",
+        "--modes",
+        "bm25",
+        "--tag",
+        "t",
+    )
+    invoke("eval", "report")
+    md = (workspace / "results/README.md").read_text()
+    assert "model-generated test set (`data/eval/qa_candidates.jsonl`)" in md
+    assert "6 questions, 0 human-verified" in md  # verification only counts in qa_v1.jsonl
+    meta = json.loads((workspace / "results/run_metadata.json").read_text())
+    assert meta["test_set"].startswith("model-generated test set")
+
+
+def test_qa_status_targets(workspace: Path) -> None:
+    out = json.loads(invoke("eval", "qa-status", "--candidates", str(workspace / "data/eval/qa_v1.jsonl"),
+                            "--n-answerable", "4", "--n-unanswerable", "2"))  # fmt: skip
+    assert out["targets_met"] is True
+    out = json.loads(
+        invoke("eval", "qa-status", "--candidates", str(workspace / "data/eval/qa_v1.jsonl"))
+    )
+    assert out["targets_met"] is False
+    assert (out["answerable"], out["unanswerable"]) == (4, 2)
+    missing = json.loads(invoke("eval", "qa-status", "--candidates", str(workspace / "nope.jsonl")))
+    assert missing["targets_met"] is False
+
+
+def test_qa_status_counts_auto_failed_but_not_rejected(workspace: Path) -> None:
+    path = workspace / "data/eval/qa_v1.jsonl"
+    pairs = read_qa_jsonl(path)
+    pairs[1] = pairs[1].model_copy(update={"auto_check": False})
+    pairs[2] = pairs[2].model_copy(update={"review_status": "rejected"})
+    write_qa_jsonl(pairs, path)
+    out = json.loads(invoke("eval", "qa-status", "--candidates", str(path)))
+    assert out["answerable"] == 3  # the auto-failed pair counts, the rejected one does not
+    assert out["passing_auto_checks"] == 4
