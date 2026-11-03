@@ -77,7 +77,7 @@ def main() -> int:
             print(f"OK {q!r}: {n} passages | {meta}")
             for i in range(min(3, n)):
                 print("   ", hits.nth(i).locator(".result-head").inner_text().replace("\n", " "))
-        page.goto(f"{base}/index.html{suffix}#evaluation")
+        page.click("#tab-btn-evaluation")
         page.wait_for_selector("#tab-evaluation h2, #tab-evaluation .test-set", timeout=60_000)
         print("dashboard:", page.inner_text("#tab-evaluation")[:200].replace("\n", " "))
         browser.close()
