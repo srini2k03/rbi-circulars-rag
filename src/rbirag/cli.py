@@ -372,6 +372,60 @@ def _print_answer(
     )
 
 
+@app.command("export-web")
+def export_web(
+    out: Annotated[Path, typer.Option(help="Output directory (served by the static site).")] = Path(
+        "web/data/index"
+    ),
+    docs: Annotated[Path | None, typer.Option(help="documents.jsonl")] = None,
+    chunker: Annotated[
+        ChunkerName | None, typer.Option(help="Default: best retrieval config.")
+    ] = None,
+    size: Annotated[int | None, typer.Option(help="Chunk size (tokens).")] = None,
+    embedder: Annotated[EmbedderBackend | None, typer.Option()] = None,
+    cap_mb: Annotated[float, typer.Option(help="Size budget for the browser index.")] = 25.0,
+) -> None:
+    """Export the static browser index (chunks, int8 embeddings, BM25 stats)."""
+    from rbirag.document import read_documents_jsonl
+    from rbirag.index.embedder import build_embedder
+    from rbirag.web_export import best_config, export_web_index
+
+    s = get_settings()
+    best_chunker, best_size, source = best_config(s.results_dir)
+    emb = build_embedder(
+        embedder or s.embedder,
+        model_name=s.embedding_model,
+        query_instruction=s.embedding_query_instruction,
+        batch_size=s.embedding_batch_size,
+        device=s.device,
+        fake_dim=s.fake_embedding_dim,
+    )
+    manifest = export_web_index(
+        read_documents_jsonl(docs or s.documents_path),
+        out,
+        settings=s,
+        embedder=emb,
+        chunker=chunker or best_chunker,
+        size=size or best_size,
+        cap_mb=cap_mb,
+        config_source=source if not (chunker or size) else "command line",
+    )
+    _echo_json(
+        {
+            k: manifest[k]
+            for k in (
+                "config",
+                "config_source",
+                "n_chunks",
+                "n_documents",
+                "years",
+                "note",
+                "total_bytes",
+            )
+        }
+    )
+
+
 @app.command()
 def serve(
     host: Annotated[str | None, typer.Option()] = None,

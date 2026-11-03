@@ -1,0 +1,92 @@
+name: Pages
+
+# Builds the static demo: the browser index is exported from the real corpus with the real
+# embedder, the site is rendered in Chromium against it (search must return passages for
+# known questions), and only then published to the gh-pages branch.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "results/**"
+      - "src/rbirag/web_export.py"
+      - "scripts/check_site.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write  # push to gh-pages
+
+concurrency:
+  group: pages
+  cancel-in-progress: true  # only the newest build matters
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[ingest,retrieval,ml,eval,web-test]"
+
+      - uses: actions/cache@v4
+        with:
+          path: .hf
+          key: hf-models-v1-${{ runner.os }}
+
+      - name: Download corpus (release corpus-v1)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+
+      - name: Assemble the site
+        run: |
+          mkdir -p _site
+          rsync -a --exclude tests --exclude package.json --exclude data web/ _site/
+          if [ -d results ]; then rsync -a results/ _site/results/; fi
+          touch _site/.nojekyll
+
+      - name: Export the browser index (best retrieval config, <= 25 MB)
+        run: |
+          rbirag export-web --out _site/data/index --cap-mb 25 | tee /tmp/export.json
+          du -sh _site/data/index
+          { echo "## Browser index"; echo '```json'; cat /tmp/export.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Render the site against the real index (no LLM)
+        run: |
+          python -m playwright install --with-deps chromium
+          python scripts/check_site.py --site _site \
+            --question "How often must banks update KYC for high-risk customers?" \
+            --question "What are the norms for interest rates on deposits?"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          publish_branch: gh-pages
+          # A single orphan commit per deploy: gh-pages never accumulates history, and
+          # there is nothing to rebase or merge against when two deploys race (the
+          # concurrency group above also serialises them).
+          force_orphan: true
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_message: "Deploy ${{ github.sha }}"

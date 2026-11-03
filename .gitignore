@@ -25,3 +25,6 @@ htmlcov/
 .vscode/
 .DS_Store
 .cache/
+_site/
+web/data/
+node_modules/
