@@ -1,0 +1,26 @@
+# data and build artefacts (the corpus is published as a release asset, not committed)
+data/raw/
+data/processed/
+indexes/
+.smoke/
+.env
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
