@@ -138,6 +138,7 @@ def build_config_index(
 class RetrievalQueryResult(BaseModel):
     config: str
     qa_id: str
+    question: str | None = None  # the wording that was run (detects later edits)
     answerable: bool
     retrieved: list[str]
     doc: dict[str, Any] | None = None
@@ -163,6 +164,7 @@ def evaluate_retrieval(
         item = RetrievalQueryResult(
             config=config.name,
             qa_id=pair.qa_id,
+            question=pair.question,
             answerable=pair.answerable,
             retrieved=[c.chunk_id for c in chunks],
             confidence=conf.probability if conf else None,
@@ -405,6 +407,8 @@ def run_generation_eval(
     for pair in qa:
         key = (config, backend, pair.qa_id)
         rec = existing.get(key)
+        if rec is not None and rec.question != pair.question:
+            rec = None  # the question was edited (e.g. by a review): answer it afresh
         try:
             if rec is None or rec.error is not None:
                 try:
