@@ -40,9 +40,14 @@ sources and says "I don't know" when retrieval confidence is low.
 
   Free-tier hygiene:
   - client-side requests-per-minute and requests-per-day limits;
-  - exponential backoff on 429;
+  - exponential backoff on 429 and 5xx;
+  - a fallback chain of models: after 2 consecutive 503 "overloaded" responses the
+    request moves to the next model, and the overloaded model is skipped for a few
+    minutes; a model that returns 404/403 is dropped, and the run aborts only if every
+    model in the chain fails that way;
   - a clean stop when the daily quota is used up;
-  - an on-disk cache of every LLM call, so reruns cost nothing.
+  - an on-disk cache of successful LLM calls only (errors are never cached), so reruns
+    cost nothing.
 - **Evaluation:**
   - A test set: about 220 candidate questions sampled by year and department (factual,
     numeric, procedural, multi-chunk), plus about 30 deliberately unanswerable ones,
@@ -63,9 +68,16 @@ sources and says "I don't know" when retrieval confidence is low.
 
 ### Which models produce the numbers
 
-- **Answers and judge:** Gemini on the free tier. Answers come from
-  `gemini-2.5-flash-lite` and the judge is `gemini-2.5-flash`, a stronger model than the
-  one being judged. Both are configurable.
+- **Answers and judge:** Gemini on the free tier, configurable per role.
+
+  | Role | Primary model | Fallbacks |
+  |---|---|---|
+  | API generator | `gemini-3.5-flash-lite` | `gemini-3.1-flash-lite` |
+  | Judge | `gemini-3.8-flash` (stronger than the generator) | `gemini-3.7-flash`, `gemini-3.5-flash` |
+  | Q/A writer | `gemini-3.8-flash` | `gemini-3.7-flash`, `gemini-3.5-flash` |
+
+  Every record stores the model that actually answered, and `results/README.md` reports
+  the mix (for example "judge: gemini-3.8-flash 70%, gemini-3.7-flash 30%").
 - **Local model:** Ollama `qwen2.5:3b-instruct` is evaluated alongside, and judged by
   the same Gemini judge.
 - **Judge-independent check:** NLI-based faithfulness and citation accuracy are reported
@@ -137,6 +149,14 @@ used and are reported as model-generated.
 (without printing it) if it is missing. Both stop cleanly when the daily free-tier quota
 runs out: rerun them later and they continue from the committed records and the cached
 LLM responses. `evaluate.yml` prints the planned number of LLM calls before generating.
+
+Guards against misleading output:
+- an unknown model or rejected key (404/401/403 on every model in the chain) aborts the
+  run with a clear message, and nothing from that run is committed;
+- a run that produced no successful items commits nothing;
+- a configuration whose generation or judge calls mostly failed (fewer than 90% of the
+  planned questions succeeded) is shown as "incomplete (k/N)" and kept out of the
+  headline tables.
 
 ## License
 
