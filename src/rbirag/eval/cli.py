@@ -307,11 +307,17 @@ def plan(
     typer.echo("planned LLM calls (upper bound; the confidence gate skips some):")
     for k, v in calls.items():
         typer.echo(f"  {k}: {v}")
-    days = calls["api_calls_upper_bound"] / max(1, s.llm_rpd)
-    typer.echo(
-        f"  at {s.llm_rpd} requests/day per model this is <= {days:.1f} day(s) of quota; "
-        "runs resume from the cache"
-    )
+    gen_calls = calls.get("generate[openai_compatible]", 0)
+    judge_calls = calls.get("judge (all backends)", 0)
+    for role, model, n in (
+        ("generator", s.oai_model, gen_calls),
+        ("judge", s.judge_model, judge_calls),
+    ):
+        rpd = s.rpd_for(model)
+        typer.echo(
+            f"  {role} {model} ({s.llm_provider}): {n} calls at {rpd}/day "
+            f"<= {n / max(1, rpd):.1f} day(s); fallbacks share the load and runs resume"
+        )
 
 
 @eval_app.command("generate")

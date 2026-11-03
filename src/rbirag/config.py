@@ -14,6 +14,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from rbirag.providers import get_preset
+
 RetrievalMode = Literal["bm25", "dense", "hybrid", "hybrid_rerank"]
 ChunkerName = Literal["fixed", "semantic", "section"]
 TokenizerName = Literal["regex", "whitespace", "tiktoken"]
@@ -32,11 +34,17 @@ class ModelPrice(BaseModel):
     cache_write: float | None = Field(default=None, ge=0)
 
 
-# USD per 1M tokens. Gemini models are used on the free tier, so they cost $0 (tokens are
-# still recorded). Anthropic first-party list prices as of 2026-10 are kept for the
+# USD per 1M tokens. Groq and Gemini models are used on their free tiers, so they cost
+# $0 (tokens are still recorded). Anthropic first-party list prices as of 2026-10 are kept for the
 # optional Anthropic backend; cache writes 1.25x input, cache reads 0.1x input. Claude Haiku
 # 5.5's price applies to prompts up to 100K tokens. Local Ollama models cost nothing.
 DEFAULT_PRICES: dict[str, ModelPrice] = {
+    # Groq free tier: $0 (tokens are still recorded).
+    "llama-3.3-70b-versatile": ModelPrice(input=0.0, output=0.0),
+    "llama-3.1-8b-instant": ModelPrice(input=0.0, output=0.0),
+    "openai/gpt-oss-120b": ModelPrice(input=0.0, output=0.0),
+    "openai/gpt-oss-20b": ModelPrice(input=0.0, output=0.0),
+    "qwen/qwen3-32b": ModelPrice(input=0.0, output=0.0),
     "gemini-3.8-flash": ModelPrice(input=0.0, output=0.0),
     "gemini-3.7-flash": ModelPrice(input=0.0, output=0.0),
     "gemini-3.6-flash": ModelPrice(input=0.0, output=0.0),
@@ -122,25 +130,25 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------- generation
     llm_backend: LLMBackend = "openai_compatible"
-    # OpenAI-compatible chat-completions endpoint. Defaults to Google Gemini's free tier;
-    # Groq, OpenRouter, etc. work by changing base URL, model and the key's env var name.
-    # Keys are read from the environment variable *named* here and are never stored in
-    # settings, logged or echoed.
-    oai_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    oai_api_key_env: str = "GEMINI_API_KEY"
-    oai_model: str = "gemini-3.5-flash-lite"
+    # OpenAI-compatible chat-completions provider. "groq" (default) and "gemini" are
+    # presets (see rbirag.providers); "custom" needs oai_base_url/oai_api_key_env/models.
+    # Empty strings and ["auto"] mean "use the provider preset". Keys are read from the
+    # environment variable *named* here and are never stored in settings, logged or echoed.
+    llm_provider: Literal["groq", "gemini", "custom"] = "groq"
+    oai_base_url: str = ""
+    oai_api_key_env: str = ""
+    oai_model: str = ""
     # Fallback chains (comma-separated in env vars): used when a model is overloaded
     # (503), not found / not permitted (404/403), or out of daily quota.
-    oai_model_fallbacks: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["gemini-3.1-flash-lite"]
-    )
+    oai_model_fallbacks: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["auto"])
     oai_reasoning_effort: str | None = None
-    oai_json_mode: Literal["json_schema", "json_object", "none"] = "json_schema"
+    oai_json_mode: Literal["", "json_schema", "json_object", "none"] = ""
     oai_stream_usage: bool = True
     oai_timeout_seconds: float = Field(default=120.0, gt=0)
-    # Client-side limits per model (free tier). Conservative defaults.
-    llm_rpm: float = Field(default=10.0, gt=0)
-    llm_rpd: int = Field(default=200, ge=1)
+    # Client-side limits per model. 0 = the provider preset's (per-model) value.
+    llm_rpm: float = Field(default=0.0, ge=0)
+    llm_rpd: int = Field(default=0, ge=0)
+    llm_tpm: int = Field(default=0, ge=0)
     llm_max_retries: int = Field(default=6, ge=0)
     llm_backoff_base_seconds: float = Field(default=5.0, gt=0)
     llm_switch_after_503: int = Field(default=2, ge=1)
@@ -168,15 +176,11 @@ class Settings(BaseSettings):
     eval_dir: Path = Path("data/eval")
     results_dir: Path = Path("results")
     qa_backend: LLMBackend = "openai_compatible"
-    qa_model: str = "gemini-3.8-flash"
-    qa_model_fallbacks: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["gemini-3.7-flash", "gemini-3.5-flash"]
-    )
+    qa_model: str = ""
+    qa_model_fallbacks: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["auto"])
     judge_backend: LLMBackend = "openai_compatible"
-    judge_model: str = "gemini-3.8-flash"
-    judge_model_fallbacks: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["gemini-3.7-flash", "gemini-3.5-flash"]
-    )
+    judge_model: str = ""
+    judge_model_fallbacks: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["auto"])
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
     bootstrap_samples: int = Field(default=1000, ge=100)
     dev_fraction: float = Field(default=0.3, gt=0, lt=1)
@@ -193,6 +197,58 @@ class Settings(BaseSettings):
                 return json.loads(text)
             return [m.strip() for m in text.split(",") if m.strip()]
         return value
+
+    @model_validator(mode="after")
+    def _apply_provider_preset(self) -> Settings:
+        """Fill provider-dependent settings left empty / "auto" from the preset."""
+        preset = get_preset(self.llm_provider)
+        if preset is None:  # custom provider: everything must be explicit
+            required = ("oai_base_url", "oai_api_key_env", "oai_model", "qa_model", "judge_model")
+            missing = [n for n in required if not getattr(self, n)]
+            if missing:
+                raise ValueError(f"llm_provider=custom requires: {', '.join(missing)}")
+            for name in ("oai_model_fallbacks", "qa_model_fallbacks", "judge_model_fallbacks"):
+                if getattr(self, name) == ["auto"]:
+                    setattr(self, name, [])
+            if not self.llm_rpm:
+                self.llm_rpm = 10.0
+            self.oai_json_mode = self.oai_json_mode or "json_object"
+            if not self.llm_rpd:
+                self.llm_rpd = 200
+            return self
+        self.oai_base_url = self.oai_base_url or preset.base_url
+        self.oai_api_key_env = self.oai_api_key_env or preset.api_key_env
+        self.oai_json_mode = self.oai_json_mode or preset.json_mode  # type: ignore[assignment]
+        for model_field, chain in (
+            ("oai_model", preset.generator),
+            ("qa_model", preset.qa_writer),
+            ("judge_model", preset.judge),
+        ):
+            fallbacks_field = f"{model_field}_fallbacks"
+            explicit_model = bool(getattr(self, model_field))
+            if not explicit_model:
+                setattr(self, model_field, chain[0])
+            if getattr(self, fallbacks_field) == ["auto"]:
+                primary = getattr(self, model_field)
+                # an explicitly chosen model keeps the preset chain minus itself
+                setattr(self, fallbacks_field, [m for m in chain if m != primary])
+        if not self.llm_rpm:
+            self.llm_rpm = preset.rpm
+        return self
+
+    def rpd_for(self, model: str) -> int:
+        """Requests/day budget for ``model`` (explicit setting, else the preset's)."""
+        if self.llm_rpd:
+            return self.llm_rpd
+        preset = get_preset(self.llm_provider)
+        return preset.rpd_for(model) if preset else 200
+
+    def tpm_for(self, model: str) -> int:
+        """Tokens/minute budget for ``model`` (0 = none)."""
+        if self.llm_tpm:
+            return self.llm_tpm
+        preset = get_preset(self.llm_provider)
+        return preset.tpm_for(model) if preset else 0
 
     @model_validator(mode="after")
     def _check_consistency(self) -> Settings:
