@@ -539,9 +539,16 @@ def build_report(
 
 def split_line(metadata: dict[str, Any]) -> str:
     sp = metadata.get("split") or {}
+    excluded = metadata.get("gold_mismatch_excluded") or []
+    note = (
+        f"**{len(excluded)} pairs excluded** because their gold spans no longer match the "
+        "corpus release in use.\n"
+        if excluded
+        else ""
+    )
     if not sp:
-        return ""
-    return (
+        return note
+    return note + (
         f"**Split by document:** {sp.get('test_questions')} test questions "
         f"({sp.get('test_documents')} documents) for every reported number; "
         f"{sp.get('dev_questions')} dev questions ({sp.get('dev_documents')} documents) used "
