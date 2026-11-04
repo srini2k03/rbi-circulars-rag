@@ -1,0 +1,41 @@
+name: Evaluation job setup
+description: >
+  Python 3.12, CPU torch and the package with the evaluation extras, the Hugging Face model
+  cache, and the processed corpus from the corpus-v1 release.
+inputs:
+  github_token:
+    description: secrets.GITHUB_TOKEN (to download the corpus release)
+    required: true
+  extras:
+    description: Package extras to install
+    required: false
+    default: "ingest,retrieval,ml,llm,eval"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install (CPU torch)
+      shell: bash
+      env:
+        EXTRAS: ${{ inputs.extras }}
+      run: |
+        python -m pip install --upgrade pip
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
+        pip install -e ".[${EXTRAS}]"
+    - name: Cache Hugging Face models
+      uses: actions/cache@v4
+      with:
+        path: .hf
+        key: hf-models-v1-${{ runner.os }}
+    - name: Download corpus
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        mkdir -p data/processed
+        gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
+        gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
