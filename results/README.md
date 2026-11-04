@@ -2,15 +2,15 @@
 
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-04T16:15:57+00:00 at commit `f6bf0c518997acf0b8fe2365eebf07ad40799734`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-04T19:29:41+00:00 at commit `d816714a3d9cd55d06a693f83153583e05faeeb0`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 
 Models that actually answered (share of calls):
 
 - generator (ollama): qwen2.5:3b-instruct 100%
-- generator (openai_compatible): openai/gpt-oss-20b 86%, qwen/qwen3.8-27b 14%
-- judge: qwen/qwen3.8-27b 75%, openai/gpt-oss-120b 25%
+- generator (openai_compatible): openai/gpt-oss-20b 85%, qwen/qwen3.8-27b 11%, openai/gpt-oss-120b 4%
+- judge: qwen2.5:7b-instruct 100%
 - Q/A writer: openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%
 
 ## Retrieval ablation
@@ -99,7 +99,13 @@ The configuration for generation and the gate threshold were chosen on these dev
 
 ## Generation
 
-No configuration is complete yet.
+**Judge: qwen2.5:7b-instruct, run locally with Ollama on CPU** (297 s per verdict on a CI runner); agreement with earlier judges: qwen/qwen3.8-27b n=23: faithfulness r=0.71, relevance weighted kappa=0.78; openai/gpt-oss-120b n=7: faithfulness r=-, relevance weighted kappa=0.00. NLI faithfulness and citation metrics are judge-independent.
+
+| config | backend (model) | questions | n | judge | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | full test set (n=155) | 155 | qwen2.5:7b-instruct | 0.953 [0.918, 0.984] | 0.212 [0.147, 0.280] | 0.941 [0.902, 0.975] | 0.170 [0.095, 0.264] | 0.438 | 0.913 [0.782, 1.000] | 0.840 [0.678, 0.966] | 245980 | 0.0000 |
+| fixed-1024-hybrid | ollama (qwen2.5:3b-instruct 100%) | fixed subset (n=60) | 60 | qwen2.5:7b-instruct | 0.891 [0.783, 0.978] | 0.289 [0.167, 0.416] | 0.851 [0.745, 0.937] | 0.304 [0.130, 0.478] | 0.404 | 0.750 [0.499, 1.000] | 0.900 [0.667, 1.000] | 237035 | 0.0000 |
+| fixed-1024-hybrid_rerank | ollama (qwen2.5:3b-instruct 100%) | fixed subset (n=60) | 60 | qwen2.5:7b-instruct | 0.918 [0.848, 0.978] | 0.290 [0.170, 0.402] | 0.897 [0.810, 0.968] | 0.185 [0.062, 0.333] | 0.478 | 0.714 [0.462, 0.929] | 1.000 [1.000, 1.000] | 237289 | 0.0000 |
 
 ### Incomplete runs
 
@@ -107,11 +113,22 @@ Not reported as results: too many generation or judge calls failed or are still 
 
 | config | backend (model) | status |
 |---|---|---|
-| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | incomplete (43/155) |
-| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 85%, qwen/qwen3.8-27b 15%) | incomplete (51/155) |
-| fixed-1024-hybrid | ollama (qwen2.5:3b-instruct 100%) | incomplete (13/60) |
-| fixed-1024-hybrid | openai_compatible (openai/gpt-oss-20b 100%) | incomplete (7/60) |
-| fixed-1024-hybrid_rerank | ollama (qwen2.5:3b-instruct 100%) | incomplete (14/60) |
+| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 85%, qwen/qwen3.8-27b 11%, openai/gpt-oss-120b 4%) | incomplete (27/60) |
+
+## Judge agreement
+
+Agreement of earlier API judges with the reported judge (qwen2.5:7b-instruct) on the answers both judged (a side analysis; the reported numbers use only the reported judge):
+
+| other judge | n | faithfulness r (Spearman) | mean abs diff | fully-supported agreement | kappa | relevance exact | within 1 | kappa | weighted kappa |
+|---|---|---|---|---|---|---|---|---|---|
+| qwen/qwen3.8-27b | 23 | 0.71 (0.81) | 0.06 | 0.96 | 0.83 | 0.83 | 0.91 | 0.54 | 0.78 |
+| openai/gpt-oss-120b | 7 | - (-) | 0.25 | 0.67 | 0.00 | 0.71 | 0.71 | 0.00 | 0.00 |
+
+## Limitations
+
+- The test set is model-generated and AI-reviewed (by Claude); no pair is human-verified yet.
+- The judge is a small local model (qwen2.5:7b-instruct), less reliable than a frontier judge. It was chosen because the free API tier's daily token limit allows only about 30 judge calls a day for these ~6K-token prompts; its agreement with the larger API judges on the answers both judged is reported.
+- The openai_compatible backend was evaluated with the best configuration only, on a fixed 60-question subset (seeded, stratified by answerability), because the free tier's daily token quota allows only about 30 answers a day; its confidence intervals are wider than the full-test-set rows.
 
 ## AI-reviewed subset (43 pairs)
 
@@ -160,9 +177,12 @@ The same runs restricted to the 43 pairs an AI assistant (Claude) accepted or ed
 
 ### Generation
 
-| config | backend (model) | n | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| fixed-1024-hybrid | openai_compatible (openai/gpt-oss-20b 100%) | 1 | - | - | - | - | - | 0.000 [0.000, 0.000] | - | 52878 | 0.0000 |
+| config | backend (model) | questions | n | judge | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | full test set (n=28) | 28 | qwen2.5:7b-instruct | 1.000 [1.000, 1.000] | 0.285 [0.128, 0.453] | 0.964 [0.893, 1.000] | 0.278 [0.111, 0.500] | 0.536 | - | - | 208400 | 0.0000 |
+| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 100%) | fixed subset (n=2) | 2 | qwen2.5:7b-instruct | 1.000 [1.000, 1.000] | 0.000 [0.000, 0.000] | 1.000 [1.000, 1.000] | 0.000 [0.000, 0.000] | 0.000 | - | - | 50961 | 0.0000 |
+| fixed-1024-hybrid | ollama (qwen2.5:3b-instruct 100%) | fixed subset (n=9) | 9 | qwen2.5:7b-instruct | 0.889 [0.667, 1.000] | 0.444 [0.111, 0.778] | 0.889 [0.667, 1.000] | 0.429 [0.143, 0.857] | 0.778 | - | - | 193129 | 0.0000 |
+| fixed-1024-hybrid_rerank | ollama (qwen2.5:3b-instruct 100%) | fixed subset (n=9) | 9 | qwen2.5:7b-instruct | 0.889 [0.722, 1.000] | 0.611 [0.333, 0.889] | 0.833 [0.583, 1.000] | 0.400 [0.000, 0.800] | 0.444 | - | - | 160743 | 0.0000 |
 
 ## Confidence gate
 
