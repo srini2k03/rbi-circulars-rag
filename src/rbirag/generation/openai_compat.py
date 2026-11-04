@@ -83,6 +83,9 @@ class ModelHealth:
     def is_dropped(self, model: str) -> bool:
         return model in self._dropped
 
+    def is_exhausted(self, model: str) -> bool:
+        return model in self._exhausted
+
     def in_cooldown(self, model: str) -> bool:
         return self._cooldown_until.get(model, 0.0) > self._clock()
 
@@ -230,7 +233,8 @@ class OpenAICompatibleLLM:
         return float(min(self.backoff_base * 2**attempt + random.uniform(0, 1), self.backoff_max))
 
     def _send(self, body: dict[str, Any]) -> tuple[httpx.Response, str]:
-        """POST with limiter, retries and model fallback.
+        """POST with limiter, retries and model fallback (413 "request too large" moves on to
+        the next model for this request).
 
         Returns an *open* 200 response and the model that served it. Per request:
         ``switch_after_503`` consecutive 503s on a model put it in cooldown and move on to
@@ -243,7 +247,12 @@ class OpenAICompatibleLLM:
         last_error = ""
         fatal: list[str] = []
         consecutive_503 = 0
-        model = self.health.pick(self.chain)
+        too_large: set[str] = set()  # models whose per-minute input limit is below this request
+
+        def candidates() -> list[str]:
+            return [m for m in self.chain if m not in too_large]
+
+        model = self.health.pick(candidates())
         attempt = 0
         while True:
             if model is None:
@@ -260,7 +269,7 @@ class OpenAICompatibleLLM:
             except QuotaExhaustedError as exc:
                 logger.warning("%s; trying the next model", exc)
                 self.health.exhaust(model)
-                model = self.health.pick(self.chain)
+                model = self.health.pick(candidates())
                 continue
             payload = {**body, "model": model}
             status: int | None = None
@@ -285,12 +294,31 @@ class OpenAICompatibleLLM:
                     logger.error("%s Dropping %s from the chain.", msg, model)
                     fatal.append(msg)
                     self.health.drop(model)
-                    model = self.health.pick(self.chain)
+                    model = self.health.pick(candidates())
+                    continue
+                if status == 413:
+                    # e.g. Groq: "Request too large ... on input tokens per minute": this
+                    # model can never take a prompt this big. Try the next model; if none
+                    # is left and others are out of quota, stop like a quota stop (the item
+                    # is retried on a later run) rather than failing every item.
+                    logger.warning(
+                        "%s cannot take a request this large; trying the next model", model
+                    )
+                    too_large.add(model)
+                    model = self.health.pick(candidates())
+                    if model is None:
+                        if any(self.health.is_exhausted(m) for m in self.chain):
+                            small = ", ".join(sorted(too_large))
+                            raise QuotaExhaustedError(
+                                "models big enough for this request are out of daily quota "
+                                f"({small} too small); rerun later"
+                            )
+                        raise RequestRejectedError(last_error)
                     continue
                 if status == 429 and _is_daily_quota(text):
                     logger.warning("provider daily quota exhausted for %s", model)
                     self.health.exhaust(model)
-                    model = self.health.pick(self.chain)
+                    model = self.health.pick(candidates())
                     continue
                 if status not in RETRYABLE:
                     raise RequestRejectedError(last_error)
@@ -299,7 +327,7 @@ class OpenAICompatibleLLM:
                 consecutive_503 += 1
                 if consecutive_503 >= self.switch_after_503:
                     self.health.cool_down(model)
-                    nxt = self.health.pick(self.chain)
+                    nxt = self.health.pick(candidates())
                     if nxt is not None and nxt != model:
                         logger.warning("%s overloaded; falling back to %s", model, nxt)
                         model, consecutive_503 = nxt, 0
