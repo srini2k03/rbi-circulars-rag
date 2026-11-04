@@ -225,10 +225,13 @@
     "qffc5a90387f4",
     "qffd5b46dfee5"
   ],
+  "subset_only_backends": [
+    "openai_compatible"
+  ],
   "planned_calls": {
-    "generate[openai_compatible]": 275,
+    "generate[openai_compatible]": 60,
     "generate[ollama]": 275,
-    "judge (all backends)": 460,
-    "api_calls_upper_bound": 735
+    "judge (all backends)": 280,
+    "api_calls_upper_bound": 340
   }
 }

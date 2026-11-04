@@ -1,0 +1,22 @@
+{
+  "backend": "openai_compatible",
+  "model": "judge-only",
+  "threshold": 0.49,
+  "configs": {
+    "fixed-1024-bm25": {
+      "complete": true,
+      "generated": 0,
+      "judged": 3,
+      "skipped": 15,
+      "stopped_because": null,
+      "judge_stopped": null,
+      "judge_seconds": 608.3
+    }
+  },
+  "complete": true,
+  "successful_items": 3,
+  "judge_model": "qwen2.5:7b-instruct",
+  "judge_verdicts": 3,
+  "judge_seconds": 608.3,
+  "seconds_per_verdict": 202.8
+}
