@@ -316,10 +316,24 @@ runs use the input defaults):
 - `qa.yml` at 09:41 UTC. It stops early, successfully and without a commit, once the
   candidate set has reached its targets (220 answerable + 30 unanswerable, allowing a 5%
   shortfall for items the model keeps failing).
-- `evaluate.yml` at 15:41 UTC. It does nothing until the candidates reach their targets,
-  then resumes each day from the committed records until every planned generation and
-  judge call is done, and then stops early. Resumed runs reuse the committed retrieval
-  results.
+- `evaluate.yml` hourly at :41. It does nothing until the candidates reach their targets,
+  then resumes from the committed records until every planned generation and judge call
+  is done, and then stops early. Every job checks out the latest `main`, so a queued run
+  continues from what earlier runs committed, and committed retrieval results are reused
+  (`force_retrieval` re-runs them).
+
+How `evaluate.yml` avoids losing work:
+- generate and judge jobs stop cleanly before `budget_minutes` (default 300, job timeout
+  330), flush their records and upload them even when a step fails;
+- the Ollama config on the full test set is split into `ollama_shards` (default 4) jobs by
+  a stable hash of the question id;
+- the `judge` job judges every answer still without a verdict (API and Ollama), so the
+  judged count only rises;
+- `scripts/publish_results.sh` fetches the latest `main`, union-merges this run's records
+  into the committed ones (per question, a judged answer beats an unjudged one, which
+  beats an error; otherwise the newer wins), regenerates the tables, charts and README
+  section from the merged records, and repeats the whole loop if the push is rejected.
+  Derived files are never rebased as text.
 
 Until you have reviewed pairs with `rbirag eval verify`, evaluation runs on the
 model-generated candidates, and the results README says so in its first line
