@@ -15,11 +15,16 @@ Quality metrics are averaged over answerable questions that were actually answer
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import UTC, datetime
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from rbirag.eval.stats import Estimate, bootstrap_ci, bootstrap_ratio_ci
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 class GenerationRecord(BaseModel):
@@ -51,6 +56,8 @@ class GenerationRecord(BaseModel):
     cost_usd: float = 0.0
     cached: bool = False  # answer served from the LLM cache (no new tokens, no latency)
     judge_cached: bool = False
+    # when this version of the record was written (used to merge runs; see eval.records)
+    updated_at: str | None = Field(default_factory=_now)
     latency_ms: dict[str, float] = {}
     error: str | None = None
 

@@ -191,6 +191,9 @@ class Settings(BaseSettings):
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
     bootstrap_samples: int = Field(default=1000, ge=100)
     dev_fraction: float = Field(default=0.3, gt=0, lt=1)
+    # Epoch seconds after which generation/judge runs stop cleanly (set by CI jobs to
+    # job start + budget, safely before the job timeout). None = no deadline.
+    eval_deadline: float | None = None
     seed: int = 13
 
     @field_validator(
