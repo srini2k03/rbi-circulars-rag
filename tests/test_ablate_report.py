@@ -238,7 +238,7 @@ def test_incomplete_configs_are_not_headline_results() -> None:
     )
     status = {r["config"]: r["status"] for r in rows}
     assert status == {
-        "good": "measured",
+        "good": "complete",
         "bad": "incomplete (3/10)",
         "partial": "incomplete (4/10)",
     }
@@ -419,3 +419,169 @@ def test_shards_partition_ids_and_resume_from_seed(
         pipeline, qa, config="c", records_path=shard_file, seed_from=canonical
     )
     assert (run.generated, run.skipped) == (len(qa) - 2, 2)  # committed work is not redone
+
+
+# ----------------------------------------------------------------------------- local judge
+
+
+def low_judge_json(relevance: int = 2) -> str:
+    return json.dumps(
+        {
+            "claims": [
+                {"claim": "a", "supported": True, "source_ids": [1]},
+                {"claim": "b", "supported": False, "source_ids": []},
+            ],
+            "relevance": relevance,
+            "relevance_reason": "partial",
+        }
+    )
+
+
+def test_switching_judge_rejudges_and_keeps_old_verdicts(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    records = tmp_path / "records.jsonl"
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+    big = ScriptedLLM(lambda m, s: JUDGE_JSON, model="api-120b")
+    run_generation_eval(pipeline, qa, config="c", records_path=records, judge=big)
+    small = ScriptedLLM(lambda m, s: low_judge_json(), model="local-7b")
+    # same judge accepted: nothing to redo
+    again = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, judge=small,
+        accepted_judges={"api-120b", "local-7b"},
+    )  # fmt: skip
+    assert again.judged == 0
+    run = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, judge=small, accepted_judges={"local-7b"}
+    )
+    judged = [r for r in load_records(records).values() if r.answerable and not r.refused]
+    assert run.judged == len(judged) > 0
+    assert run.judge_seconds >= 0
+    for r in judged:
+        assert r.judge_model == "local-7b"
+        assert r.judge_faithfulness == 0.5
+        assert r.verdicts["api-120b"] == {"faithfulness": 1.0, "relevance": 1.0}
+        assert r.verdicts["local-7b"] == {"faithfulness": 0.5, "relevance": 0.25}
+    # a third pass has nothing to do
+    rerun = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, judge=small, accepted_judges={"local-7b"}
+    )
+    assert rerun.judged == 0
+
+
+def test_failed_local_verdict_is_not_retried_forever(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    from rbirag.eval.ablate import needs_judge
+    from rbirag.eval.records import merge_records
+
+    records = tmp_path / "records.jsonl"
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+    big = ScriptedLLM(lambda m, s: JUDGE_JSON, model="api-120b")
+    run_generation_eval(pipeline, qa, config="c", records_path=records, judge=big)
+    committed = load_records(records)
+    shard = tmp_path / "records.shard1of2.jsonl"
+    broken = ScriptedLLM(lambda m, s: "not json", model="local-7b")
+    run_generation_eval(
+        pipeline, qa, config="c", records_path=shard, seed_from=records, judge=broken,
+        accepted_judges={"local-7b"},
+    )  # fmt: skip
+    merged = merge_records([committed, load_records(shard)])
+    for r in merged.values():
+        if r.answerable and not r.refused:
+            assert r.judge_model == "api-120b"  # the old verdict wins the merge...
+            assert "local-7b" in r.verdicts  # ...but remembers the failed local attempt
+            assert not needs_judge(r, {"local-7b"})
+
+
+def test_plan_items_subset_only_backend(qa: list[QAPair]) -> None:
+    from rbirag.eval.ablate import plan_items
+
+    rows = [
+        {"config": "fixed-128-bm25", "mode": "bm25", "chunk_ndcg@10": 0.9},
+        {"config": "fixed-128-hybrid", "mode": "hybrid", "chunk_ndcg@10": 0.8},
+        {"config": "fixed-128-dense", "mode": "dense", "chunk_ndcg@10": 0.7},
+    ]
+    plan = plan_generation(
+        rows, qa, full_configs=1, subset_configs=2, subset_size=2,
+        subset_only_backends=["openai_compatible"],
+    )  # fmt: skip
+    api = plan_items(plan.model_dump(), "openai_compatible")
+    assert api == [("fixed-128-bm25", plan.subset_ids)]
+    local = plan_items(plan.model_dump(), "ollama")
+    assert [c for c, _ in local] == ["fixed-128-bm25", "fixed-128-hybrid", "fixed-128-dense"]
+    assert local[0][1] == plan.all_ids
+    calls = planned_calls(plan, qa, ["openai_compatible", "ollama"])
+    assert calls["generate[openai_compatible]"] == len(plan.subset_ids)
+    assert calls["generate[ollama]"] == len(plan.all_ids) + 2 * len(plan.subset_ids)
+    # plans written before subset-only backends existed still load
+    legacy = {k: v for k, v in plan.model_dump().items() if k != "subset_only_backends"}
+    assert len(plan_items(legacy, "openai_compatible")) == 3
+
+
+def test_sharded_judging_covers_every_answer_once(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    from rbirag.eval.cli import shard_of
+    from rbirag.eval.records import merge_into
+
+    gen = tmp_path / "results" / "generation"
+    canonical = gen / "records-fake-c.jsonl"
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+    run_generation_eval(pipeline, qa, config="c", records_path=canonical)  # answers, no verdicts
+    total = 0
+    for i in (1, 2, 3):
+        mine = [p for p in qa if shard_of(p.qa_id, 3) == i]
+        judge = ScriptedLLM(lambda m, s: JUDGE_JSON, model="local-7b")
+        run = run_generation_eval(
+            pipeline, mine, config="c", records_path=gen / f"records-fake-c.shard{i}of3.jsonl",
+            seed_from=canonical, judge=judge, judge_only=True, accepted_judges={"local-7b"},
+        )  # fmt: skip
+        total += run.judged
+        assert len(judge.calls) == run.judged
+    merge_into(gen)
+    final = load_records(canonical)
+    need = [r for r in final.values() if r.answerable and not r.refused]
+    assert total == len(need) > 0
+    assert all(r.judge_model == "local-7b" for r in need)
+    assert sorted(p.name for p in gen.iterdir()) == ["records-fake-c.jsonl"]
+
+
+def test_rows_label_sample_judge_and_complete() -> None:
+    from rbirag.eval.gen_metrics import GenerationRecord
+    from rbirag.eval.report import generation_markdown, generation_rows, judge_line
+
+    def rec(i: int, backend: str) -> GenerationRecord:
+        return GenerationRecord(
+            qa_id=str(i), config="c", backend=backend, model="m", answerable=True,
+            question="q?", answer="a [1].", refused=False, refusal_reason=None,
+            citation_valid=True, n_citations=1, n_invalid_citations=0, n_uncited_sentences=0,
+            judge_model="local-7b", judge_faithfulness=1.0, judge_relevance=1.0,
+        )  # fmt: skip
+
+    recs = [rec(i, "api") for i in range(9)] + [rec(i, "ollama") for i in range(10)]
+    rows = generation_rows(
+        recs,
+        planned={"c/api": 10, "c/ollama": 12},
+        samples={"c/api": "fixed subset", "c/ollama": "full test set"},
+        n_resamples=100,
+    )
+    by = {r["backend"]: r for r in rows}
+    assert by["api"]["status"] == "complete"  # 9/10 >= 90%
+    assert by["api"]["sample"] == "fixed subset (n=10)"
+    assert by["ollama"]["status"] == "incomplete (10/12)"
+    md = generation_markdown(rows)
+    assert "fixed subset (n=10)" in md and "local-7b" in md
+    assert "ollama" not in md  # incomplete rows are not headline results
+    line = judge_line(
+        {
+            "judge": {"model": "local-7b", "description": "local-7b, local", "seconds_per_verdict": 300.0},
+            "judge_agreement": [
+                {"other": "api-120b", "n": 12, "faithfulness": {"pearson": 0.71},
+                 "relevance": {"kappa_quadratic": 0.55}}
+            ],
+        }
+    )  # fmt: skip
+    assert "Judge: local-7b, local" in line
+    assert "300 s per verdict" in line
+    assert "api-120b n=12: faithfulness r=0.71, relevance weighted kappa=0.55" in line

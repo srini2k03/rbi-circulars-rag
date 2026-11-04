@@ -33,12 +33,14 @@ class OllamaLLM:
         *,
         base_url: str = "http://localhost:11434",
         num_ctx: int = 8192,
+        num_thread: int | None = None,
         timeout_seconds: float = 600.0,
         client: httpx.Client | None = None,
     ) -> None:
         self._model = model
         self.base_url = base_url.rstrip("/")
         self.num_ctx = num_ctx
+        self.num_thread = num_thread
         self.client = client or httpx.Client(timeout=timeout_seconds)
 
     @property
@@ -73,6 +75,8 @@ class OllamaLLM:
                 "num_predict": max_tokens,
             },
         }
+        if self.num_thread:
+            body["options"]["num_thread"] = self.num_thread
         if json_schema is not None:
             body["format"] = json_schema
         return body

@@ -337,6 +337,7 @@ def build_llm(
             model or settings.ollama_model,
             base_url=settings.ollama_url,
             num_ctx=settings.ollama_num_ctx,
+            num_thread=settings.ollama_num_thread,
             timeout_seconds=settings.ollama_timeout_seconds,
         )
     elif backend == "fake":

@@ -8,6 +8,7 @@ import re
 import time
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Any
@@ -100,6 +101,10 @@ def _models(settings: Settings, embedder: str | None, reranker: str | None) -> t
         device=settings.device,
         fake_dim=settings.fake_embedding_dim,
     )
+    if settings.embedding_cache_dir is not None:
+        from rbirag.index.embedder import CachedEmbedder
+
+        emb = CachedEmbedder(emb, settings.embedding_cache_dir)
     rr = build_reranker(
         reranker or settings.reranker, model_name=settings.reranker_model, device=settings.device
     )
@@ -398,6 +403,10 @@ def plan(
     full_configs: Annotated[int, typer.Option(min=1)] = 1,
     subset_configs: Annotated[int, typer.Option(min=0)] = 2,
     subset_size: Annotated[int, typer.Option(min=1)] = 50,
+    subset_only_backends: Annotated[
+        str,
+        typer.Option(help="Comma list of backends run only on the best config and the subset."),
+    ] = "",
 ) -> None:
     """Pick generation configs from the retrieval results and print the planned LLM calls."""
     from rbirag.eval.ablate import plan_generation, planned_calls
@@ -413,6 +422,7 @@ def plan(
         subset_configs=subset_configs,
         subset_size=subset_size,
         seed=s.seed,
+        subset_only_backends=_csv(subset_only_backends),
     )
     calls = planned_calls(p, test, _csv(backends))
     out = s.results_dir / "generation" / "plan.json"
@@ -423,6 +433,8 @@ def plan(
     typer.echo(f"split by document: {len(dev)} dev (selection) / {len(test)} test (reported)")
     typer.echo(f"full test set ({len(p.all_ids)} q): {p.full}")
     typer.echo(f"subset ({len(p.subset_ids)} q): {p.subset}")
+    for b in p.subset_only_backends:
+        typer.echo(f"{b}: best config only, on the subset ({len(p.subset_ids)} q)")
     typer.echo("planned LLM calls (upper bound; the confidence gate skips some):")
     for k, v in calls.items():
         typer.echo(f"  {k}: {v}")
@@ -467,7 +479,13 @@ def generate(
     time-aware). Records are flushed after every item; with --shard they go to a separate
     shard file (seeded from the committed records) that `eval merge-records` folds in."""
     from rbirag.document import read_documents_jsonl
-    from rbirag.eval.ablate import RetrievalConfig, build_config_index, run_generation_eval
+    from rbirag.eval.ablate import (
+        GenerationRun,
+        RetrievalConfig,
+        build_config_index,
+        plan_items,
+        run_generation_eval,
+    )
     from rbirag.eval.nli import CrossEncoderNLI, FakeNLI, NLIScorer
     from rbirag.generation.rag import RAGPipeline, build_llm
     from rbirag.retrieval.pipeline import make_retriever
@@ -478,10 +496,7 @@ def generate(
         raise typer.BadParameter("no plan; run `rbirag eval plan` first")
     plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
     wanted = set(_csv(configs))
-    items = [(c, plan_data["all_ids"]) for c in plan_data["full"]] + [
-        (c, plan_data["subset_ids"]) for c in plan_data["subset"]
-    ]
-    items = [(c, ids) for c, ids in items if not wanted or c in wanted]
+    items = [(c, ids) for c, ids in plan_items(plan_data, backend) if not wanted or c in wanted]
     shard_i, shard_n = parse_shard(shard)
     if shard_n > 1:
         items = [(c, [i for i in ids if shard_of(i, shard_n) == shard_i]) for c, ids in items]
@@ -503,11 +518,15 @@ def generate(
         with fatal_errors_exit(marker):
             llm = build_llm(s, backend, model)
     judge_llm = None
+    accepted_judges: set[str] | None = None
     if judge:
         with fatal_errors_exit(marker):
             judge_llm = build_llm(
                 s, s.judge_backend, s.judge_model, fallbacks=s.judge_model_fallbacks
             )
+        # verdicts by any other judge are redone, so all reported numbers share one judge
+        accepted_judges = {judge_llm.model, *s.judge_model_fallbacks}
+        typer.echo(f"judge: {s.judge_backend} {judge_llm.model}")
     scorer: NLIScorer | None = (
         CrossEncoderNLI(s.nli_model, device=s.device)
         if nli == "model"
@@ -522,9 +541,33 @@ def generate(
         "configs": {},
     }
     complete = True
+    bundles: dict[tuple[str, int, bool], Any] = {}  # configs sharing a chunking share an index
     for name, ids in items:
+        pairs_for = [by_id[i] for i in ids if i in by_id]
+        canonical = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
+        records = (
+            canonical.with_name(f"records-{backend}-{name}.shard{shard_i}of{shard_n}.jsonl")
+            if shard_n > 1
+            else canonical
+        )
+        if not _has_work(
+            pairs_for, name, backend, [canonical, records],
+            judge_only=judge_only, judge=judge_llm is not None, accepted=accepted_judges,
+        ):  # fmt: skip
+            # nothing to generate or judge: skip the (slow) index build entirely
+            status["configs"][name] = vars(
+                GenerationRun(complete=True, generated=0, judged=0, skipped=len(pairs_for))
+            )
+            typer.echo(f"{name}: nothing to do ({len(pairs_for)} items done)")
+            continue
         cfg = RetrievalConfig.parse(name)
-        _, bundle = build_config_index(documents, cfg.chunker, cfg.size, s, emb)
+        dense = cfg.mode != "bm25"
+        bkey = (cfg.chunker, cfg.size, dense)
+        if bkey not in bundles:
+            bundles[bkey] = build_config_index(
+                documents, cfg.chunker, cfg.size, s, emb, dense=dense
+            )[1]
+        bundle = bundles[bkey]
         mode: Any = cfg.mode
         retriever = make_retriever(
             s,
@@ -536,16 +579,10 @@ def generate(
             confidence_threshold=threshold,
         )
         pipeline = RAGPipeline.from_settings(retriever, llm, s)
-        canonical = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
-        records = (
-            canonical.with_name(f"records-{backend}-{name}.shard{shard_i}of{shard_n}.jsonl")
-            if shard_n > 1
-            else canonical
-        )
         with fatal_errors_exit(marker):
             run = run_generation_eval(
                 pipeline,
-                [by_id[i] for i in ids if i in by_id],
+                pairs_for,
                 config=name,
                 records_path=records,
                 judge=judge_llm,
@@ -554,21 +591,35 @@ def generate(
                 judge_only=judge_only,
                 deadline=deadline,
                 seed_from=canonical if records != canonical else None,
+                accepted_judges=accepted_judges,
             )
         status["configs"][name] = vars(run)
         typer.echo(f"{name}: {vars(run)}")
-        if bundle.dense is not None:
-            bundle.dense.close()
         if not run.complete:
             complete = False
             if run.judge_stopped and not judge_only:
                 judge_llm = None  # judge out of quota: keep generating the other configs
                 continue
             break
+    for b in bundles.values():
+        if b.dense is not None:
+            b.dense.close()
     status["complete"] = complete
     status["successful_items"] = sum(
         c["generated"] + c["judged"] for c in status["configs"].values()
     )
+    n_judged = sum(c["judged"] for c in status["configs"].values())
+    if judge_llm is not None and n_judged:
+        status["judge_model"] = judge_llm.model
+        status["judge_verdicts"] = n_judged
+        status["judge_seconds"] = round(
+            sum(c["judge_seconds"] for c in status["configs"].values()), 1
+        )
+        status["seconds_per_verdict"] = round(status["judge_seconds"] / n_judged, 1)
+        typer.echo(
+            f"judge {judge_llm.model}: {n_judged} verdicts, "
+            f"{status['seconds_per_verdict']} s per verdict"
+        )
     tag = re.sub(r"[^A-Za-z0-9_.-]+", "_", ",".join(sorted(wanted))) if wanted else "all"
     if shard_n > 1:
         tag += f".shard{shard_i}of{shard_n}"
@@ -578,6 +629,64 @@ def generate(
     out.write_text(json.dumps(status, indent=2), encoding="utf-8")
     if not complete:
         typer.echo("INCOMPLETE: quota or time budget reached; rerun later to resume.", err=True)
+
+
+def _has_work(
+    pairs: Sequence[Any],
+    config: str,
+    backend: str,
+    paths: Sequence[Path],
+    *,
+    judge_only: bool,
+    judge: bool,
+    accepted: AbstractSet[str] | None,
+) -> bool:
+    """Whether a generate/judge run over ``pairs`` would do anything (mirrors the checks
+    in run_generation_eval), so finished configs cost no index build."""
+    from rbirag.eval.ablate import needs_judge
+    from rbirag.eval.records import load_records
+
+    existing: dict[Any, Any] = {}
+    for p in paths:
+        existing.update(load_records(p))
+    for pair in pairs:
+        rec = existing.get((config, backend, pair.qa_id))
+        if rec is None or rec.question != pair.question or rec.error is not None:
+            if not judge_only:
+                return True
+            continue
+        if judge and needs_judge(rec, accepted):
+            return True
+    return False
+
+
+@eval_app.command("warm-index")
+def warm_index(
+    docs: Annotated[Path | None, typer.Option()] = None,
+    embedder: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    """Embed the corpus once for every planned config that uses dense retrieval, into the
+    embedding cache (RBIRAG_EMBEDDING_CACHE_DIR), so parallel jobs only download it."""
+    from rbirag.document import read_documents_jsonl
+    from rbirag.eval.ablate import RetrievalConfig, build_config_index
+
+    s = get_settings()
+    if s.embedding_cache_dir is None:
+        raise typer.BadParameter("set RBIRAG_EMBEDDING_CACHE_DIR")
+    plan_data = json.loads((s.results_dir / "generation" / "plan.json").read_text("utf-8"))
+    emb, _ = _models(s, embedder, "none")
+    documents = read_documents_jsonl(docs or s.documents_path)
+    done: set[tuple[str, int]] = set()
+    for name in [*plan_data["full"], *plan_data["subset"]]:
+        cfg = RetrievalConfig.parse(name)
+        if cfg.mode == "bm25" or (cfg.chunker, cfg.size) in done:
+            continue
+        done.add((cfg.chunker, cfg.size))
+        _, bundle = build_config_index(documents, cfg.chunker, cfg.size, s, emb)
+        if bundle.dense is not None:
+            bundle.dense.close()
+        typer.echo(f"{cfg.chunker}-{cfg.size}: {len(bundle.store)} chunks embedded")
+    typer.echo(f"embedding cache: {getattr(emb, 'path', '-')} ({len(emb)} vectors)")
 
 
 def parse_shard(value: str | None) -> tuple[int, int]:
@@ -622,8 +731,15 @@ def report(
     update_readme: Annotated[
         Path | None, typer.Option(help="Also refresh the results section of this README.")
     ] = None,
+    judge_model: Annotated[
+        str | None,
+        typer.Option(help="Reported judge (default: the configured judge model and fallbacks)."),
+    ] = None,
 ) -> None:
-    """Write CSV/Markdown tables, charts and run metadata into the results directory."""
+    """Write CSV/Markdown tables, charts and run metadata into the results directory.
+
+    Judge columns use only the reported judge's verdicts (other judges' verdicts feed the
+    judge-agreement table), and each backend's rows only the questions its plan covers."""
     from rbirag.eval.calibrate import Calibration
     from rbirag.eval.gen_metrics import GenerationRecord
     from rbirag.eval.report import (
@@ -677,6 +793,56 @@ def report(
         typer.echo("no per-query results: retrieval rows cannot be split; omitted", err=True)
         retrieval_rows = []
 
+    # ---- one judge for every reported number; earlier judges only for agreement
+    from rbirag.eval.agreement import agreement_report
+
+    primary = judge_model or s.judge_model
+    if not primary:  # e.g. a non-API judge with its default model: the most common one
+        common = Counter(r.judge_model for r in records if r.judge_model).most_common(1)
+        primary = common[0][0] if common else "-"
+    accepted = {primary} if judge_model else {primary, *s.judge_model_fallbacks}
+    agreement = agreement_report(records, primary)
+    records = [
+        r
+        if r.judge_model is None or r.judge_model in accepted
+        else r.model_copy(
+            update={"judge_model": None, "judge_faithfulness": None, "judge_relevance": None}
+        )
+        for r in records
+    ]
+    # ---- each backend's planned (config, questions); other records stay on disk only
+    planned: dict[str, int] = {}
+    samples: dict[str, str] = {}
+    plan_data: dict[str, Any] = {}
+    plan_path = s.results_dir / "generation" / "plan.json"
+    if plan_path.exists():
+        from rbirag.eval.ablate import plan_items
+
+        plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+        n_all = len(plan_data["all_ids"])
+        wanted: dict[tuple[str, str], set[str]] = {}
+        for backend in sorted({r.backend for r in records}):
+            for config, ids in plan_items(plan_data, backend):
+                in_test = [i for i in ids if i in questions]
+                wanted[(config, backend)] = set(in_test)
+                planned[f"{config}/{backend}"] = len(in_test)
+                samples[f"{config}/{backend}"] = (
+                    "full test set" if len(ids) == n_all else "fixed subset"
+                )
+        records = [r for r in records if r.qa_id in wanted.get((r.config, r.backend), set())]
+    speed = _judge_speed(s.results_dir / "generation", primary)
+    judge_info = {
+        "model": primary,
+        "backend": s.judge_backend,
+        "description": (
+            f"{primary}, run locally with Ollama on CPU"
+            if s.judge_backend == "ollama"
+            else f"{primary} ({s.llm_provider} API)"
+        ),
+        "seconds_per_verdict": speed,
+        "verdicts": sum(r.judge_model in accepted for r in records),
+    }
+    limitations = _limitations(s, plan_data, primary, pairs)
     model_mix: dict[str, str] = {}
     for backend in sorted({r.backend for r in records}):
         model_mix[f"generator ({backend})"] = mix(
@@ -693,7 +859,10 @@ def report(
         gold_mismatch_excluded=sorted(excluded),
         ai_rejected=len(ai_rejected),
         model_mix=model_mix,
-        judge_model=model_mix.get("judge", s.judge_model),
+        judge_model=model_mix.get("judge", primary),
+        judge=judge_info,
+        judge_agreement=agreement,
+        limitations=limitations,
         generator_models=sorted({f"{r.backend}:{r.model}" for r in records if r.model}),
         embedding_model=s.embedding_model,
         reranker_model=s.reranker_model,
@@ -704,12 +873,6 @@ def report(
             r.judge_input_tokens + r.judge_output_tokens for r in records if not r.judge_cached
         ),
     )
-    planned: dict[str, int] = {}
-    plan_path = s.results_dir / "generation" / "plan.json"
-    if plan_path.exists():
-        plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
-        planned.update({c: len(plan_data["all_ids"]) for c in plan_data["full"]})
-        planned.update({c: len(plan_data["subset_ids"]) for c in plan_data["subset"]})
     written = build_report(
         s.results_dir,
         retrieval_rows=retrieval_rows,
@@ -717,6 +880,7 @@ def report(
         calibration=cal,
         metadata=meta,
         planned=planned,
+        samples=samples,
         n_resamples=s.bootstrap_samples,
         ai_reviewed_retrieval_rows=ai_rows,
         dev_retrieval_rows=dev_rows,
@@ -728,12 +892,54 @@ def report(
         from rbirag.eval.report import generation_rows, readme_results_section
         from rbirag.eval.report import update_readme as _update
 
-        gen_rows = generation_rows(records, planned=planned, n_resamples=s.bootstrap_samples)
+        gen_rows = generation_rows(
+            records, planned=planned, samples=samples, n_resamples=s.bootstrap_samples
+        )
         section = readme_results_section(meta, retrieval_rows, gen_rows)
         if _update(update_readme, section):
             typer.echo(f"updated results section in {update_readme}")
         else:
             typer.echo(f"no RESULTS markers in {update_readme}; left unchanged", err=True)
+
+
+def _judge_speed(generation_dir: Path, judge: str) -> float | None:
+    """Mean seconds per verdict of ``judge`` over the status files of the latest run."""
+    seconds = verdicts = 0.0
+    for f in generation_dir.glob("status-*.json"):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if data.get("judge_model") == judge and data.get("judge_verdicts"):
+            seconds += float(data.get("judge_seconds") or 0)
+            verdicts += float(data["judge_verdicts"])
+    return round(seconds / verdicts, 1) if verdicts else None
+
+
+def _limitations(
+    s: Settings, plan_data: Mapping[str, Any], judge: str, pairs: Sequence[Any]
+) -> list[str]:
+    out: list[str] = []
+    if pairs and not any(getattr(p, "verified", False) for p in pairs):
+        out.append(
+            "The test set is model-generated and AI-reviewed (by Claude); no pair is "
+            "human-verified yet."
+        )
+    if s.judge_backend == "ollama":
+        out.append(
+            f"The judge is a small local model ({judge}), less reliable than a frontier "
+            "judge. It was chosen because the free API tier's daily token limit allows only "
+            "about 30 judge calls a day for these ~6K-token prompts; its agreement with the "
+            "larger API judges on the answers both judged is reported."
+        )
+    for b in plan_data.get("subset_only_backends") or []:
+        out.append(
+            f"The {b} backend was evaluated with the best configuration only, on a fixed "
+            f"{len(plan_data.get('subset_ids') or [])}-question subset (seeded, stratified "
+            "by answerability), because the free tier's daily token quota allows only about "
+            "30 answers a day; its confidence intervals are wider than the full-test-set rows."
+        )
+    return out
 
 
 # ----------------------------------------------------------------------------- scheduling
@@ -792,27 +998,31 @@ def qa_status(
 
 
 def generation_progress(
-    results_dir: Path, backends: Sequence[str], questions: Mapping[str, str]
+    results_dir: Path,
+    backends: Sequence[str],
+    questions: Mapping[str, str],
+    accepted_judges: AbstractSet[str] | None = None,
+    *,
+    judge: bool = True,
 ) -> dict[str, Any]:
     """Pending work per (config, backend) of the plan, for the pairs in ``questions``
     (qa_id -> current wording). An item is pending if it has no record, its record was for
     an earlier wording, its answer errored (except permanent per-item rejections), or it
-    still needs a judge verdict that was never attempted or hit the quota."""
+    still needs a judge verdict that was never attempted or hit the quota (or only has a
+    verdict from a judge outside ``accepted_judges``)."""
+    from rbirag.eval.ablate import needs_judge, plan_items
     from rbirag.eval.records import load_tree
 
     plan_path = results_dir / "generation" / "plan.json"
     if not plan_path.exists():
         return {"plan_exists": False, "done": False, "pending": None, "configs": {}}
     plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
-    items = [(c, plan_data["all_ids"]) for c in plan_data["full"]] + [
-        (c, plan_data["subset_ids"]) for c in plan_data["subset"]
-    ]
     configs: dict[str, dict[str, int]] = {}
     total_pending = 0
     all_records = load_tree(results_dir / "generation")
     for backend in backends:
         records = {k: v for k, v in all_records.items() if k[1] == backend}
-        for config, ids in items:
+        for config, ids in plan_items(plan_data, backend):
             pending = 0
             for qa_id in ids:
                 if qa_id not in questions:
@@ -822,13 +1032,7 @@ def generation_progress(
                     pending += 1
                 elif rec.error is not None:
                     pending += 0 if rec.error.startswith("rejected") else 1
-                elif (
-                    rec.answerable
-                    and not rec.refused
-                    and rec.judge_faithfulness is None
-                    and rec.judge_relevance is None
-                    and (rec.judge_error is None or rec.judge_error.startswith("quota"))
-                ):
+                elif judge and needs_judge(rec, accepted_judges):
                     pending += 1
             configs[f"{config}/{backend}"] = {"planned": len(ids), "pending": pending}
             total_pending += pending
@@ -844,8 +1048,12 @@ def generation_progress(
 def progress(
     backends: Annotated[str, typer.Option()] = "openai_compatible,ollama",
     qa: Annotated[Path | None, typer.Option()] = None,
+    judge: Annotated[
+        bool, typer.Option("--judge/--no-judge", help="Count missing verdicts as pending.")
+    ] = True,
 ) -> None:
     """Pending generation/judge work for the current plan (used by scheduled workflows)."""
     s = get_settings()
     questions = {p.qa_id: p.question for p in load_qa(s, qa)}
-    _echo_json(generation_progress(s.results_dir, _csv(backends), questions))
+    accepted = {s.judge_model, *s.judge_model_fallbacks} if s.judge_model else None
+    _echo_json(generation_progress(s.results_dir, _csv(backends), questions, accepted, judge=judge))

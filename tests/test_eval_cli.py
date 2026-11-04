@@ -308,3 +308,43 @@ def test_report_updates_readme_results_section(workspace: Path) -> None:
     result = runner.invoke(app, ["eval", "report", "--update-readme", str(plain)])
     assert result.exit_code == 0
     assert plain.read_text() == "no markers"
+
+
+def test_subset_only_backend_and_sharded_judge_cli(workspace: Path) -> None:
+    invoke(
+        "eval", "retrieval", "--chunkers", "fixed", "--sizes", "64",
+        "--modes", "bm25,hybrid_rerank", "--tag", "smoke",
+    )  # fmt: skip
+    invoke("eval", "calibrate")
+    out = invoke("eval", "plan", "--backends", "fake", "--subset-size", "2",
+                 "--subset-configs", "1", "--subset-only-backends", "fake")  # fmt: skip
+    assert "fake: best config only" in out
+    plan = json.loads((workspace / "results/generation/plan.json").read_text())
+    assert plan["subset_only_backends"] == ["fake"]
+    assert plan["planned_calls"]["generate[fake]"] == len(plan["subset_ids"])
+
+    invoke("eval", "generate", "--backend", "fake", "--nli", "fake", "--no-judge")
+    gen = workspace / "results/generation"
+    files = sorted(p.name for p in gen.glob("records-*.jsonl"))
+    assert files == [f"records-fake-{plan['full'][0]}.jsonl"]  # best config only
+    ids = {json.loads(x)["qa_id"] for x in (gen / files[0]).read_text().splitlines()}
+    assert ids <= set(plan["subset_ids"])
+    # nothing left to generate: no index is built, every item is skipped
+    out = invoke("eval", "generate", "--backend", "fake", "--nli", "fake", "--no-judge")
+    assert "nothing to do" in out
+    # judge in two shards, then merge: shard files fold into the canonical file
+    for i in (1, 2):
+        invoke("eval", "generate", "--backend", "fake", "--judge-only", "--shard", f"{i}/2")
+    shards = sorted(p.name for p in gen.glob("records-*.shard*.jsonl"))
+    assert shards and all(".shard" in s for s in shards)
+    invoke("eval", "merge-records", "--incoming", str(gen), "--into", str(gen))
+    assert sorted(p.name for p in gen.glob("records-*.jsonl")) == files
+    assert (
+        json.loads((gen / "status-fake-all.shard1of2.judge.json").read_text())["backend"] == "fake"
+    )
+
+    invoke("eval", "report")
+    csv_text = (workspace / "results/generation.csv").read_text()
+    assert "fixed subset (n=" in csv_text
+    md = (workspace / "results/README.md").read_text()
+    assert "**Judge:" in md

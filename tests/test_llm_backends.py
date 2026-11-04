@@ -803,3 +803,12 @@ def test_413_on_every_model_is_a_per_item_rejection() -> None:
     responses = {m: [413] for m in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash")}
     with pytest.raises(RequestRejectedError):
         chain_llm(by_model(responses, [])).generate(MSGS)
+
+
+def test_ollama_num_thread_and_ctx_in_options() -> None:
+    llm = OllamaLLM("qwen2.5:7b-instruct", num_ctx=8192, num_thread=4)
+    body = llm.payload(MSGS, system=None, max_tokens=64, json_schema={"type": "object"})
+    assert body["options"]["num_thread"] == 4
+    assert body["options"]["num_ctx"] == 8192
+    assert body["format"] == {"type": "object"}
+    assert "num_thread" not in OllamaLLM().payload(MSGS, system=None, max_tokens=8)["options"]

@@ -6,6 +6,7 @@ import hashlib
 import itertools
 import re
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, Protocol, cast, runtime_checkable
 
 import numpy as np
@@ -124,6 +125,69 @@ class FakeEmbedder:
 
     def embed_query(self, text: str) -> FloatArray:
         return cast(FloatArray, _l2_normalise(self._vector(text)[None, :])[0])
+
+
+class CachedEmbedder:
+    """Disk cache of document embeddings, keyed by model name and text.
+
+    One ``.npz`` file per model holds the vectors; several CI jobs can share it (one job
+    embeds the corpus, the others download the file) instead of each re-embedding it.
+    Queries are not cached (they are cheap and few)."""
+
+    def __init__(self, inner: Embedder, cache_dir: Path) -> None:
+        self.inner = inner
+        slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", inner.name)
+        self.path = cache_dir / f"emb-{slug}.npz"
+        self._keys: dict[str, int] = {}
+        self._vecs: FloatArray | None = None
+        if self.path.exists():
+            with np.load(self.path) as data:
+                keys = [str(k) for k in data["keys"]]
+                self._vecs = np.asarray(data["vecs"], dtype=np.float32)
+            self._keys = {k: i for i, k in enumerate(keys)}
+
+    @property
+    def name(self) -> str:
+        return self.inner.name
+
+    @property
+    def dim(self) -> int:
+        if self._vecs is not None and self._vecs.shape[0]:
+            return int(self._vecs.shape[1])
+        return self.inner.dim
+
+    def _key(self, text: str) -> str:
+        return hashlib.sha1(f"{self.inner.name}\0{text}".encode()).hexdigest()
+
+    def __len__(self) -> int:
+        return len(self._keys)
+
+    def embed_documents(self, texts: Sequence[str]) -> FloatArray:
+        if not texts:
+            return np.zeros((0, self.dim), dtype=np.float32)
+        keys = [self._key(t) for t in texts]
+        missing = sorted({k: i for i, k in enumerate(keys) if k not in self._keys}.values())
+        if missing:
+            new = self.inner.embed_documents([texts[i] for i in missing])
+            start = len(self._keys)
+            for j, i in enumerate(missing):
+                self._keys[keys[i]] = start + j
+            self._vecs = new if self._vecs is None else np.concatenate([self._vecs, new])
+            self.save()
+        assert self._vecs is not None
+        return self._vecs[[self._keys[k] for k in keys]]
+
+    def embed_query(self, text: str) -> FloatArray:
+        return self.inner.embed_query(text)
+
+    def save(self) -> None:
+        if self._vecs is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        ordered = sorted(self._keys, key=self._keys.__getitem__)
+        tmp = self.path.with_name(self.path.name + ".tmp.npz")
+        np.savez(tmp, keys=np.array(ordered), vecs=self._vecs)
+        tmp.replace(self.path)
 
 
 def build_embedder(
