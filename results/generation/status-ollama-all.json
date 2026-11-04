@@ -6,11 +6,11 @@
     "fixed-1024-bm25": {
       "complete": false,
       "generated": 0,
-      "judged": 11,
-      "skipped": 12,
+      "judged": 3,
+      "skipped": 16,
       "stopped_because": "QuotaExhaustedError"
     }
   },
   "complete": false,
-  "successful_items": 11
+  "successful_items": 3
 }
