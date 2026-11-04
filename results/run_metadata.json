@@ -1,0 +1,46 @@
+{
+  "test_set_file": "data/eval/qa_candidates.jsonl",
+  "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded",
+  "generated_at": "2026-11-04T03:19:45+00:00",
+  "commit": "636ff2718a59366823b458991c0ddd1cbacbb8c3",
+  "questions": 216,
+  "answerable": 186,
+  "unanswerable": 30,
+  "human_verified": 0,
+  "ai_review": {
+    "reviewer": "ai-assistant (Claude); an AI review, not human verification",
+    "reviewed_in_test_set": 43,
+    "accepted": 20,
+    "edited": 23,
+    "rejected_excluded": 7
+  },
+  "unverified_model_generated": 216,
+  "split": {
+    "method": "by document: every pair whose gold evidence comes from the same notification lands in the same split (seeded SHA-256 of the gold doc id; unanswerable pairs, which have no document, are split by qa_id)",
+    "seed": 13,
+    "dev_fraction": 0.3,
+    "dev_questions": 61,
+    "test_questions": 155,
+    "dev_documents": 56,
+    "test_documents": 130
+  },
+  "gold_mismatch_excluded": [],
+  "model_mix": {
+    "generator (ollama)": "qwen2.5:3b-instruct 100%",
+    "generator (openai_compatible)": "openai/gpt-oss-20b 81%, qwen/qwen3.8-27b 19%",
+    "judge": "qwen/qwen3.8-27b 82%, openai/gpt-oss-120b 18%",
+    "Q/A writer": "openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%"
+  },
+  "judge_model": "qwen/qwen3.8-27b 82%, openai/gpt-oss-120b 18%",
+  "generator_models": [
+    "ollama:qwen2.5:3b-instruct",
+    "openai_compatible:openai/gpt-oss-20b",
+    "openai_compatible:qwen/qwen3.8-27b"
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+  "nli_model": "cross-encoder/nli-deberta-v3-base",
+  "llm_cost_usd": 0.0,
+  "llm_tokens": 1323973,
+  "judge_tokens": 241213
+}
