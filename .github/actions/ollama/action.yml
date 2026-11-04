@@ -1,0 +1,31 @@
+name: Start Ollama with a model
+description: >
+  Installs Ollama, restores the model from the Actions cache (the default q4 quantisation
+  pulled once), starts the server with the model kept loaded, and sets
+  RBIRAG_OLLAMA_NUM_THREAD to the runner's cores.
+inputs:
+  model:
+    description: Model to pull, e.g. qwen2.5:7b-instruct
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Cache Ollama model
+      uses: actions/cache@v4
+      with:
+        path: ~/.ollama/models
+        key: ollama-${{ inputs.model }}
+    - name: Install, start and pull
+      shell: bash
+      env:
+        MODEL: ${{ inputs.model }}
+      run: |
+        curl -fsSL https://ollama.com/install.sh | sh
+        sudo systemctl stop ollama 2>/dev/null || true
+        mkdir -p ~/.ollama/models
+        OLLAMA_MODELS="$HOME/.ollama/models" OLLAMA_KEEP_ALIVE=-1 OLLAMA_NUM_PARALLEL=1 \
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+        for _ in $(seq 1 60); do curl -sf http://localhost:11434/api/tags >/dev/null && break; sleep 1; done
+        OLLAMA_MODELS="$HOME/.ollama/models" ollama pull "$MODEL"
+        echo "RBIRAG_OLLAMA_NUM_THREAD=$(nproc)" >> "$GITHUB_ENV"
+        echo "Ollama ready: $MODEL on $(nproc) cores"

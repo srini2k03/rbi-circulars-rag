@@ -117,15 +117,24 @@ Full tables, charts and run metadata: [results/](results/README.md).
 
 ### Which models produce the numbers
 
-Groq free tier (GPT-OSS 120B judge, GPT-OSS 20B generator), plus local Ollama
-Qwen2.5-3B.
+Groq free tier (GPT-OSS 20B generator), local Ollama Qwen2.5-3B generator, and a local
+Ollama Qwen2.5-7B judge for every answer of both generators.
 
 | Role | Primary model | Fallbacks |
 |---|---|---|
-| API generator | `openai/gpt-oss-20b` | `qwen/qwen3.8-27b` |
-| Judge | `openai/gpt-oss-120b` (larger than, and different from, the generator) | `qwen/qwen3.8-27b` |
+| API generator | `openai/gpt-oss-20b`, best config, fixed 60-question subset | `openai/gpt-oss-120b` |
+| Judge (all reported numbers) | Ollama `qwen2.5:7b-instruct` on the CI runners (q4, CPU) | - |
 | Q/A writer | `openai/gpt-oss-120b` | `qwen/qwen3.8-27b` |
-| Local generator | Ollama `qwen2.5:3b-instruct` | - |
+| Local generator | Ollama `qwen2.5:3b-instruct`: best config on the full test set (155), two more configs on the subset (60) | - |
+
+- **Why a local judge:** the free tier allows about 200K tokens per model per day, about
+  30 judge calls for these ~6K-token prompts, so judging ~330 answers would take two
+  weeks. The 7B judge runs on 16-20 parallel runners in one workflow run. The earlier
+  verdicts from `openai/gpt-oss-120b` and `qwen/qwen3.8-27b` are kept, and the results
+  report their agreement with the 7B judge (correlation, agreement %, Cohen's kappa).
+- **Why a 60-question API subset:** the same quota limits the API generator to about 30
+  answers a day. `qwen/qwen3.8-27b` cannot stand in: it rejects ~6K-token prompts (HTTP
+  413).
 
 - **Model mix:** every record stores the model that actually answered, and the results
   report the mix per role.
@@ -316,19 +325,28 @@ runs use the input defaults):
 - `qa.yml` at 09:41 UTC. It stops early, successfully and without a commit, once the
   candidate set has reached its targets (220 answerable + 30 unanswerable, allowing a 5%
   shortfall for items the model keeps failing).
-- `evaluate.yml` hourly at :41. It does nothing until the candidates reach their targets,
-  then resumes from the committed records until every planned generation and judge call
-  is done, and then stops early. Every job checks out the latest `main`, so a queued run
-  continues from what earlier runs committed, and committed retrieval results are reused
+- `evaluate.yml` every 6 hours at :41, as a fallback: one dispatch runs the whole
+  evaluation, and the schedule only resumes what a run left (e.g. API answers past the
+  daily quota). It is a no-op once every planned answer has a verdict from the
+  configured judge. Every job checks out the latest `main`, so a queued run continues
+  from what earlier runs committed, and committed retrieval results are reused
   (`force_retrieval` re-runs them).
+
+How one `evaluate.yml` run is laid out (each stage's jobs run in parallel):
+1. `select` plans the generation (the API backend: best config on the fixed subset).
+2. `embed` embeds the corpus once for the dense configs (cached; other jobs download the
+   vectors); `generate-api` and the `generate-ollama` shards answer what is missing.
+3. `judge-ollama` (`judge_shards`, default 16) and `judge-api` (`api_judge_shards`,
+   default 4) judge every answer without a verdict from the local judge, split by a
+   stable hash of the question id. Each job logs its seconds per verdict.
+4. `report` merges everything onto the latest `main` and publishes.
 
 How `evaluate.yml` avoids losing work:
 - generate and judge jobs stop cleanly before `budget_minutes` (default 300, job timeout
-  330), flush their records and upload them even when a step fails;
-- the Ollama config on the full test set is split into `ollama_shards` (default 4) jobs by
-  a stable hash of the question id;
-- the `judge` job judges every answer still without a verdict (API and Ollama), so the
-  judged count only rises;
+  330), flush their records and upload them even when a step fails; the next run
+  resumes from them;
+- every record keeps each judge's verdict, so changing the judge re-judges answers
+  without losing the earlier verdicts;
 - `scripts/publish_results.sh` fetches the latest `main`, union-merges this run's records
   into the committed ones (per question, a judged answer beats an unjudged one, which
   beats an error; otherwise the newer wins), regenerates the tables, charts and README
@@ -363,9 +381,11 @@ Guards against misleading output:
   passages, which favours questions that are easy to retrieve lexically. Human review,
   plus questions written from real compliance queries, would make the set harder and
   fairer.
-- **Small free-tier models.** The judge and generators are small free-tier models; a
-  stronger judge (or a paid tier) would tighten the faithfulness numbers. The NLI
-  cross-check is there because of this.
+- **Small models.** The judge is a local 7B model and the generators are small
+  free-tier or local models; a stronger judge (or a paid tier) would tighten the
+  faithfulness numbers. The NLI cross-check and the judge-agreement table are there
+  because of this. The API generator is measured on a 60-question subset only (free-tier
+  quota), so its confidence intervals are wider.
 - **Browser demo coverage.** The demo index is capped at about 25 MB; if the corpus does
   not fit, it covers recent years only and says so on the page.
 - **Text-only ingestion.** No OCR for scanned PDFs, and tables are flattened to text.

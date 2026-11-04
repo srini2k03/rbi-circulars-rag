@@ -1,8 +1,12 @@
 name: Evaluate
 
-# Retrieval ablation (no LLM) -> gate calibration + generation plan -> generation with the
-# API provider's free tier (Groq by default, Gemini optional) and the local Ollama model
-# (sharded) -> LLM-judge + NLI -> report published to results/. Every stage is resumable.
+# One dispatch runs the whole evaluation end to end, in parallel stages:
+#   plan -> [API generation (Groq free tier, best config on the 60-question subset),
+#            Ollama generation shards (qwen2.5:3b), corpus embedding (once)]
+#        -> judge shards (local qwen2.5:7b via Ollama, for every answer of both backends)
+#        -> union-merge -> report -> publish.
+# The judge runs on the runners, so judging no longer depends on the API's daily token
+# quota; earlier API-judge verdicts are kept for a judge-agreement analysis.
 #
 # Progress is never lost:
 #  * every job checks out the latest main (not the queued run's SHA), so it resumes from
@@ -14,11 +18,11 @@ name: Evaluate
 #    a push is rejected (no textual rebase of derived files).
 
 on:
-  # Hourly at :41 (the Q/A workflow runs daily at 09:41). A scheduled run only works once
-  # the candidate set has reached its targets, resumes until every planned call is done,
-  # and otherwise exits cleanly.
+  # Fallback every 6 hours (the Q/A workflow runs daily at 09:41): resumes whatever a
+  # dispatched run left (e.g. API answers past the daily quota); a no-op (preflight only)
+  # once every planned answer has a verdict from the configured judge.
   schedule:
-    - cron: "41 * * * *"  # hourly: resumes until done; exits early when done or quota is spent
+    - cron: "41 */6 * * *"
   workflow_dispatch:
     inputs:
       provider:
@@ -31,17 +35,13 @@ on:
         type: string
         default: ""
       generator_fallbacks:
-        description: "Comma-separated generator fallbacks (blank = provider default: groq qwen/qwen3.8-27b)"
+        description: "Comma-separated generator fallbacks (qwen/qwen3.8-27b rejects our ~6K-token prompts with 413)"
         type: string
-        default: ""
+        default: "openai/gpt-oss-120b"
       judge_model:
-        description: "LLM judge (blank = provider default: groq openai/gpt-oss-120b, gemini gemini-3.8-flash)"
+        description: "Judge, run locally with Ollama on the runners (q4 default quant)"
         type: string
-        default: ""
-      judge_fallbacks:
-        description: "Comma-separated judge fallbacks (blank = provider default: groq qwen/qwen3.8-27b)"
-        type: string
-        default: ""
+        default: "qwen2.5:7b-instruct"
       ollama_model:
         description: "Local Ollama model evaluated alongside"
         type: string
@@ -59,7 +59,15 @@ on:
         type: string
         default: "300"
       ollama_shards:
-        description: "Parallel shards for each full-test-set Ollama config"
+        description: "Parallel shards for each full-test-set Ollama generation config"
+        type: string
+        default: "4"
+      judge_shards:
+        description: "Parallel judge jobs for the Ollama answers (free runners: ~20 concurrent jobs)"
+        type: string
+        default: "16"
+      api_judge_shards:
+        description: "Parallel judge jobs for the API answers (start once API generation ends)"
         type: string
         default: "4"
       full_configs:
@@ -91,11 +99,13 @@ env:
   RBIRAG_RERANKER: cross-encoder
   RBIRAG_LLM_PROVIDER: ${{ inputs.provider || 'groq' }}
   RBIRAG_OAI_MODEL: ${{ inputs.generator_model || '' }}
-  RBIRAG_OAI_MODEL_FALLBACKS: ${{ inputs.generator_fallbacks || 'auto' }}
-  RBIRAG_JUDGE_BACKEND: openai_compatible
-  RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model || '' }}
-  RBIRAG_JUDGE_MODEL_FALLBACKS: ${{ inputs.judge_fallbacks || 'auto' }}
+  RBIRAG_OAI_MODEL_FALLBACKS: ${{ inputs.generator_fallbacks || 'openai/gpt-oss-120b' }}
+  RBIRAG_JUDGE_BACKEND: ollama
+  RBIRAG_JUDGE_MODEL: ${{ inputs.judge_model || 'qwen2.5:7b-instruct' }}
   RBIRAG_OLLAMA_MODEL: ${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
+  RBIRAG_OLLAMA_NUM_CTX: "8192"  # judge prompt ~6K tokens + verdict
+  RBIRAG_OLLAMA_TIMEOUT_SECONDS: "1800"  # CPU prompt evaluation of a 7B model is slow
+  RBIRAG_EMBEDDING_CACHE_DIR: ${{ github.workspace }}/.cache/emb
   RBIRAG_LLM_RPD: ${{ inputs.requests_per_day || '0' }}
   BUDGET_MINUTES: ${{ inputs.budget_minutes || '300' }}
 
@@ -209,6 +219,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ollama_matrix: ${{ steps.plan.outputs.ollama_matrix }}
+      judge_shards: ${{ steps.plan.outputs.judge_shards }}
+      api_judge_shards: ${{ steps.plan.outputs.api_judge_shards }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -227,19 +239,22 @@ jobs:
           merge-multiple: true
       - name: Calibrate the confidence gate on the dev split
         run: rbirag eval calibrate
-      - name: Plan generation and print the planned call count
+      - name: Plan generation (the API backend runs the best config on the subset only)
         id: plan
         env:
           FULL: ${{ inputs.full_configs || '1' }}
           SUBSET: ${{ inputs.subset_configs || '2' }}
           SIZE: ${{ inputs.subset_size || '50' }}
           SHARDS: ${{ inputs.ollama_shards || '4' }}
+          JUDGE_SHARDS: ${{ inputs.judge_shards || '16' }}
+          API_JUDGE_SHARDS: ${{ inputs.api_judge_shards || '4' }}
         run: |
-          rbirag eval plan --backends openai_compatible,ollama \
+          rbirag eval plan --backends openai_compatible,ollama --subset-only-backends openai_compatible \
             --full-configs "$FULL" --subset-configs "$SUBSET" --subset-size "$SIZE" | tee /tmp/plan.txt
           { echo "## Generation plan"; echo '```'; cat /tmp/plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          # Ollama runs on CPU: split each full-test-set config into shards (stable hash of
-          # the question id), subset configs run as one job each.
+          # Ollama generation runs on CPU: each full-test-set config is split into shards
+          # (stable hash of the question id); subset configs run as one job each. Judging
+          # is sharded the same way across every config of a backend.
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import json, os
           p = json.load(open("results/generation/plan.json"))
@@ -247,6 +262,9 @@ jobs:
           inc = [{"config": c, "shard": f"{i}/{n}"} for c in p["full"] for i in range(1, n + 1)]
           inc += [{"config": c, "shard": "1/1"} for c in p["subset"]]
           print("ollama_matrix=" + json.dumps({"include": inc}))
+          for key, env in (("judge_shards", "JUDGE_SHARDS"), ("api_judge_shards", "API_JUDGE_SHARDS")):
+              m = max(1, int(os.environ[env]))
+              print(f"{key}=" + json.dumps([f"{i}/{m}" for i in range(1, m + 1)]))
           PY
       - uses: actions/upload-artifact@v4
         with:
@@ -254,6 +272,44 @@ jobs:
           path: |
             results/calibration.json
             results/generation/plan.json
+
+  embed:
+    # Embeds the corpus once for the dense configs; every judge/generation job downloads
+    # the vectors instead of spending ~18 CPU minutes re-embedding.
+    needs: select
+    if: ${{ always() && needs.select.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: ./.github/actions/eval-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          extras: "ingest,retrieval,ml,eval"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: results
+      - name: Restore the embedding cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/emb
+          key: emb-cache-v1-${{ github.run_id }}
+          restore-keys: emb-cache-v1-
+      - name: Embed the corpus for every planned dense config
+        run: rbirag eval warm-index
+      - uses: actions/cache/save@v4
+        with:
+          path: .cache/emb
+          key: emb-cache-v1-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: embed-cache
+          path: .cache/emb
+          include-hidden-files: true
+          retention-days: 3
 
   generate-api:
     needs: select
@@ -273,42 +329,24 @@ jobs:
           groq_key: ${{ secrets.GROQ_API_KEY }}
           gemini_key: ${{ secrets.GEMINI_API_KEY }}
           list_models: "false"
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/eval-setup
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install (CPU torch)
-        run: |
-          python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ".[ingest,retrieval,ml,llm,eval]"
-      - uses: actions/cache@v4
-        with:
-          path: .hf
-          key: hf-models-v1-${{ runner.os }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: plan
           path: results
-      - name: Download corpus
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p data/processed
-          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
-          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
       - name: Restore LLM cache and quota counters
         uses: actions/cache/restore@v4
         with:
           path: .cache/llm
           key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-api
           restore-keys: llm-cache-${{ inputs.provider || 'groq' }}-
-      - name: Generate with the API provider and judge (resumes from committed records)
+      - name: Generate with the API provider (subset; resumes; judged by the local judge)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: rbirag eval generate --backend openai_compatible
+        run: rbirag eval generate --backend openai_compatible --no-judge
       - name: Save LLM cache
         if: always()
         uses: actions/cache/save@v4
@@ -327,8 +365,8 @@ jobs:
           retention-days: 14
 
   generate-ollama:
-    needs: select
-    if: ${{ always() && needs.select.result == 'success' }}
+    needs: [select, embed]
+    if: ${{ always() && needs.select.result == 'success' && needs.embed.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
     strategy:
@@ -340,147 +378,159 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - uses: actions/setup-python@v5
+      - uses: ./.github/actions/eval-setup
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install (CPU torch)
-        run: |
-          python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ".[ingest,retrieval,ml,llm,eval]"
-      - uses: actions/cache@v4
-        with:
-          path: .hf
-          key: hf-models-v1-${{ runner.os }}
-      - name: Cache Ollama models
-        uses: actions/cache@v4
-        with:
-          path: ~/.ollama/models
-          key: ollama-${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
-      - name: Install and start Ollama
-        env:
-          MODEL: ${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          sudo systemctl stop ollama 2>/dev/null || true
-          mkdir -p ~/.ollama/models
-          OLLAMA_MODELS="$HOME/.ollama/models" nohup ollama serve > /tmp/ollama.log 2>&1 &
-          for _ in $(seq 1 60); do curl -sf http://localhost:11434/api/tags >/dev/null && break; sleep 1; done
-          OLLAMA_MODELS="$HOME/.ollama/models" ollama pull "$MODEL"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: plan
           path: results
-      - name: Download corpus
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: embed-cache
+          path: .cache/emb
+      - name: Anything left to generate?
+        id: work
         run: |
-          mkdir -p data/processed
-          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
-          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
-      - name: Generate with Ollama, shard ${{ matrix.shard }} (judged later to respect the API rate limit)
+          rbirag eval progress --backends ollama --no-judge | tee /tmp/progress.json
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          p = json.load(open("/tmp/progress.json"))
+          print("todo=" + str(any(v["pending"] for k, v in p["configs"].items() if k.startswith("${{ matrix.config }}/"))).lower())
+          PY
+      - uses: ./.github/actions/ollama
+        if: steps.work.outputs.todo == 'true'
+        with:
+          model: ${{ inputs.ollama_model || 'qwen2.5:3b-instruct' }}
+      - name: Generate with Ollama, shard ${{ matrix.shard }} (judged by the judge jobs)
+        if: steps.work.outputs.todo == 'true'
         run: rbirag eval generate --backend ollama --configs "${{ matrix.config }}" --shard "${{ matrix.shard }}" --no-judge
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: generation-ollama-${{ strategy.job-index }}
           path: |
+            results/generation/records-ollama-*.shard*.jsonl
             results/generation/records-ollama-*.jsonl
             results/generation/status-ollama*.json
             results/generation/fatal-*.json
           if-no-files-found: warn
           retention-days: 14
 
-  judge:
-    needs: [select, generate-ollama, generate-api]
-    # Judges every answer that has no verdict yet, API and Ollama, until the judge's daily
-    # quota or the time budget runs out (judge-only: never generates, needs no Ollama).
-    if: ${{ always() && needs.select.result == 'success' }}
+  judge-ollama:
+    needs: [select, embed, generate-ollama]
+    # Judges every Ollama answer without a verdict from the configured judge (earlier
+    # verdicts from other judges are kept for the agreement analysis).
+    if: ${{ always() && needs.select.result == 'success' && needs.embed.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select.outputs.judge_shards) }}
     steps:
       - name: Start the time budget
         run: echo "RBIRAG_EVAL_DEADLINE=$(( $(date +%s) + BUDGET_MINUTES * 60 ))" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           ref: main
-      - uses: ./.github/actions/provider-key
+      - uses: ./.github/actions/eval-setup
         with:
-          provider: ${{ inputs.provider || 'groq' }}
-          groq_key: ${{ secrets.GROQ_API_KEY }}
-          gemini_key: ${{ secrets.GEMINI_API_KEY }}
-          list_models: "false"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: Install (CPU torch)
-        run: |
-          python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ".[ingest,retrieval,ml,llm,eval]"
-      - uses: actions/cache@v4
-        with:
-          path: .hf
-          key: hf-models-v1-${{ runner.os }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: plan
           path: results
-      - name: This run's answers (one directory per job)
+      - uses: actions/download-artifact@v4
+        with:
+          name: embed-cache
+          path: .cache/emb
+      - name: This run's Ollama answers
         uses: actions/download-artifact@v4
         with:
-          pattern: generation-*
+          pattern: generation-ollama-*
           path: /tmp/run/generation
         continue-on-error: true
       - name: Merge them into the committed records
         run: |
           mkdir -p /tmp/run/generation
           rbirag eval merge-records --incoming /tmp/run/generation --into results/generation
-      - name: Download corpus
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p data/processed
-          gh release download corpus-v1 --pattern 'documents.jsonl.gz' --dir /tmp/corpus
-          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
-      - name: Restore LLM cache and quota counters
-        uses: actions/cache/restore@v4
+      - uses: ./.github/actions/ollama
         with:
-          path: .cache/llm
-          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-judge
-          restore-keys: |
-            llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-api
-            llm-cache-${{ inputs.provider || 'groq' }}-
-      - name: Judge new answers (API, then Ollama)
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          rbirag eval generate --backend openai_compatible --judge-only
-          rbirag eval generate --backend ollama --judge-only
-      - name: Save LLM cache
+          model: ${{ inputs.judge_model || 'qwen2.5:7b-instruct' }}
+      - name: Judge shard ${{ matrix.shard }} of the Ollama answers
+        run: rbirag eval generate --backend ollama --judge-only --shard "${{ matrix.shard }}"
+      - name: Seconds per verdict
         if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: .cache/llm
-          key: llm-cache-${{ inputs.provider || 'groq' }}-${{ github.run_id }}-judge
+        run: scripts/judge_speed.sh >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: generation-judged
+          name: judged-ollama-${{ strategy.job-index }}
           path: |
-            results/generation/records-*.jsonl
-            results/generation/status-*.judge.json
+            results/generation/records-ollama-*.shard*.jsonl
+            results/generation/status-ollama-*.judge.json
+            results/generation/fatal-*.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  judge-api:
+    needs: [select, embed, generate-api]
+    if: ${{ always() && needs.select.result == 'success' && needs.embed.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.select.outputs.api_judge_shards) }}
+    steps:
+      - name: Start the time budget
+        run: echo "RBIRAG_EVAL_DEADLINE=$(( $(date +%s) + BUDGET_MINUTES * 60 ))" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: ./.github/actions/eval-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: results
+      - uses: actions/download-artifact@v4
+        with:
+          name: embed-cache
+          path: .cache/emb
+      - name: This run's API answers
+        uses: actions/download-artifact@v4
+        with:
+          name: generation-api
+          path: /tmp/run/generation/generation-api
+        continue-on-error: true
+      - name: Merge them into the committed records
+        run: |
+          mkdir -p /tmp/run/generation
+          rbirag eval merge-records --incoming /tmp/run/generation --into results/generation
+      - uses: ./.github/actions/ollama
+        with:
+          model: ${{ inputs.judge_model || 'qwen2.5:7b-instruct' }}
+      - name: Judge shard ${{ matrix.shard }} of the API answers (no API quota used)
+        run: rbirag eval generate --backend openai_compatible --judge-only --shard "${{ matrix.shard }}"
+      - name: Seconds per verdict
+        if: always()
+        run: scripts/judge_speed.sh >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: judged-api-${{ strategy.job-index }}
+          path: |
+            results/generation/records-openai_compatible-*.shard*.jsonl
+            results/generation/status-openai_compatible-*.judge.json
             results/generation/fatal-*.json
           if-no-files-found: warn
           retention-days: 14
 
   report:
-    needs: [preflight, retrieval, select, generate-api, generate-ollama, judge]
+    needs: [preflight, retrieval, select, embed, generate-api, generate-ollama, judge-ollama, judge-api]
     # Publishes whatever succeeded, even if a job failed or ran out of time. A fatal
     # configuration error (exit 2) leaves a fatal-*.json marker and blocks publishing.
     if: ${{ always() && needs.select.result == 'success' }}
@@ -505,10 +555,16 @@ jobs:
           pattern: retrieval-*
           path: /tmp/run/retrieval
           merge-multiple: true
-      - name: Every generate/judge artifact (one directory each)
+      - name: Every generation artifact (one directory each)
         uses: actions/download-artifact@v4
         with:
           pattern: generation-*
+          path: /tmp/run/generation
+        continue-on-error: true
+      - name: Every judge artifact (one directory each)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: judged-*
           path: /tmp/run/generation
         continue-on-error: true
       - name: Merge onto the latest main, regenerate derived files, push (retries)
@@ -519,10 +575,9 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Status"
-            for f in results/generation/status-*.json; do [ -f "$f" ] && { echo "### $f"; echo '```json'; cat "$f"; echo '```'; }; done
+            scripts/judge_speed.sh
             [ -f results/README.md ] && cat results/README.md
           } >> "$GITHUB_STEP_SUMMARY"
-          if grep -qs '"complete": false' results/generation/status-*.json; then
-            echo "::warning::Generation is incomplete (free-tier quota or time budget); the next scheduled run resumes."
+          if ! rbirag eval progress | python -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['done'] else 1)"; then
+            echo "::warning::Some planned answers or verdicts are still pending (API quota or time budget); the 6-hourly schedule resumes them."
           fi
