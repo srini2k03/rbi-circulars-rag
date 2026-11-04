@@ -2,15 +2,15 @@
 
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-04T11:38:08+00:00 at commit `178124e790571aab43b12a04525aec37aa942e24`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-04T16:15:57+00:00 at commit `f6bf0c518997acf0b8fe2365eebf07ad40799734`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 
 Models that actually answered (share of calls):
 
 - generator (ollama): qwen2.5:3b-instruct 100%
-- generator (openai_compatible): openai/gpt-oss-20b 81%, qwen/qwen3.8-27b 19%
-- judge: qwen/qwen3.8-27b 81%, openai/gpt-oss-120b 19%
+- generator (openai_compatible): openai/gpt-oss-20b 86%, qwen/qwen3.8-27b 14%
+- judge: qwen/qwen3.8-27b 75%, openai/gpt-oss-120b 25%
 - Q/A writer: openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%
 
 ## Retrieval ablation
@@ -107,9 +107,10 @@ Not reported as results: too many generation or judge calls failed or are still 
 
 | config | backend (model) | status |
 |---|---|---|
-| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | incomplete (25/155) |
-| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 81%, qwen/qwen3.8-27b 19%) | incomplete (41/155) |
+| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | incomplete (43/155) |
+| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 85%, qwen/qwen3.8-27b 15%) | incomplete (51/155) |
 | fixed-1024-hybrid | ollama (qwen2.5:3b-instruct 100%) | incomplete (13/60) |
+| fixed-1024-hybrid | openai_compatible (openai/gpt-oss-20b 100%) | incomplete (7/60) |
 | fixed-1024-hybrid_rerank | ollama (qwen2.5:3b-instruct 100%) | incomplete (14/60) |
 
 ## AI-reviewed subset (43 pairs)
@@ -159,7 +160,9 @@ The same runs restricted to the 43 pairs an AI assistant (Claude) accepted or ed
 
 ### Generation
 
-No configuration is complete on this subset yet.
+| config | backend (model) | n | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| fixed-1024-hybrid | openai_compatible (openai/gpt-oss-20b 100%) | 1 | - | - | - | - | - | 0.000 [0.000, 0.000] | - | 52878 | 0.0000 |
 
 ## Confidence gate
 
