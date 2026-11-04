@@ -1,0 +1,17 @@
+{
+  "backend": "ollama",
+  "model": "qwen2.5:3b-instruct",
+  "threshold": 0.49,
+  "configs": {
+    "fixed-1024-bm25": {
+      "complete": true,
+      "generated": 21,
+      "judged": 0,
+      "skipped": 12,
+      "stopped_because": null,
+      "judge_stopped": null
+    }
+  },
+  "complete": true,
+  "successful_items": 21
+}
