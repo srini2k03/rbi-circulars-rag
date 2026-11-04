@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
@@ -454,8 +455,17 @@ def generate(
     nli: Annotated[str, typer.Option(help="model | fake | none")] = "model",
     embedder: Annotated[str | None, typer.Option()] = None,
     reranker: Annotated[str | None, typer.Option()] = None,
+    shard: Annotated[
+        str | None, typer.Option(help="Only shard I of N of the questions, e.g. 2/4.")
+    ] = None,
+    budget_minutes: Annotated[
+        float | None,
+        typer.Option(help="Stop cleanly after this many minutes (default: RBIRAG_EVAL_DEADLINE)."),
+    ] = None,
 ) -> None:
-    """Answer + judge the planned questions for one backend (resumable, quota-aware)."""
+    """Answer + judge the planned questions for one backend (resumable, quota- and
+    time-aware). Records are flushed after every item; with --shard they go to a separate
+    shard file (seeded from the committed records) that `eval merge-records` folds in."""
     from rbirag.document import read_documents_jsonl
     from rbirag.eval.ablate import RetrievalConfig, build_config_index, run_generation_eval
     from rbirag.eval.nli import CrossEncoderNLI, FakeNLI, NLIScorer
@@ -472,6 +482,10 @@ def generate(
         (c, plan_data["subset_ids"]) for c in plan_data["subset"]
     ]
     items = [(c, ids) for c, ids in items if not wanted or c in wanted]
+    shard_i, shard_n = parse_shard(shard)
+    if shard_n > 1:
+        items = [(c, [i for i in ids if shard_of(i, shard_n) == shard_i]) for c, ids in items]
+    deadline = time.time() + budget_minutes * 60 if budget_minutes else s.eval_deadline
     threshold = s.confidence_threshold
     cal_path = s.results_dir / "calibration.json"
     if cal_path.exists():
@@ -522,7 +536,12 @@ def generate(
             confidence_threshold=threshold,
         )
         pipeline = RAGPipeline.from_settings(retriever, llm, s)
-        records = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
+        canonical = s.results_dir / "generation" / f"records-{backend}-{name}.jsonl"
+        records = (
+            canonical.with_name(f"records-{backend}-{name}.shard{shard_i}of{shard_n}.jsonl")
+            if shard_n > 1
+            else canonical
+        )
         with fatal_errors_exit(marker):
             run = run_generation_eval(
                 pipeline,
@@ -533,6 +552,8 @@ def generate(
                 nli=scorer,
                 embedder=emb,
                 judge_only=judge_only,
+                deadline=deadline,
+                seed_from=canonical if records != canonical else None,
             )
         status["configs"][name] = vars(run)
         typer.echo(f"{name}: {vars(run)}")
@@ -540,16 +561,56 @@ def generate(
             bundle.dense.close()
         if not run.complete:
             complete = False
+            if run.judge_stopped and not judge_only:
+                judge_llm = None  # judge out of quota: keep generating the other configs
+                continue
             break
     status["complete"] = complete
     status["successful_items"] = sum(
         c["generated"] + c["judged"] for c in status["configs"].values()
     )
     tag = re.sub(r"[^A-Za-z0-9_.-]+", "_", ",".join(sorted(wanted))) if wanted else "all"
+    if shard_n > 1:
+        tag += f".shard{shard_i}of{shard_n}"
+    if judge_only:
+        tag += ".judge"
     out = s.results_dir / "generation" / f"status-{backend}-{tag}.json"
     out.write_text(json.dumps(status, indent=2), encoding="utf-8")
     if not complete:
-        typer.echo("INCOMPLETE: request quota exhausted; rerun later to resume.", err=True)
+        typer.echo("INCOMPLETE: quota or time budget reached; rerun later to resume.", err=True)
+
+
+def parse_shard(value: str | None) -> tuple[int, int]:
+    if not value:
+        return 1, 1
+    m = re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", value)
+    if not m or not 1 <= int(m.group(1)) <= int(m.group(2)):
+        raise typer.BadParameter("--shard must look like 2/4")
+    return int(m.group(1)), int(m.group(2))
+
+
+def shard_of(qa_id: str, n: int) -> int:
+    """Stable 1-based shard of a question (independent of order and of other questions)."""
+    import hashlib
+
+    return int(hashlib.sha256(qa_id.encode()).hexdigest()[:8], 16) % n + 1
+
+
+@eval_app.command("merge-records")
+def merge_records_cmd(
+    incoming: Annotated[
+        list[Path], typer.Option("--incoming", help="Directories with record files (repeatable).")
+    ],
+    into: Annotated[Path | None, typer.Option(help="Target results/generation directory.")] = None,
+) -> None:
+    """Union-merge generation records from other runs/shards into the target directory and
+    rewrite it as one canonical file per (backend, config). Successful and judged work is
+    never dropped; see rbirag.eval.records."""
+    from rbirag.eval.records import merge_into
+
+    s = get_settings()
+    stats = merge_into(into or s.results_dir / "generation", *incoming)
+    _echo_json(stats)
 
 
 # ----------------------------------------------------------------------------- report
@@ -563,7 +624,6 @@ def report(
     ] = None,
 ) -> None:
     """Write CSV/Markdown tables, charts and run metadata into the results directory."""
-    from rbirag.eval.ablate import load_records
     from rbirag.eval.calibrate import Calibration
     from rbirag.eval.gen_metrics import GenerationRecord
     from rbirag.eval.report import (
@@ -575,9 +635,10 @@ def report(
     )
 
     s = get_settings()
-    records: list[GenerationRecord] = []
-    for f in sorted((s.results_dir / "generation").glob("records-*.jsonl")):
-        records.extend(load_records(f).values())
+    from rbirag.eval.records import load_tree
+
+    # union of every record file (canonical and shard files), one record per item
+    records: list[GenerationRecord] = list(load_tree(s.results_dir / "generation").values())
     cal = None
     cal_path = s.results_dir / "calibration.json"
     if cal_path.exists():
@@ -737,7 +798,7 @@ def generation_progress(
     (qa_id -> current wording). An item is pending if it has no record, its record was for
     an earlier wording, its answer errored (except permanent per-item rejections), or it
     still needs a judge verdict that was never attempted or hit the quota."""
-    from rbirag.eval.ablate import load_records
+    from rbirag.eval.records import load_tree
 
     plan_path = results_dir / "generation" / "plan.json"
     if not plan_path.exists():
@@ -748,10 +809,9 @@ def generation_progress(
     ]
     configs: dict[str, dict[str, int]] = {}
     total_pending = 0
+    all_records = load_tree(results_dir / "generation")
     for backend in backends:
-        records: dict[tuple[str, str, str], Any] = {}
-        for f in (results_dir / "generation").glob(f"records-{backend}-*.jsonl"):
-            records.update(load_records(f))
+        records = {k: v for k, v in all_records.items() if k[1] == backend}
         for config, ids in items:
             pending = 0
             for qa_id in ids:

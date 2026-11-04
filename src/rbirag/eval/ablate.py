@@ -14,6 +14,7 @@ import logging
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, get_args
 
@@ -28,6 +29,9 @@ from rbirag.eval.dataset import QAPair
 from rbirag.eval.gen_metrics import GenerationRecord
 from rbirag.eval.judge import judge_answer
 from rbirag.eval.nli import NLIScorer, nli_check
+from rbirag.eval.records import load_records
+
+__all__ = ["load_records"]  # re-exported for callers of the old location
 from rbirag.eval.retrieval_metrics import DEFAULT_KS, query_metrics
 from rbirag.eval.stats import bootstrap_ci
 from rbirag.generation.citations import strip_citations
@@ -339,23 +343,6 @@ def append_jsonl(path: Path, items: Iterable[dict[str, Any]]) -> None:
             fh.write(json.dumps(item, ensure_ascii=False, default=str) + "\n")
 
 
-def load_records(path: Path) -> dict[tuple[str, str, str], GenerationRecord]:
-    """Last record wins per (config, backend, qa_id)."""
-    out: dict[tuple[str, str, str], GenerationRecord] = {}
-    if not path.exists():
-        return out
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            if not line.strip():
-                continue
-            try:
-                rec = GenerationRecord.model_validate_json(line)
-            except ValueError:
-                continue
-            out[(rec.config, rec.backend, rec.qa_id)] = rec
-    return out
-
-
 def _needs_judge(rec: GenerationRecord, has_judge: bool) -> bool:
     return (
         has_judge
@@ -402,6 +389,7 @@ class GenerationRun:
     judged: int
     skipped: int
     stopped_because: str | None = None
+    judge_stopped: str | None = None
 
 
 def run_generation_eval(
@@ -414,16 +402,37 @@ def run_generation_eval(
     nli: NLIScorer | None = None,
     embedder: Embedder | None = None,
     judge_only: bool = False,
+    deadline: float | None = None,
+    seed_from: Path | None = None,
+    clock: Callable[[], float] = time.time,
 ) -> GenerationRun:
-    """Answer (and judge) each question once; resumable and quota-aware.
+    """Answer (and judge) each question once; resumable, quota- and time-aware.
 
-    With ``judge_only`` no answer is ever generated: questions without a usable record
-    are skipped (counted in ``skipped``) and only missing verdicts are produced, so a judge
-    job never needs the generator (e.g. an Ollama server) to be reachable."""
-    existing = load_records(records_path)
+    * ``judge_only``: never generate; questions without a usable record are skipped and
+      only missing verdicts are produced (no generator server needed).
+    * ``deadline`` (epoch seconds): stop cleanly before starting an item past it, so a CI
+      job ends with its records flushed instead of being cancelled at its timeout.
+    * ``seed_from``: also treat records in this file as existing (e.g. the committed
+      canonical file when writing to a separate shard file), without rewriting them.
+    * If the *judge* runs out of quota, generation continues without verdicts (they are
+      produced by a later judge run); if the *generator* runs out, the run stops.
+    """
+    existing = load_records(seed_from) if seed_from is not None else {}
+    existing.update(load_records(records_path))
     backend = pipeline.llm.backend
     generated = judged = skipped = 0
+    judge_stopped: str | None = None
+
+    def partial(reason: str) -> GenerationRun:
+        return GenerationRun(
+            complete=False, generated=generated, judged=judged, skipped=skipped,
+            stopped_because=reason, judge_stopped=judge_stopped,
+        )  # fmt: skip
+
     for pair in qa:
+        if deadline is not None and clock() >= deadline:
+            logger.warning("time budget reached during %s/%s; stopping cleanly", config, backend)
+            return partial("deadline")
         key = (config, backend, pair.qa_id)
         rec = existing.get(key)
         if rec is not None and rec.question != pair.question:
@@ -477,36 +486,47 @@ def run_generation_eval(
                 append_jsonl(records_path, [rec.model_dump()])
             else:
                 skipped += 1
-            if judge is not None and _needs_judge(rec, True):
-                sources_text = _sources_for(pipeline, pair.question)
-                jr = judge_answer(judge, pair.question, rec.answer, sources_text)
-                rec = rec.model_copy(
-                    update={
-                        "judge_model": jr.model,
-                        "judge_faithfulness": jr.verdict.faithfulness if jr.verdict else None,
-                        "judge_relevance": jr.verdict.relevance_score if jr.verdict else None,
-                        "judge_error": jr.error,
-                        "judge_cached": jr.cached,
-                        "judge_input_tokens": jr.usage.input_tokens,
-                        "judge_output_tokens": jr.usage.output_tokens,
-                    }
-                )
-                judged += 1
-                existing[key] = rec
-                append_jsonl(records_path, [rec.model_dump()])
         except ConfigurationError:
             raise
         except (QuotaExhaustedError, LLMError) as exc:
-            # Quota, or the provider keeps failing (e.g. every model overloaded): stop
-            # cleanly; everything finished so far is saved and a rerun resumes.
+            # The generator is out of quota or keeps failing: stop cleanly; everything
+            # finished so far is saved and a rerun resumes.
             logger.warning("stopping %s/%s early: %s", config, backend, exc)
-            return GenerationRun(
-                complete=False,
-                generated=generated,
-                judged=judged,
-                skipped=skipped,
-                stopped_because=type(exc).__name__,
-            )
+            return partial(type(exc).__name__)
+        if judge is None or judge_stopped or not _needs_judge(rec, True):
+            continue
+        try:
+            sources_text = _sources_for(pipeline, pair.question)
+            jr = judge_answer(judge, pair.question, rec.answer, sources_text)
+        except ConfigurationError:
+            raise
+        except (QuotaExhaustedError, LLMError) as exc:
+            # Verdicts can be produced later (judge-only runs); keep generating.
+            judge_stopped = type(exc).__name__
+            logger.warning("judge stopped (%s); continuing without verdicts", exc)
+            if judge_only:
+                return partial(judge_stopped)
+            continue
+        rec = rec.model_copy(
+            update={
+                "judge_model": jr.model,
+                "judge_faithfulness": jr.verdict.faithfulness if jr.verdict else None,
+                "judge_relevance": jr.verdict.relevance_score if jr.verdict else None,
+                "judge_error": jr.error,
+                "judge_cached": jr.cached,
+                "judge_input_tokens": jr.usage.input_tokens,
+                "judge_output_tokens": jr.usage.output_tokens,
+                "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            }
+        )
+        judged += 1
+        existing[key] = rec
+        append_jsonl(records_path, [rec.model_dump()])
+    if judge_stopped:
+        return GenerationRun(
+            complete=False, generated=generated, judged=judged, skipped=skipped,
+            stopped_because=f"judge: {judge_stopped}", judge_stopped=judge_stopped,
+        )  # fmt: skip
     return GenerationRun(complete=True, generated=generated, judged=judged, skipped=skipped)
 
 

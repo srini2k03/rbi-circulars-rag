@@ -153,7 +153,7 @@ def test_generation_eval_resumable(
     assert len(judge.calls) == n_judge_calls
 
 
-def test_generation_eval_stops_on_quota_and_resumes_judging(
+def test_judge_quota_does_not_stop_generation_and_judging_resumes(
     fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
 ) -> None:
     records = tmp_path / "records.jsonl"
@@ -166,7 +166,9 @@ def test_generation_eval_stops_on_quota_and_resumes_judging(
         pipeline, qa, config="c", records_path=records, judge=ScriptedLLM(no_quota)
     )
     assert not run.complete
-    assert run.generated == 1
+    assert run.generated == len(qa)  # generation continued without verdicts
+    assert run.judge_stopped == "QuotaExhaustedError"
+    assert run.stopped_because == "judge: QuotaExhaustedError"
     done = run_generation_eval(
         pipeline, qa, config="c", records_path=records, judge=ScriptedLLM(lambda m, s: JUDGE_JSON)
     )
@@ -357,3 +359,63 @@ def test_judge_only_never_generates(
         r.judge_faithfulness is not None for r in recs.values() if r.answerable and not r.refused
     )
     assert run.judged == len(judge.calls)
+
+
+def test_deadline_stops_cleanly_and_flushes_records(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    records = tmp_path / "records.jsonl"
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+    ticks = iter([0.0, 0.0, 100.0, 100.0, 100.0, 100.0])
+    run = run_generation_eval(
+        pipeline, qa, config="c", records_path=records, deadline=50.0, clock=lambda: next(ticks)
+    )
+    assert not run.complete
+    assert run.stopped_because == "deadline"
+    assert run.generated == 2
+    assert len(load_records(records)) == 2  # finished items are on disk
+    rest = run_generation_eval(pipeline, qa, config="c", records_path=records)
+    assert rest.complete
+    assert (rest.generated, rest.skipped) == (len(qa) - 2, 2)
+
+
+def test_deadline_in_the_past_does_no_work(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    records = tmp_path / "records.jsonl"
+    run = run_generation_eval(
+        make_pipeline(fixture_docs, FakeLLM()),
+        qa,
+        config="c",
+        records_path=records,
+        judge_only=True,
+        deadline=1.0,
+        clock=lambda: 2.0,
+    )
+    assert (run.generated, run.judged, run.stopped_because) == (0, 0, "deadline")
+
+
+def test_shards_partition_ids_and_resume_from_seed(
+    fixture_docs: list[Document], qa: list[QAPair], tmp_path: Path
+) -> None:
+    from rbirag.eval.cli import parse_shard, shard_of
+
+    assert parse_shard("2/4") == (2, 4)
+    import typer
+
+    with pytest.raises(typer.BadParameter, match="2/4"):
+        parse_shard("5/4")
+    ids = [f"q{i}" for i in range(200)]
+    groups = {n: [q for q in ids if shard_of(q, 4) == n] for n in (1, 2, 3, 4)}
+    assert sorted(q for g in groups.values() for q in g) == sorted(ids)
+    assert all(groups[n] for n in groups)  # roughly balanced, none empty
+    assert all(shard_of(q, 4) == shard_of(q, 4) for q in ids)  # stable
+
+    pipeline = make_pipeline(fixture_docs, FakeLLM())
+    canonical = tmp_path / "records-fake-c.jsonl"
+    run_generation_eval(pipeline, qa[:2], config="c", records_path=canonical)
+    shard_file = tmp_path / "records-fake-c.shard1of2.jsonl"
+    run = run_generation_eval(
+        pipeline, qa, config="c", records_path=shard_file, seed_from=canonical
+    )
+    assert (run.generated, run.skipped) == (len(qa) - 2, 2)  # committed work is not redone
