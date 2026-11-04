@@ -766,3 +766,40 @@ def test_rejected_twice_raises_request_rejected_without_retries() -> None:
     with pytest.raises(RequestRejectedError):
         oai(handler).generate(MSGS)  # no JSON mode: no second attempt
     assert calls["n"] == 1
+
+
+# ----------------------------------------------------------------------------- 413 too large
+
+
+def test_413_moves_to_a_model_that_can_take_the_request() -> None:
+    calls: list[str] = []
+    responses = {"gemini-3.8-flash": [413], "gemini-3.7-flash": [200], "gemini-3.5-flash": [200]}
+    assert chain_llm(by_model(responses, calls)).generate(MSGS).model == "gemini-3.7-flash"
+    assert calls == ["gemini-3.8-flash", "gemini-3.7-flash"]
+
+
+def test_413_after_bigger_models_ran_out_of_quota_is_a_clean_quota_stop() -> None:
+    calls: list[str] = []
+    daily = 429
+    responses = {"gemini-3.8-flash": [daily], "gemini-3.7-flash": [413], "gemini-3.5-flash": [413]}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        if model == "gemini-3.8-flash":
+            calls.append(model)
+            return httpx.Response(
+                429, json={"error": {"message": "GenerateRequestsPerDayPerProjectPerModel"}}
+            )
+        return by_model(responses, calls)(request)
+
+    with pytest.raises(QuotaExhaustedError, match="too small"):
+        chain_llm(handler).generate(MSGS)
+    assert calls.count("gemini-3.7-flash") == 1  # 413 is never retried on the same model
+
+
+def test_413_on_every_model_is_a_per_item_rejection() -> None:
+    from rbirag.generation.llm import RequestRejectedError
+
+    responses = {m: [413] for m in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash")}
+    with pytest.raises(RequestRejectedError):
+        chain_llm(by_model(responses, [])).generate(MSGS)
