@@ -46,6 +46,10 @@ class GenerationRecord(BaseModel):
     judge_faithfulness: float | None = None
     judge_relevance: float | None = None
     judge_error: str | None = None
+    # every verdict this answer has received, by judge model: {"faithfulness", "relevance"}
+    # (the judge_* fields above hold the current primary judge's; older judges' verdicts are
+    # kept here for judge-agreement analysis)
+    verdicts: dict[str, dict[str, float | None]] = {}
     nli_faithfulness: float | None = None
     citation_accuracy: float | None = None
     emb_relevance: float | None = None

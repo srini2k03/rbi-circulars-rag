@@ -13,6 +13,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +30,7 @@ from rbirag.eval.dataset import QAPair
 from rbirag.eval.gen_metrics import GenerationRecord
 from rbirag.eval.judge import judge_answer
 from rbirag.eval.nli import NLIScorer, nli_check
-from rbirag.eval.records import load_records
+from rbirag.eval.records import all_verdicts, load_records
 
 __all__ = ["load_records"]  # re-exported for callers of the old location
 from rbirag.eval.retrieval_metrics import DEFAULT_KS, query_metrics
@@ -124,12 +125,15 @@ def build_config_index(
     embedder: Embedder,
     *,
     collection: str | None = None,
+    dense: bool = True,
 ) -> tuple[list[Chunk], IndexBundle]:
+    """Chunk + index the corpus for one config; ``dense=False`` skips the (slow) dense
+    index, e.g. for BM25-only retrieval."""
     s = settings_for(settings, size)
     chunks = chunk_documents(docs, build_chunker(chunker, s, embedder=embedder))
     bundle = build_index(
         chunks,
-        embedder=embedder,
+        embedder=embedder if dense else None,
         collection=collection or f"abl_{chunker}_{size}",
         batch_size=s.qdrant_upsert_batch_size,
     )
@@ -274,9 +278,22 @@ class GenerationPlan(BaseModel):
     subset: list[str]
     subset_ids: list[str]
     all_ids: list[str]
+    # backends evaluated only on the best config and the subset (e.g. a free-tier API whose
+    # daily token quota cannot cover the full test set)
+    subset_only_backends: list[str] = []
 
-    def items(self) -> list[tuple[str, list[str]]]:
-        return [(c, self.all_ids) for c in self.full] + [(c, self.subset_ids) for c in self.subset]
+    def items(self, backend: str | None = None) -> list[tuple[str, list[str]]]:
+        return plan_items(self.model_dump(), backend)
+
+
+def plan_items(plan: dict[str, Any], backend: str | None = None) -> list[tuple[str, list[str]]]:
+    """(config, question ids) to run for ``backend`` according to a plan (dict form, as
+    stored in plan.json). A subset-only backend gets the best config on the subset."""
+    if backend is not None and backend in (plan.get("subset_only_backends") or []):
+        return [(plan["full"][0], list(plan["subset_ids"]))] if plan["full"] else []
+    return [(c, list(plan["all_ids"])) for c in plan["full"]] + [
+        (c, list(plan["subset_ids"])) for c in plan["subset"]
+    ]
 
 
 def _stable_order(ids: Iterable[str], seed: int) -> list[str]:
@@ -292,6 +309,7 @@ def plan_generation(
     subset_size: int = 50,
     metric: str = "chunk_ndcg@10",
     seed: int = 13,
+    subset_only_backends: Sequence[str] = (),
 ) -> GenerationPlan:
     """Best ``full_configs`` by ``metric`` on every question; the best config of other modes
     on a ``subset_size`` answerable subset (+ proportional unanswerable questions)."""
@@ -312,8 +330,9 @@ def plan_generation(
     n_un = round(subset_size * len(unanswerable) / max(1, len(answerable)))
     subset_ids = answerable[:subset_size] + unanswerable[:n_un]
     return GenerationPlan(
-        full=full, subset=subset, subset_ids=subset_ids, all_ids=[p.qa_id for p in qa]
-    )
+        full=full, subset=subset, subset_ids=subset_ids, all_ids=[p.qa_id for p in qa],
+        subset_only_backends=list(subset_only_backends),
+    )  # fmt: skip
 
 
 def planned_calls(
@@ -322,10 +341,13 @@ def planned_calls(
     """Upper bounds: one generation call per (config, question, backend) - the confidence
     gate can only reduce this - and one judge call per answerable answer."""
     answerable = {p.qa_id for p in qa if p.answerable}
-    gen_per_backend = sum(len(ids) for _, ids in plan.items())
-    judge_per_backend = sum(sum(1 for i in ids if i in answerable) for _, ids in plan.items())
-    out = {f"generate[{b}]": gen_per_backend for b in backends}
-    out["judge (all backends)"] = judge_per_backend * len(backends)
+    out: dict[str, int] = {}
+    judge = 0
+    for b in backends:
+        items = plan.items(b)
+        out[f"generate[{b}]"] = sum(len(ids) for _, ids in items)
+        judge += sum(sum(1 for i in ids if i in answerable) for _, ids in items)
+    out["judge (all backends)"] = judge
     out["api_calls_upper_bound"] = (
         sum(v for k, v in out.items() if k.startswith("generate[") and "ollama" not in k)
         + out["judge (all backends)"]
@@ -343,13 +365,18 @@ def append_jsonl(path: Path, items: Iterable[dict[str, Any]]) -> None:
             fh.write(json.dumps(item, ensure_ascii=False, default=str) + "\n")
 
 
-def _needs_judge(rec: GenerationRecord, has_judge: bool) -> bool:
+def needs_judge(rec: GenerationRecord, accepted_judges: AbstractSet[str] | None = None) -> bool:
+    """An answer still needs a verdict: it was answered (not refused) for an answerable
+    question and has no verdict yet (or only a quota error). With ``accepted_judges``, a
+    verdict from any other judge does not count either: the answer is judged again (the
+    old verdict is kept in ``verdicts``) so every reported number comes from one judge."""
+    if rec.error is not None or not rec.answerable or rec.refused:
+        return False
+    if accepted_judges is not None and rec.judge_model not in accepted_judges:
+        # unless an accepted judge already tried (a failed attempt is kept in verdicts)
+        return not any(m in rec.verdicts for m in accepted_judges)
     return (
-        has_judge
-        and rec.error is None
-        and rec.answerable
-        and not rec.refused
-        and rec.judge_faithfulness is None
+        rec.judge_faithfulness is None
         and rec.judge_relevance is None
         and (rec.judge_error is None or rec.judge_error.startswith("quota"))
     )
@@ -390,6 +417,7 @@ class GenerationRun:
     skipped: int
     stopped_because: str | None = None
     judge_stopped: str | None = None
+    judge_seconds: float = 0.0  # wall time spent in judge calls (seconds per verdict = /judged)
 
 
 def run_generation_eval(
@@ -405,6 +433,7 @@ def run_generation_eval(
     deadline: float | None = None,
     seed_from: Path | None = None,
     clock: Callable[[], float] = time.time,
+    accepted_judges: AbstractSet[str] | None = None,
 ) -> GenerationRun:
     """Answer (and judge) each question once; resumable, quota- and time-aware.
 
@@ -414,6 +443,8 @@ def run_generation_eval(
       job ends with its records flushed instead of being cancelled at its timeout.
     * ``seed_from``: also treat records in this file as existing (e.g. the committed
       canonical file when writing to a separate shard file), without rewriting them.
+    * ``accepted_judges``: verdicts from other judges are redone by ``judge`` (and kept in
+      the record's ``verdicts`` history).
     * If the *judge* runs out of quota, generation continues without verdicts (they are
       produced by a later judge run); if the *generator* runs out, the run stops.
     """
@@ -422,11 +453,13 @@ def run_generation_eval(
     backend = pipeline.llm.backend
     generated = judged = skipped = 0
     judge_stopped: str | None = None
+    judge_seconds = 0.0
 
     def partial(reason: str) -> GenerationRun:
         return GenerationRun(
             complete=False, generated=generated, judged=judged, skipped=skipped,
             stopped_because=reason, judge_stopped=judge_stopped,
+            judge_seconds=round(judge_seconds, 1),
         )  # fmt: skip
 
     for pair in qa:
@@ -493,11 +526,13 @@ def run_generation_eval(
             # finished so far is saved and a rerun resumes.
             logger.warning("stopping %s/%s early: %s", config, backend, exc)
             return partial(type(exc).__name__)
-        if judge is None or judge_stopped or not _needs_judge(rec, True):
+        if judge is None or judge_stopped or not needs_judge(rec, accepted_judges):
             continue
         try:
             sources_text = _sources_for(pipeline, pair.question)
+            started = time.perf_counter()
             jr = judge_answer(judge, pair.question, rec.answer, sources_text)
+            judge_seconds += time.perf_counter() - started
         except ConfigurationError:
             raise
         except (QuotaExhaustedError, LLMError) as exc:
@@ -507,8 +542,15 @@ def run_generation_eval(
             if judge_only:
                 return partial(judge_stopped)
             continue
+        history = all_verdicts(rec)
+        # a failed attempt is kept too (all None), so the item is not retried forever
+        history[jr.model] = {
+            "faithfulness": jr.verdict.faithfulness if jr.verdict else None,
+            "relevance": jr.verdict.relevance_score if jr.verdict else None,
+        }
         rec = rec.model_copy(
             update={
+                "verdicts": history,
                 "judge_model": jr.model,
                 "judge_faithfulness": jr.verdict.faithfulness if jr.verdict else None,
                 "judge_relevance": jr.verdict.relevance_score if jr.verdict else None,
@@ -520,14 +562,23 @@ def run_generation_eval(
             }
         )
         judged += 1
+        if judged == 1 or judged % 5 == 0:
+            logger.info(
+                "%s/%s: %d verdicts, %.1f s per verdict (judge %s)",
+                config, backend, judged, judge_seconds / judged, jr.model,
+            )  # fmt: skip
         existing[key] = rec
         append_jsonl(records_path, [rec.model_dump()])
     if judge_stopped:
         return GenerationRun(
             complete=False, generated=generated, judged=judged, skipped=skipped,
             stopped_because=f"judge: {judge_stopped}", judge_stopped=judge_stopped,
+            judge_seconds=round(judge_seconds, 1),
         )  # fmt: skip
-    return GenerationRun(complete=True, generated=generated, judged=judged, skipped=skipped)
+    return GenerationRun(
+        complete=True, generated=generated, judged=judged, skipped=skipped,
+        judge_seconds=round(judge_seconds, 1),
+    )  # fmt: skip
 
 
 def _error_record(pair: QAPair, config: str, backend: str, error: str) -> GenerationRecord:

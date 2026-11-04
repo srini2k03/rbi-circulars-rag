@@ -31,3 +31,14 @@ def test_validation() -> None:
         Settings(fetch_rate_limit_seconds=0.2)
     with pytest.raises(ValidationError):
         Settings(fetch_start_id=10, fetch_min_id=20)
+
+
+def test_local_judge_needs_no_provider_chain(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RBIRAG_JUDGE_BACKEND", "ollama")
+    monkeypatch.setenv("RBIRAG_LLM_PROVIDER", "groq")
+    s = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert s.judge_model == "qwen2.5:7b-instruct"
+    assert s.judge_model_fallbacks == []
+    assert s.oai_model == "openai/gpt-oss-20b"  # the generator keeps its provider chain
+    monkeypatch.setenv("RBIRAG_JUDGE_MODEL", "qwen2.5:14b-instruct")
+    assert Settings(_env_file=None).judge_model == "qwen2.5:14b-instruct"  # type: ignore[call-arg]

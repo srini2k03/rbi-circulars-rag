@@ -165,6 +165,8 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5:3b-instruct"
     ollama_num_ctx: int = Field(default=8192, ge=512)
     ollama_timeout_seconds: float = Field(default=600.0, gt=0)
+    # CPU threads for Ollama (None = Ollama's default); CI sets it to the runner's cores.
+    ollama_num_thread: int | None = Field(default=None, ge=1)
     max_answer_tokens: int = Field(default=1024, ge=16)
     answer_top_k: int = Field(default=5, ge=1)
     # The gate refuses without calling the LLM when retrieval confidence is below the
@@ -188,6 +190,11 @@ class Settings(BaseSettings):
     judge_backend: LLMBackend = "openai_compatible"
     judge_model: str = ""
     judge_model_fallbacks: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["auto"])
+    # judge model used when judge_backend=ollama and judge_model is empty
+    ollama_judge_model: str = "qwen2.5:7b-instruct"
+    # Disk cache of document embeddings (keyed by model + text); None = off. Lets several
+    # CI jobs share one embedding pass over the corpus.
+    embedding_cache_dir: Path | None = None
     nli_model: str = "cross-encoder/nli-deberta-v3-base"
     bootstrap_samples: int = Field(default=1000, ge=100)
     dev_fraction: float = Field(default=0.3, gt=0, lt=1)
@@ -211,6 +218,12 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _apply_provider_preset(self) -> Settings:
         """Fill provider-dependent settings left empty / "auto" from the preset."""
+        if self.judge_backend != "openai_compatible":
+            # a local/other judge has no provider chain
+            if self.judge_model_fallbacks == ["auto"]:
+                self.judge_model_fallbacks = []
+            if not self.judge_model and self.judge_backend == "ollama":
+                self.judge_model = self.ollama_judge_model
         preset = get_preset(self.llm_provider)
         if preset is None:  # custom provider: everything must be explicit
             required = ("oai_base_url", "oai_api_key_env", "oai_model", "qa_model", "judge_model")
@@ -234,6 +247,8 @@ class Settings(BaseSettings):
             ("qa_model", preset.qa_writer),
             ("judge_model", preset.judge),
         ):
+            if model_field == "judge_model" and self.judge_backend != "openai_compatible":
+                continue  # the provider's judge chain applies only to an API judge
             fallbacks_field = f"{model_field}_fallbacks"
             explicit_model = bool(getattr(self, model_field))
             if not explicit_model:

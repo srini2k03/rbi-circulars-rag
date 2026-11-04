@@ -83,3 +83,29 @@ def test_qdrant_embedded_path_persists(tmp_path: Path) -> None:
     assert reopened.count() == 3
     assert reopened.search("firms portal", k=1)[0][0] == "doc2::fixed::0000"
     reopened.close()
+
+
+def test_cached_embedder_shares_vectors_across_processes(tmp_path: Path) -> None:
+    import numpy as np
+
+    from rbirag.index.embedder import CachedEmbedder, FakeEmbedder
+
+    class Counting(FakeEmbedder):
+        calls = 0
+
+        def embed_documents(self, texts):  # type: ignore[no-untyped-def,override]
+            Counting.calls += len(texts)
+            return super().embed_documents(texts)
+
+    texts = ["kyc updation", "bulk deposits", "kyc updation", "form odi"]
+    first = CachedEmbedder(Counting(32), tmp_path)
+    a = first.embed_documents(texts)
+    assert Counting.calls == 3  # duplicates embedded once
+    second = CachedEmbedder(Counting(32), tmp_path)  # e.g. another CI job
+    assert len(second) == 3 and second.dim == 32
+    b = second.embed_documents(texts)
+    assert Counting.calls == 3  # served from disk
+    np.testing.assert_allclose(a, b)
+    np.testing.assert_allclose(b, FakeEmbedder(32).embed_documents(texts))
+    second.embed_documents(["new text"])
+    assert Counting.calls == 4 and len(CachedEmbedder(Counting(32), tmp_path)) == 4

@@ -61,12 +61,14 @@ export async function renderDashboard(root, base) {
   const gen = await getText(`${base}/generation.csv`);
   if (gen) {
     const rows = parseCSV(gen);
-    const measured = rows.filter((r) => (r.status || "measured") === "measured");
-    const pending = rows.filter((r) => r.status && r.status !== "measured");
+    // "complete" (formerly "measured"): at least 90% of the planned items answered and judged
+    const done = (r) => !r.status || r.status === "complete" || r.status === "measured";
+    const measured = rows.filter(done);
+    const pending = rows.filter((r) => !done(r));
     parts.push("<h2>Generation</h2>");
     parts.push(measured.length ? table(
-      ["config", "backend (model)", "n", "faithfulness (judge)", "faithfulness (NLI)", "relevance", "citation acc.", "refusal P", "refusal R"],
-      measured.map((r) => [r.config, `${r.backend} (${r.model})`, r.n, fmt(r.judge_faithfulness), fmt(r.nli_faithfulness),
+      ["config", "backend (model)", "questions", "judge", "faithfulness (judge)", "faithfulness (NLI)", "relevance", "citation acc.", "refusal P", "refusal R"],
+      measured.map((r) => [r.config, `${r.backend} (${r.model})`, r.sample || r.n, (r.judge_model || "-").replace(" 100%", ""), fmt(r.judge_faithfulness), fmt(r.nli_faithfulness),
         fmt(r.judge_relevance), fmt(r.citation_accuracy), fmt(r.refusal_precision), fmt(r.refusal_recall)]),
     ) : "<p>No configuration is complete yet.</p>");
     if (pending.length) parts.push(`<p class="meta">Incomplete (not reported): ${pending.map((r) => esc(`${r.config}/${r.backend} ${r.status}`)).join("; ")}</p>`);

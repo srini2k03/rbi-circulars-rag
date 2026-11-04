@@ -53,7 +53,32 @@ def quality(rec: GenerationRecord) -> int:
     return 1
 
 
+def all_verdicts(rec: GenerationRecord) -> dict[str, dict[str, float | None]]:
+    """Every verdict on ``rec`` by judge model, including the primary judge_* fields
+    (records written before ``verdicts`` existed only have those)."""
+    out = dict(rec.verdicts)
+    if rec.judge_model and judged(rec):
+        out[rec.judge_model] = {
+            "faithfulness": rec.judge_faithfulness,
+            "relevance": rec.judge_relevance,
+        }
+    return out
+
+
 def better(a: GenerationRecord, b: GenerationRecord) -> GenerationRecord:
+    """The preferred of two versions of one item, carrying the verdicts of both (so an
+    older judge's verdict survives being superseded; see :func:`_prefer`)."""
+    win = _prefer(a, b)
+    lose = a if win is b else b
+    if win.question != lose.question or win.answer != lose.answer:
+        return win  # verdicts on a different question/answer do not transfer
+    combined = {**all_verdicts(lose), **all_verdicts(win)}
+    if combined != win.verdicts:
+        win = win.model_copy(update={"verdicts": combined})
+    return win
+
+
+def _prefer(a: GenerationRecord, b: GenerationRecord) -> GenerationRecord:
     """The record to keep for one key.
 
     * If the question wording differs (a pair was edited), the newer record wins.

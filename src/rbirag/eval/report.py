@@ -114,26 +114,33 @@ def mix(models: Sequence[str | None]) -> str:
 def generation_rows(
     records: Sequence[GenerationRecord],
     *,
-    planned: dict[str, int] | None = None,
+    planned: Mapping[str, int] | None = None,
+    samples: Mapping[str, str] | None = None,
     min_success: float = MIN_SUCCESS_FRACTION,
     n_resamples: int = 1000,
 ) -> list[dict[str, Any]]:
-    """One row per (config, backend). ``status`` is ``measured`` only when at least
+    """One row per (config, backend). ``status`` is ``complete`` only when at least
     ``min_success`` of the planned questions were answered (and judged where needed);
-    otherwise ``incomplete (k/N)``, and the row is kept out of the headline table."""
+    otherwise ``incomplete (k/N)``, and the row is kept out of the headline table.
+
+    ``planned`` and ``samples`` (e.g. ``"subset"``) are keyed ``"config/backend"``, or by
+    config alone for every backend."""
     groups: dict[tuple[str, str], list[GenerationRecord]] = {}
     for r in records:
         groups.setdefault((r.config, r.backend), []).append(r)
     rows: list[dict[str, Any]] = []
     for (config, backend), recs in sorted(groups.items()):
         summary: dict[str, Estimate] = summarize(recs, n_resamples=n_resamples)
-        n_planned = max((planned or {}).get(config, 0), len(recs))
+        plan = planned or {}
+        n_planned = max(plan.get(f"{config}/{backend}", plan.get(config, 0)), len(recs))
         k = sum(record_succeeded(r) for r in recs)
         measured = n_planned > 0 and k / n_planned >= min_success
+        sample = (samples or {}).get(f"{config}/{backend}", (samples or {}).get(config, ""))
         row: dict[str, Any] = {
             "config": config,
             "backend": backend,
-            "status": "measured" if measured else f"incomplete ({k}/{n_planned})",
+            "status": "complete" if measured else f"incomplete ({k}/{n_planned})",
+            "sample": f"{sample} (n={n_planned})" if sample else f"n={n_planned}",
             "successful": k,
             "planned": n_planned,
             "model": mix([r.model for r in recs]),
@@ -160,7 +167,7 @@ def incomplete_markdown(rows: Sequence[dict[str, Any]]) -> str:
     body = [
         [r["config"], f"{r['backend']} ({r.get('model') or '-'})", r["status"]]
         for r in rows
-        if r.get("status") != "measured"
+        if not is_complete(r)
     ]
     if not body:
         return ""
@@ -171,17 +178,29 @@ def incomplete_markdown(rows: Sequence[dict[str, Any]]) -> str:
     )
 
 
+def is_complete(row: Mapping[str, Any]) -> bool:
+    """Headline-ready row (``measured`` is the label used before ``complete``)."""
+    return row.get("status", "complete") in ("complete", "measured")
+
+
+def judge_label(row: Mapping[str, Any]) -> str:
+    return str(row.get("judge_model") or "-").replace(" 100%", "")
+
+
 def generation_markdown(rows: Sequence[dict[str, Any]]) -> str:
-    """Headline table: measured rows only."""
-    rows = [r for r in rows if r.get("status", "measured") == "measured"]
-    headers = ["config", "backend (model)", "n", "faithfulness (judge)", "faithfulness (NLI)",
+    """Headline table: complete rows only."""
+    rows = [r for r in rows if is_complete(r)]
+    headers = ["config", "backend (model)", "questions", "n", "judge", "faithfulness (judge)",
+               "faithfulness (NLI)",
                "relevance (judge)", "citation acc. (NLI)", "citations valid", "refusal P",
                "refusal R", "p50 ms", "cost $"]  # fmt: skip
     body = [
         [
             r["config"],
             f"{r['backend']} ({r.get('model') or '-'})",
+            str(r.get("sample") or "-"),
             str(r["n"]),
+            judge_label(r),
             _fmt_ci(r, "judge_faithfulness"),
             _fmt_ci(r, "nli_faithfulness"),
             _fmt_ci(r, "judge_relevance"),
@@ -432,7 +451,8 @@ def build_report(
     generation_records: Sequence[GenerationRecord],
     calibration: Calibration | None,
     metadata: dict[str, Any],
-    planned: dict[str, int] | None = None,
+    planned: Mapping[str, int] | None = None,
+    samples: Mapping[str, str] | None = None,
     n_resamples: int = 1000,
     ai_reviewed_retrieval_rows: Sequence[dict[str, Any]] = (),
     ai_reviewed_generation_records: Sequence[GenerationRecord] = (),
@@ -482,16 +502,37 @@ def build_report(
         ]
         written.append(dev_csv)
     if generation_records:
-        rows = generation_rows(generation_records, planned=planned, n_resamples=n_resamples)
+        rows = generation_rows(
+            generation_records, planned=planned, samples=samples, n_resamples=n_resamples
+        )
         write_csv(rows, results_dir / "generation.csv")
-        measured = [r for r in rows if r["status"] == "measured"]
-        md = generation_markdown(rows) if measured else "No configuration is complete yet.\n"
+        measured = [r for r in rows if is_complete(r)]
+        md = judge_line(metadata) + "\n\n"
+        md += generation_markdown(rows) if measured else "No configuration is complete yet.\n"
         incomplete = incomplete_markdown(rows)
         if incomplete:
             md += "\n### Incomplete runs\n\n" + incomplete
         (results_dir / "generation.md").write_text(md, encoding="utf-8")
         md_parts += ["## Generation\n", md]
         written += [results_dir / "generation.csv", results_dir / "generation.md"]
+    agreement = metadata.get("judge_agreement") or []
+    if agreement:
+        from rbirag.eval.agreement import agreement_markdown
+
+        (results_dir / "judge_agreement.json").write_text(
+            json.dumps(agreement, indent=2), encoding="utf-8"
+        )
+        md_parts += [
+            "## Judge agreement\n",
+            f"Agreement of earlier API judges with the reported judge "
+            f"({(metadata.get('judge') or {}).get('model', '-')}) on the answers both "
+            "judged (a side analysis; the reported numbers use only the reported judge):\n",
+            agreement_markdown(agreement),
+        ]
+        written.append(results_dir / "judge_agreement.json")
+    limitations = metadata.get("limitations") or []
+    if limitations:
+        md_parts += ["## Limitations\n", *[f"- {x}" for x in limitations], ""]
     n_ai = int((metadata.get("ai_review") or {}).get("reviewed_in_test_set") or 0)
     if n_ai:
         md_parts += [
@@ -507,11 +548,13 @@ def build_report(
             md_parts += ["### Retrieval\n", retrieval_markdown(ai_reviewed_retrieval_rows)]
             written.append(sub_csv)
         if ai_reviewed_generation_records:
-            sub = generation_rows(ai_reviewed_generation_records, n_resamples=n_resamples)
+            sub = generation_rows(
+                ai_reviewed_generation_records, samples=samples, n_resamples=n_resamples
+            )
             write_csv(sub, results_dir / "generation_ai_reviewed.csv")
             sub_md = (
                 generation_markdown(sub)
-                if any(r["status"] == "measured" for r in sub)
+                if any(is_complete(r) for r in sub)
                 else "No configuration is complete on this subset yet.\n"
             )
             md_parts += ["### Generation\n", sub_md]
@@ -535,6 +578,32 @@ def build_report(
     (results_dir / "README.md").write_text("\n".join(md_parts), encoding="utf-8")
     written += [results_dir / "run_metadata.json", results_dir / "README.md"]
     return written
+
+
+def judge_line(metadata: Mapping[str, Any]) -> str:
+    """Which judge produced the judge columns, and how it agrees with earlier judges."""
+    j = metadata.get("judge") or {}
+    if not j:
+        return f"Judge: {metadata.get('judge_model') or '-'}."
+    text = f"**Judge: {j.get('description') or j.get('model')}**"
+    speed = j.get("seconds_per_verdict")
+    if speed:
+        text += f" ({speed:.0f} s per verdict on a CI runner)"
+    agreement = metadata.get("judge_agreement") or []
+    if agreement:
+        parts = []
+        for a in agreement:
+            f, rel = a["faithfulness"], a["relevance"]
+            kappa = rel.get("kappa_quadratic")
+            corr = f.get("pearson")
+            parts.append(
+                f"{a['other']} n={a['n']}: faithfulness r="
+                + ("-" if corr is None else f"{corr:.2f}")
+                + ", relevance weighted kappa="
+                + ("-" if kappa is None else f"{kappa:.2f}")
+            )
+        text += "; agreement with earlier judges: " + "; ".join(parts)
+    return text + ". NLI faithfulness and citation metrics are judge-independent."
 
 
 def split_line(metadata: dict[str, Any]) -> str:
@@ -572,7 +641,9 @@ def readme_results_section(
     commit = str(metadata.get("commit") or "")[:7]
     parts = [
         f"**Test set: {metadata.get('test_set')}.** Generated {metadata.get('generated_at')} "
-        f"at commit `{commit}`; judge: {metadata.get('judge_model')}.",
+        f"at commit `{commit}`.",
+        "",
+        judge_line(metadata),
         "",
         split_line(metadata),
     ]
@@ -584,15 +655,19 @@ def readme_results_section(
             "",
             retrieval_markdown(best),
         ]
-    measured = [r for r in generation if r.get("status", "measured") == "measured"]
+    measured = [r for r in generation if is_complete(r)]
     if measured:
-        parts += ["Generation (configurations with at least 90% of planned questions answered "
-                  "and judged):", "", generation_markdown(measured)]  # fmt: skip
+        parts += ["Generation (rows marked complete: at least 90% of the planned questions "
+                  "answered and judged; `questions` is the sample each row was run on):", "",
+                  generation_markdown(measured)]  # fmt: skip
     elif generation:
         parts += [
             "Generation: no configuration is complete yet (free-tier quota; resumes daily).",
             "",
         ]
+    limitations = metadata.get("limitations") or []
+    if limitations:
+        parts += ["", "Limitations:", *[f"- {x}" for x in limitations], ""]
     parts.append("Full tables, charts and run metadata: [results/](results/README.md).")
     return "\n".join(parts).strip() + "\n"
 
