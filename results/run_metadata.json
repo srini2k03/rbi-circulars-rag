@@ -1,8 +1,8 @@
 {
   "test_set_file": "data/eval/qa_candidates.jsonl",
   "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded",
-  "generated_at": "2026-11-04T03:19:45+00:00",
-  "commit": "636ff2718a59366823b458991c0ddd1cbacbb8c3",
+  "generated_at": "2026-11-04T11:38:08+00:00",
+  "commit": "178124e790571aab43b12a04525aec37aa942e24",
   "questions": 216,
   "answerable": 186,
   "unanswerable": 30,
@@ -28,10 +28,10 @@
   "model_mix": {
     "generator (ollama)": "qwen2.5:3b-instruct 100%",
     "generator (openai_compatible)": "openai/gpt-oss-20b 81%, qwen/qwen3.8-27b 19%",
-    "judge": "qwen/qwen3.8-27b 82%, openai/gpt-oss-120b 18%",
+    "judge": "qwen/qwen3.8-27b 81%, openai/gpt-oss-120b 19%",
     "Q/A writer": "openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%"
   },
-  "judge_model": "qwen/qwen3.8-27b 82%, openai/gpt-oss-120b 18%",
+  "judge_model": "qwen/qwen3.8-27b 81%, openai/gpt-oss-120b 19%",
   "generator_models": [
     "ollama:qwen2.5:3b-instruct",
     "openai_compatible:openai/gpt-oss-20b",
@@ -42,5 +42,5 @@
   "nli_model": "cross-encoder/nli-deberta-v3-base",
   "llm_cost_usd": 0.0,
   "llm_tokens": 1323973,
-  "judge_tokens": 241213
+  "judge_tokens": 253688
 }

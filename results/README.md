@@ -2,7 +2,7 @@
 
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-04T03:19:45+00:00 at commit `636ff2718a59366823b458991c0ddd1cbacbb8c3`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-04T11:38:08+00:00 at commit `178124e790571aab43b12a04525aec37aa942e24`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 
@@ -10,7 +10,7 @@ Models that actually answered (share of calls):
 
 - generator (ollama): qwen2.5:3b-instruct 100%
 - generator (openai_compatible): openai/gpt-oss-20b 81%, qwen/qwen3.8-27b 19%
-- judge: qwen/qwen3.8-27b 82%, openai/gpt-oss-120b 18%
+- judge: qwen/qwen3.8-27b 81%, openai/gpt-oss-120b 19%
 - Q/A writer: openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%
 
 ## Retrieval ablation
@@ -107,7 +107,7 @@ Not reported as results: too many generation or judge calls failed or are still 
 
 | config | backend (model) | status |
 |---|---|---|
-| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | incomplete (22/155) |
+| fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | incomplete (25/155) |
 | fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 81%, qwen/qwen3.8-27b 19%) | incomplete (41/155) |
 | fixed-1024-hybrid | ollama (qwen2.5:3b-instruct 100%) | incomplete (13/60) |
 | fixed-1024-hybrid_rerank | ollama (qwen2.5:3b-instruct 100%) | incomplete (14/60) |
