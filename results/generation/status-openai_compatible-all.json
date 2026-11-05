@@ -4,15 +4,15 @@
   "threshold": 0.49,
   "configs": {
     "fixed-1024-bm25": {
-      "complete": false,
-      "generated": 0,
+      "complete": true,
+      "generated": 10,
       "judged": 0,
-      "skipped": 9,
-      "stopped_because": "QuotaExhaustedError",
+      "skipped": 48,
+      "stopped_because": null,
       "judge_stopped": null,
       "judge_seconds": 0.0
     }
   },
-  "complete": false,
-  "successful_items": 0
+  "complete": true,
+  "successful_items": 10
 }

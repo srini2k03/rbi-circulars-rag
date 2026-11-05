@@ -1,8 +1,8 @@
 {
   "test_set_file": "data/eval/qa_candidates.jsonl",
   "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded",
-  "generated_at": "2026-11-05T07:39:40+00:00",
-  "commit": "60dd369e6c0ed66cc5c95aff8afbaf2f479da088",
+  "generated_at": "2026-11-05T18:46:17+00:00",
+  "commit": "050f1ee86d90556a20a689c90790de388920c0f2",
   "questions": 216,
   "answerable": 186,
   "unanswerable": 30,
@@ -27,7 +27,7 @@
   "gold_mismatch_excluded": [],
   "model_mix": {
     "generator (ollama)": "qwen2.5:3b-instruct 100%",
-    "generator (openai_compatible)": "openai/gpt-oss-20b 90%, qwen/qwen3.8-27b 6%, openai/gpt-oss-120b 4%",
+    "generator (openai_compatible)": "openai/gpt-oss-20b 91%, qwen/qwen3.8-27b 5%, openai/gpt-oss-120b 3%",
     "judge": "qwen2.5:7b-instruct 100%",
     "Q/A writer": "openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%"
   },
@@ -36,8 +36,8 @@
     "model": "qwen2.5:7b-instruct",
     "backend": "ollama",
     "description": "qwen2.5:7b-instruct, run locally with Ollama on CPU",
-    "seconds_per_verdict": 291.8,
-    "verdicts": 259
+    "seconds_per_verdict": 291.6,
+    "verdicts": 264
   },
   "judge_agreement": [
     {
@@ -102,6 +102,6 @@
   "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
   "nli_model": "cross-encoder/nli-deberta-v3-base",
   "llm_cost_usd": 0.0,
-  "llm_tokens": 1829460,
-  "judge_tokens": 1478342
+  "llm_tokens": 1883345,
+  "judge_tokens": 1499739
 }
