@@ -1,8 +1,8 @@
 {
   "test_set_file": "data/eval/qa_candidates.jsonl",
   "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded",
-  "generated_at": "2026-11-04T19:29:41+00:00",
-  "commit": "d816714a3d9cd55d06a693f83153583e05faeeb0",
+  "generated_at": "2026-11-05T00:05:27+00:00",
+  "commit": "20f6b4e20e0234fe25fdb12c334b12b4b6cfd835",
   "questions": 216,
   "answerable": 186,
   "unanswerable": 30,
@@ -36,7 +36,7 @@
     "model": "qwen2.5:7b-instruct",
     "backend": "ollama",
     "description": "qwen2.5:7b-instruct, run locally with Ollama on CPU",
-    "seconds_per_verdict": 296.9,
+    "seconds_per_verdict": 290.1,
     "verdicts": 241
   },
   "judge_agreement": [
