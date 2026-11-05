@@ -6,13 +6,17 @@
     "fixed-1024-bm25": {
       "complete": true,
       "generated": 0,
-      "judged": 0,
+      "judged": 2,
       "skipped": 19,
       "stopped_because": null,
       "judge_stopped": null,
-      "judge_seconds": 0.0
+      "judge_seconds": 537.8
     }
   },
   "complete": true,
-  "successful_items": 0
+  "successful_items": 2,
+  "judge_model": "qwen2.5:7b-instruct",
+  "judge_verdicts": 2,
+  "judge_seconds": 537.8,
+  "seconds_per_verdict": 268.9
 }
