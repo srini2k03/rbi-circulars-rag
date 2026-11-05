@@ -2,7 +2,7 @@
 
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-04T19:29:41+00:00 at commit `d816714a3d9cd55d06a693f83153583e05faeeb0`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-05T00:05:27+00:00 at commit `20f6b4e20e0234fe25fdb12c334b12b4b6cfd835`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 
@@ -99,7 +99,7 @@ The configuration for generation and the gate threshold were chosen on these dev
 
 ## Generation
 
-**Judge: qwen2.5:7b-instruct, run locally with Ollama on CPU** (297 s per verdict on a CI runner); agreement with earlier judges: qwen/qwen3.8-27b n=23: faithfulness r=0.71, relevance weighted kappa=0.78; openai/gpt-oss-120b n=7: faithfulness r=-, relevance weighted kappa=0.00. NLI faithfulness and citation metrics are judge-independent.
+**Judge: qwen2.5:7b-instruct, run locally with Ollama on CPU** (290 s per verdict on a CI runner); agreement with earlier judges: qwen/qwen3.8-27b n=23: faithfulness r=0.71, relevance weighted kappa=0.78; openai/gpt-oss-120b n=7: faithfulness r=-, relevance weighted kappa=0.00. NLI faithfulness and citation metrics are judge-independent.
 
 | config | backend (model) | questions | n | judge | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
