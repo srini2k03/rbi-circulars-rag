@@ -2,14 +2,14 @@
 
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-05T00:05:27+00:00 at commit `20f6b4e20e0234fe25fdb12c334b12b4b6cfd835`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-05T07:31:37+00:00 at commit `60dd369e6c0ed66cc5c95aff8afbaf2f479da088`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 
 Models that actually answered (share of calls):
 
 - generator (ollama): qwen2.5:3b-instruct 100%
-- generator (openai_compatible): openai/gpt-oss-20b 85%, qwen/qwen3.8-27b 11%, openai/gpt-oss-120b 4%
+- generator (openai_compatible): openai/gpt-oss-20b 90%, qwen/qwen3.8-27b 6%, openai/gpt-oss-120b 4%
 - judge: qwen2.5:7b-instruct 100%
 - Q/A writer: openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%
 
@@ -99,7 +99,7 @@ The configuration for generation and the gate threshold were chosen on these dev
 
 ## Generation
 
-**Judge: qwen2.5:7b-instruct, run locally with Ollama on CPU** (290 s per verdict on a CI runner); agreement with earlier judges: qwen/qwen3.8-27b n=23: faithfulness r=0.71, relevance weighted kappa=0.78; openai/gpt-oss-120b n=7: faithfulness r=-, relevance weighted kappa=0.00. NLI faithfulness and citation metrics are judge-independent.
+**Judge: qwen2.5:7b-instruct, run locally with Ollama on CPU** (292 s per verdict on a CI runner); agreement with earlier judges: qwen/qwen3.8-27b n=23: faithfulness r=0.71, relevance weighted kappa=0.78; openai/gpt-oss-120b n=7: faithfulness r=-, relevance weighted kappa=0.00. NLI faithfulness and citation metrics are judge-independent.
 
 | config | backend (model) | questions | n | judge | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -113,7 +113,7 @@ Not reported as results: too many generation or judge calls failed or are still 
 
 | config | backend (model) | status |
 |---|---|---|
-| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 85%, qwen/qwen3.8-27b 11%, openai/gpt-oss-120b 4%) | incomplete (27/60) |
+| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 90%, qwen/qwen3.8-27b 6%, openai/gpt-oss-120b 4%) | incomplete (48/60) |
 
 ## Judge agreement
 
@@ -180,7 +180,7 @@ The same runs restricted to the 43 pairs an AI assistant (Claude) accepted or ed
 | config | backend (model) | questions | n | judge | faithfulness (judge) | faithfulness (NLI) | relevance (judge) | citation acc. (NLI) | citations valid | refusal P | refusal R | p50 ms | cost $ |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | fixed-1024-bm25 | ollama (qwen2.5:3b-instruct 100%) | full test set (n=28) | 28 | qwen2.5:7b-instruct | 1.000 [1.000, 1.000] | 0.285 [0.128, 0.453] | 0.964 [0.893, 1.000] | 0.278 [0.111, 0.500] | 0.536 | - | - | 208400 | 0.0000 |
-| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 100%) | fixed subset (n=2) | 2 | qwen2.5:7b-instruct | 1.000 [1.000, 1.000] | 0.000 [0.000, 0.000] | 1.000 [1.000, 1.000] | 0.000 [0.000, 0.000] | 0.000 | - | - | 50961 | 0.0000 |
+| fixed-1024-bm25 | openai_compatible (openai/gpt-oss-20b 100%) | fixed subset (n=7) | 7 | qwen2.5:7b-instruct | 1.000 [1.000, 1.000] | 0.333 [0.000, 0.667] | 1.000 [1.000, 1.000] | 0.400 [0.000, 0.800] | 0.500 | 0.000 [0.000, 0.000] | - | 57402 | 0.0000 |
 | fixed-1024-hybrid | ollama (qwen2.5:3b-instruct 100%) | fixed subset (n=9) | 9 | qwen2.5:7b-instruct | 0.889 [0.667, 1.000] | 0.444 [0.111, 0.778] | 0.889 [0.667, 1.000] | 0.429 [0.143, 0.857] | 0.778 | - | - | 193129 | 0.0000 |
 | fixed-1024-hybrid_rerank | ollama (qwen2.5:3b-instruct 100%) | fixed subset (n=9) | 9 | qwen2.5:7b-instruct | 0.889 [0.722, 1.000] | 0.611 [0.333, 0.889] | 0.833 [0.583, 1.000] | 0.400 [0.000, 0.800] | 0.444 | - | - | 160743 | 0.0000 |
 
