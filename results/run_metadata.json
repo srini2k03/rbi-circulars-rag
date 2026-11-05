@@ -1,7 +1,7 @@
 {
   "test_set_file": "data/eval/qa_candidates.jsonl",
   "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded",
-  "generated_at": "2026-11-05T07:31:37+00:00",
+  "generated_at": "2026-11-05T07:39:40+00:00",
   "commit": "60dd369e6c0ed66cc5c95aff8afbaf2f479da088",
   "questions": 216,
   "answerable": 186,
