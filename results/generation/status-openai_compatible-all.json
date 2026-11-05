@@ -5,14 +5,14 @@
   "configs": {
     "fixed-1024-bm25": {
       "complete": false,
-      "generated": 21,
+      "generated": 0,
       "judged": 0,
-      "skipped": 20,
+      "skipped": 9,
       "stopped_because": "QuotaExhaustedError",
       "judge_stopped": null,
       "judge_seconds": 0.0
     }
   },
   "complete": false,
-  "successful_items": 21
+  "successful_items": 0
 }
