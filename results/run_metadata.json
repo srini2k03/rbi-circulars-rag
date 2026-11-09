@@ -1,0 +1,107 @@
+{
+  "test_set_file": "data/eval/qa_candidates.jsonl",
+  "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded",
+  "generated_at": "2026-11-05T18:46:17+00:00",
+  "commit": "050f1ee86d90556a20a689c90790de388920c0f2",
+  "questions": 216,
+  "answerable": 186,
+  "unanswerable": 30,
+  "human_verified": 0,
+  "ai_review": {
+    "reviewer": "ai-assistant (Claude); an AI review, not human verification",
+    "reviewed_in_test_set": 43,
+    "accepted": 20,
+    "edited": 23,
+    "rejected_excluded": 7
+  },
+  "unverified_model_generated": 216,
+  "split": {
+    "method": "by document: every pair whose gold evidence comes from the same notification lands in the same split (seeded SHA-256 of the gold doc id; unanswerable pairs, which have no document, are split by qa_id)",
+    "seed": 13,
+    "dev_fraction": 0.3,
+    "dev_questions": 61,
+    "test_questions": 155,
+    "dev_documents": 56,
+    "test_documents": 130
+  },
+  "gold_mismatch_excluded": [],
+  "model_mix": {
+    "generator (ollama)": "qwen2.5:3b-instruct 100%",
+    "generator (openai_compatible)": "openai/gpt-oss-20b 91%, qwen/qwen3.8-27b 5%, openai/gpt-oss-120b 3%",
+    "judge": "qwen2.5:7b-instruct 100%",
+    "Q/A writer": "openai/gpt-oss-120b 83%, qwen/qwen3.8-27b 15%, gemini-3.5-flash 2%"
+  },
+  "judge_model": "qwen2.5:7b-instruct 100%",
+  "judge": {
+    "model": "qwen2.5:7b-instruct",
+    "backend": "ollama",
+    "description": "qwen2.5:7b-instruct, run locally with Ollama on CPU",
+    "seconds_per_verdict": 291.6,
+    "verdicts": 264
+  },
+  "judge_agreement": [
+    {
+      "judge": "qwen2.5:7b-instruct",
+      "other": "qwen/qwen3.8-27b",
+      "n": 23,
+      "faithfulness": {
+        "n": 23,
+        "mean_judge": 0.877,
+        "mean_other": 0.906,
+        "mean_abs_diff": 0.058,
+        "pearson": 0.712,
+        "spearman": 0.814,
+        "fully_supported_agreement": 0.957,
+        "fully_supported_kappa": 0.832
+      },
+      "relevance": {
+        "n": 23,
+        "exact_agreement": 0.826,
+        "within_one_agreement": 0.913,
+        "kappa": 0.542,
+        "kappa_quadratic": 0.783,
+        "spearman": 0.811
+      }
+    },
+    {
+      "judge": "qwen2.5:7b-instruct",
+      "other": "openai/gpt-oss-120b",
+      "n": 7,
+      "faithfulness": {
+        "n": 6,
+        "mean_judge": 1.0,
+        "mean_other": 0.75,
+        "mean_abs_diff": 0.25,
+        "pearson": null,
+        "spearman": null,
+        "fully_supported_agreement": 0.667,
+        "fully_supported_kappa": 0.0
+      },
+      "relevance": {
+        "n": 7,
+        "exact_agreement": 0.714,
+        "within_one_agreement": 0.714,
+        "kappa": 0.0,
+        "kappa_quadratic": 0.0,
+        "spearman": null
+      }
+    }
+  ],
+  "limitations": [
+    "The test set is model-generated and AI-reviewed (by Claude); no pair is human-verified yet.",
+    "The judge is a small local model (qwen2.5:7b-instruct), less reliable than a frontier judge. It was chosen because the free API tier's daily token limit allows only about 30 judge calls a day for these ~6K-token prompts; its agreement with the larger API judges on the answers both judged is reported.",
+    "The openai_compatible backend was evaluated with the best configuration only, on a fixed 60-question subset (seeded, stratified by answerability), because the free tier's daily token quota allows only about 30 answers a day; its confidence intervals are wider than the full-test-set rows."
+  ],
+  "generator_models": [
+    "ollama:qwen2.5:3b-instruct",
+    "openai_compatible:openai/gpt-oss-120b",
+    "openai_compatible:openai/gpt-oss-20b",
+    "openai_compatible:qwen/qwen3.8-27b"
+  ],
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+  "nli_model": "cross-encoder/nli-deberta-v3-base",
+  "llm_cost_usd": 0.0,
+  "llm_tokens": 1883345,
+  "judge_tokens": 1499739
+}

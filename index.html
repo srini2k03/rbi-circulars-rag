@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RBI circulars RAG</title>
+  <meta name="description" content="Search Reserve Bank of India notifications in your browser: BM25 + bge-small + RRF + cross-encoder rerank, with optional cited answers.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>RBI circulars RAG</h1>
+    <p class="sub">Hybrid search over Reserve Bank of India notifications, running entirely in your browser.
+      <a href="https://github.com/srini2k03/rbi-circulars-rag">Source and write-up</a></p>
+    <nav>
+      <button id="tab-btn-search" class="tab active">Search</button>
+      <button id="tab-btn-evaluation" class="tab">Evaluation</button>
+    </nav>
+  </header>
+  <main>
+    <section id="tab-search">
+      <p id="index-info" class="meta"></p>
+      <p id="index-note" class="callout" hidden></p>
+      <form id="search-form">
+        <input id="question" type="search" placeholder="Ask about an RBI notification ..." autocomplete="off" required>
+        <button id="search-btn" type="submit" disabled>Search</button>
+      </form>
+      <p class="examples">Try:
+        <button type="button" data-example>How often must banks update KYC for high-risk customers?</button>
+        <button type="button" data-example>What is the late submission fee for overseas investment reporting?</button>
+      </p>
+      <p id="status" class="status"></p>
+      <details class="llm-settings">
+        <summary>Answer generation (optional, bring your own key)</summary>
+        <p class="notice">Your key is used only to call the provider you choose, directly from this
+          browser. It is kept in memory, or in this browser's localStorage if you tick
+          "remember". It is never sent to this site or anywhere else.</p>
+        <label>Provider <select id="provider"><option value="groq">Groq</option><option value="gemini">Google Gemini</option></select></label>
+        <label>Model <input id="model" placeholder="default for the provider"></label>
+        <label>API key <input id="api-key" type="password" autocomplete="off"></label>
+        <label class="inline"><input id="remember-key" type="checkbox"> remember in this browser</label>
+        <button id="forget-key" type="button">Forget key</button>
+      </details>
+      <button id="answer-btn" type="button" disabled>Answer with citations</button>
+      <div id="answer" aria-live="polite"></div>
+      <p id="search-meta" class="meta"></p>
+      <ol id="results" class="results"></ol>
+    </section>
+    <section id="tab-evaluation" hidden></section>
+  </main>
+  <footer><p>Retrieval: BM25 + bge-small-en-v1.5 (int8) + RRF (k=60) + ms-marco-MiniLM-L-6-v2 rerank via transformers.js.
+    Answers can be wrong; check the cited notification on rbi.org.in.</p></footer>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
