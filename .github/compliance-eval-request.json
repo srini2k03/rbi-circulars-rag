@@ -5,8 +5,8 @@
   "model": "",
   "limit": "",
   "abstain_threshold": "0.0",
-  "cache_mode": "use",
+  "cache_mode": "refresh",
   "fallbacks": "none",
   "fresh": true,
-  "note": "Dev re-run of the agent on Gemini after passing thought signatures back with tool calls (one model)."
+  "note": "Dev re-run of the agent on Gemini; refresh, because responses cached before the thought-signature fix lack the signature."
 }
