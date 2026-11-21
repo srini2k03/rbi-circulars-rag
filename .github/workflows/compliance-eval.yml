@@ -49,6 +49,11 @@ on:
         type: choice
         options: [use, refresh]
         default: use
+      fallbacks:
+        description: "auto = the provider's other models when the configured one is rate-limited; none = one model only"
+        type: choice
+        options: [auto, none]
+        default: auto
       fresh:
         description: "Start over (ignore earlier predictions) instead of resuming; use after changing the agent"
         type: boolean
@@ -86,11 +91,12 @@ jobs:
           D_THRESHOLD: ${{ inputs.abstain_threshold }}
           D_CACHE: ${{ inputs.cache_mode }}
           D_FRESH: ${{ inputs.fresh }}
+          D_FALLBACKS: ${{ inputs.fallbacks }}
         run: |
           python3 - <<'PY'
           import json, os
           if os.environ["EVENT"] == "workflow_dispatch":
-              v = {k: os.environ[f"D_{k.upper()}"] for k in ("systems", "split", "backend", "model", "limit", "threshold", "cache", "fresh")}
+              v = {k: os.environ[f"D_{k.upper()}"] for k in ("systems", "split", "backend", "model", "limit", "threshold", "cache", "fresh", "fallbacks")}
           else:
               req = json.load(open(".github/compliance-eval-request.json"))
               v = {
@@ -99,6 +105,7 @@ jobs:
                   "limit": str(req.get("limit", "") or ""), "threshold": str(req.get("abstain_threshold", "0.0")),
                   "cache": req.get("cache_mode", "use"),
                   "fresh": str(req.get("fresh", False)).lower(),
+                  "fallbacks": req.get("fallbacks", "auto"),
               }
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               for k, val in v.items():
@@ -126,6 +133,7 @@ jobs:
           MODEL: ${{ steps.in.outputs.model }}
           LIMIT: ${{ steps.in.outputs.limit }}
           THRESHOLD: ${{ steps.in.outputs.threshold }}
+          FALLBACKS: ${{ steps.in.outputs.fallbacks }}
         run: |
           [[ "$SYSTEMS" =~ ^(agent|baseline)(,(agent|baseline))?$ ]] || { echo "systems must be agent and/or baseline"; exit 1; }
           [[ "$SPLIT" =~ ^(dev|test)$ ]] || { echo "split must be dev or test"; exit 1; }
@@ -133,6 +141,7 @@ jobs:
           [[ "$CACHE" =~ ^(use|refresh)$ ]] || { echo "invalid cache mode"; exit 1; }
           [[ -z "$MODEL" || "$MODEL" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "invalid model id"; exit 1; }
           [[ -z "$LIMIT" || "$LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be an integer"; exit 1; }
+          [[ "$FALLBACKS" =~ ^(auto|none)$ ]] || { echo "fallbacks must be auto or none"; exit 1; }
           [[ "$THRESHOLD" =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]] || { echo "threshold must be in [0, 1]"; exit 1; }
 
       - name: Check the API key (its value is never printed)
@@ -171,6 +180,7 @@ jobs:
           MODEL: ${{ steps.in.outputs.model }}
           LIMIT: ${{ steps.in.outputs.limit }}
           FRESH: ${{ steps.in.outputs.fresh }}
+          RBIRAG_COMPLIANCE_MODEL_FALLBACKS: ${{ steps.in.outputs.fallbacks }}
           RBIRAG_COMPLIANCE_ABSTAIN_THRESHOLD: ${{ steps.in.outputs.threshold }}
           RBIRAG_COMPLIANCE_LLM_CACHE_MODE: ${{ steps.in.outputs.cache }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

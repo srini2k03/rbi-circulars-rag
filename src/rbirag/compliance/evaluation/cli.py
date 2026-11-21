@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Annotated
 
@@ -368,12 +369,15 @@ def report(
     items = dataset.items("dev" if split == "dev" else "test")
     titles = {d.doc_id: d.title for d in iter_documents_jsonl(documents)} if documents else None
     scored = {}
+    served: dict[str, dict[str, int]] = {}
     for record in records:
         preds = load_predictions(Path(record.predictions))
         label = f"{record.system} ({record.model})"
         scored[label] = score_predictions(items, preds, titles=titles)
+        # with a fallback chain, the configured model is not always the one that answered
+        served[record.system] = dict(Counter(p.model or "?" for p in preds.values()))
     reports = [summarize(v, system=k, split=split) for k, v in scored.items()]
-    md = comparison_report(reports, scored, records)
+    md = comparison_report(reports, scored, records, served=served)
     typer.echo(md)
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -381,6 +385,7 @@ def report(
         payload = {
             "split": split,
             "runs": [r.model_dump() for r in records],
+            "served_by": served,
             "reports": [r.model_dump() for r in reports],
         }
         out.with_suffix(".json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

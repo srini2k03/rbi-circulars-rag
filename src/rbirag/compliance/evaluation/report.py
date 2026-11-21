@@ -159,6 +159,8 @@ def comparison_report(
     reports: Sequence[Report],
     scored: Mapping[str, Sequence[ItemScore]],
     runs: Sequence[RunRecord],
+    *,
+    served: Mapping[str, Mapping[str, int]] | None = None,
 ) -> str:
     split = reports[0].split
     parts = [f"## Results on the {split} split", ""]
@@ -170,6 +172,22 @@ def comparison_report(
             for r in runs
         )
     )
+    mixed = {
+        k: v
+        for k, v in (served or {}).items()
+        if len(v) > 1 or (v and next(iter(v)) not in {r.model for r in runs})
+    }
+    if mixed:
+        parts += [
+            "",
+            "Models that actually answered (per clause; the provider's fallback chain is used "
+            "when the configured model is rate-limited): "
+            + "; ".join(
+                f"{system}: "
+                + ", ".join(f"`{m}` x{n}" for m, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+                for system, counts in mixed.items()
+            ),
+        ]
     parts += ["", "### Headline metrics (95% bootstrap CIs)", "", headline_table(reports)]
     agent = next((k for k in scored if k.startswith("agent")), None)
     baseline = next((k for k in scored if k.startswith("baseline")), None)

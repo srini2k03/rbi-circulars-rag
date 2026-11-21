@@ -811,6 +811,12 @@ def test_build_chat_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
         cache_mode="off",
     )
     assert isinstance(pinned, OpenAIToolChat) and pinned.chain == ["qwen/qwen3.8-27b"]
+    none = build_chat_model(
+        s.model_copy(update={"compliance_model_fallbacks": ["none"]}), cache_mode="off"
+    )
+    assert isinstance(none, OpenAIToolChat) and len(none.chain) == 1
+    auto = build_chat_model(s, cache_mode="off")
+    assert isinstance(auto, OpenAIToolChat) and len(auto.chain) > 1
     with pytest.raises(ValueError, match="unknown chat backend"):
         build_chat_model(s, "openai")
 

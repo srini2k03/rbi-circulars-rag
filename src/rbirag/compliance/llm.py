@@ -428,11 +428,13 @@ def build_chat_model(
         )
         preset = get_preset(name)
         chain_model = model or settings.compliance_model or provider.oai_model
-        fallbacks = (
-            settings.compliance_model_fallbacks
-            if settings.compliance_model_fallbacks != ["auto"]
-            else [m for m in (preset.generator if preset else ()) if m != chain_model]
-        )
+        requested = settings.compliance_model_fallbacks
+        if requested == ["auto"]:  # the provider preset's other generator models
+            fallbacks = [m for m in (preset.generator if preset else ()) if m != chain_model]
+        elif requested in ([], ["none"]):  # one model only (clean comparisons)
+            fallbacks = []
+        else:
+            fallbacks = list(requested)
         inner = OpenAIToolChat(
             chain_model,
             fallbacks=fallbacks,
