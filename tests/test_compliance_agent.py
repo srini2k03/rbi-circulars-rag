@@ -729,6 +729,7 @@ def test_openai_tool_chat_request_and_response() -> None:
                                         "name": "search_regulations",
                                         "arguments": {"query": "kyc"},
                                     },
+                                    "extra_content": {"google": {"thought_signature": "sig=="}},
                                 },
                             ],
                         },
@@ -768,6 +769,11 @@ def test_openai_tool_chat_request_and_response() -> None:
         and result.backend == "groq"
         and result.model == "test-model"
     )
+    # Gemini's thought signature goes back with the call; plain calls stay plain
+    assert call.extra == {"extra_content": {"google": {"thought_signature": "sig=="}}}
+    sent = result.message.to_openai()["tool_calls"][0]
+    assert sent["extra_content"] == {"google": {"thought_signature": "sig=="}}
+    assert set(body["messages"][1]["tool_calls"][0]) == {"id", "type", "function"}
     chat.chat([ChatMessage(role="user", content="x")], json_object=True)
     assert (
         seen["body"]["response_format"] == {"type": "json_object"} and "tools" not in seen["body"]

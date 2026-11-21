@@ -172,32 +172,31 @@ def comparison_report(
             for r in runs
         )
     )
-    mixed = {
-        k: v
-        for k, v in (served or {}).items()
-        if len(v) > 1 or (v and next(iter(v)) not in {r.model for r in runs})
-    }
+    mixed = []
+    for run in runs:
+        counts = (served or {}).get(f"{run.system} via {run.backend}") or {}
+        if counts and set(counts) != {run.model}:
+            ranked = sorted(counts.items(), key=lambda kv: -kv[1])
+            mixed.append(
+                f"{run.system} via {run.backend}: " + ", ".join(f"`{m}` x{n}" for m, n in ranked)
+            )
     if mixed:
         parts += [
             "",
             "Models that actually answered (per clause; the provider's fallback chain is used "
-            "when the configured model is rate-limited): "
-            + "; ".join(
-                f"{system}: "
-                + ", ".join(f"`{m}` x{n}" for m, n in sorted(counts.items(), key=lambda kv: -kv[1]))
-                for system, counts in mixed.items()
-            ),
+            "when the configured model is rate-limited): " + "; ".join(mixed),
         ]
     parts += ["", "### Headline metrics (95% bootstrap CIs)", "", headline_table(reports)]
-    agent = next((k for k in scored if k.startswith("agent")), None)
-    baseline = next((k for k in scored if k.startswith("baseline")), None)
-    if agent and baseline:
-        parts += [
-            "",
-            "### Agent vs fixed pipeline (paired, same clauses)",
-            "",
-            paired_table(scored, agent_key=agent, baseline_key=baseline),
-        ]
+    # agent vs baseline only on the same backend (and so, without fallbacks, the same model)
+    for backend in dict.fromkeys(run.backend for run in runs):
+        keys = {x.system: f"{x.system} ({x.model})" for x in runs if x.backend == backend}
+        if keys.get("agent") in scored and keys.get("baseline") in scored:
+            parts += [
+                "",
+                f"### Agent vs fixed pipeline via {backend} (paired, same clauses)",
+                "",
+                paired_table(scored, agent_key=keys["agent"], baseline_key=keys["baseline"]),
+            ]
     parts += ["", "### F1 per verdict", "", per_class_table(reports)]
     for r in reports:
         parts += [

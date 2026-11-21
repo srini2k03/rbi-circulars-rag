@@ -1,5 +1,5 @@
 {
-  "systems": "agent,baseline",
+  "systems": "agent",
   "split": "dev",
   "backend": "gemini",
   "model": "",
@@ -8,5 +8,5 @@
   "cache_mode": "use",
   "fallbacks": "none",
   "fresh": true,
-  "note": "Dev run of agent and baseline on the Gemini free tier, one model (Groq's daily quota is spent). Set fresh to false to resume after a quota stop."
+  "note": "Dev re-run of the agent on Gemini after passing thought signatures back with tool calls (one model)."
 }

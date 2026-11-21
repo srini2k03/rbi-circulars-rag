@@ -375,7 +375,9 @@ def report(
         label = f"{record.system} ({record.model})"
         scored[label] = score_predictions(items, preds, titles=titles)
         # with a fallback chain, the configured model is not always the one that answered
-        served[record.system] = dict(Counter(p.model or "?" for p in preds.values()))
+        served[f"{record.system} via {record.backend}"] = dict(
+            Counter(p.model or "?" for p in preds.values())
+        )
     reports = [summarize(v, system=k, split=split) for k, v in scored.items()]
     md = comparison_report(reports, scored, records, served=served)
     typer.echo(md)

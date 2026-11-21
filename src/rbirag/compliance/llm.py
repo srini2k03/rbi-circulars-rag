@@ -40,6 +40,10 @@ class ToolCallRequest(BaseModel):
     id: str
     name: str
     arguments: str = "{}"  # raw JSON text, as the model produced it
+    # Other provider fields of the call, sent back unchanged with it (Gemini's
+    # OpenAI-compatible API returns ``extra_content`` with a thought signature that must
+    # accompany the call on the next turn, or the request is rejected).
+    extra: dict[str, Any] | None = None
 
 
 class ChatMessage(BaseModel):
@@ -56,6 +60,7 @@ class ChatMessage(BaseModel):
         if self.tool_calls:
             msg["tool_calls"] = [
                 {
+                    **(c.extra or {}),
                     "id": c.id,
                     "type": "function",
                     "function": {"name": c.name, "arguments": c.arguments},
@@ -168,6 +173,8 @@ class OpenAIToolChat(OpenAICompatibleLLM):
                 id=str(c.get("id") or f"call_{i}"),
                 name=str((c.get("function") or {}).get("name") or ""),
                 arguments=_arguments_text((c.get("function") or {}).get("arguments")),
+                extra={k: v for k, v in c.items() if k not in {"id", "type", "function", "index"}}
+                or None,
             )
             for i, c in enumerate(raw.get("tool_calls") or [])
         ]
