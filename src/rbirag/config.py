@@ -175,6 +175,17 @@ class Settings(BaseSettings):
     prices: dict[str, ModelPrice] = Field(default_factory=lambda: dict(DEFAULT_PRICES))
     usd_to_inr: float = Field(default=88.0, gt=0)
 
+    # ------------------------------------------------------- compliance agent
+    # Retrieval used by the agent's search_regulations tool (None = retrieval_mode).
+    compliance_search_mode: RetrievalMode | None = None
+    compliance_search_top_k: int = Field(default=5, ge=1, le=20)
+    # Chunks retrieved per requested notification, before grouping by notification.
+    compliance_search_depth_factor: int = Field(default=4, ge=1)
+    compliance_snippet_chars: int = Field(default=500, ge=80)
+    # Token budget for one fetch_notification result (passages chosen by relevance).
+    compliance_fetch_max_tokens: int = Field(default=1500, ge=100)
+    compliance_passage_chars: int = Field(default=2000, ge=200)
+
     # -------------------------------------------------------------------- api
     # JSONL mirror of the API request log (None = in memory only).
     request_log_path: Path | None = None

@@ -443,9 +443,11 @@ def serve(
     )
 
 
+from rbirag.compliance.cli import comply_app  # noqa: E402
 from rbirag.eval.cli import eval_app  # noqa: E402
 
 app.add_typer(eval_app, name="eval")
+app.add_typer(comply_app, name="comply")
 
 
 if __name__ == "__main__":  # pragma: no cover
