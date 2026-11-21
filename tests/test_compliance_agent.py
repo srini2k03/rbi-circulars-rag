@@ -13,6 +13,7 @@ from rbirag.chunking import build_chunker
 from rbirag.compliance.agent import ComplianceAgent
 from rbirag.compliance.baseline import FixedPipeline
 from rbirag.compliance.checker import check_policy, render_markdown
+from rbirag.compliance.context import SHORTENED, fit_history, history_tokens
 from rbirag.compliance.evaluation.dataset import EvalItem, Label
 from rbirag.compliance.evaluation.metrics import score_item
 from rbirag.compliance.evaluation.run import load_predictions, run_items
@@ -39,7 +40,7 @@ from rbirag.compliance.records import ClausePrediction, EvidenceQuote
 from rbirag.compliance.regulations import RegulationStore
 from rbirag.compliance.tools import ToolBox
 from rbirag.config import Settings
-from rbirag.generation.llm import QuotaExhaustedError
+from rbirag.generation.llm import QuotaExhaustedError, RequestRejectedError
 from rbirag.index.build import build_index, chunk_documents
 from rbirag.index.embedder import FakeEmbedder
 from rbirag.retrieval.pipeline import make_retriever
@@ -480,6 +481,98 @@ def test_agent_accepts_tool_calls_written_as_text(store: RegulationStore) -> Non
     pred = agent(store, chat).check(CLAUSE)
     assert [c.name for c in pred.tool_calls] == ["search_regulations", "compare_clause"]
     assert pred.verdict == "conflict"
+
+
+def test_agent_runs_compare_when_the_planner_skips_it(store: RegulationStore) -> None:
+    chat = scripted_agent_model(
+        [
+            tool_call("search_regulations", {"query": "periodic updation KYC high risk customers"}),
+            tool_call("fetch_notification", {"doc_id": "rbi-900"}, call_id="f2"),
+            # a substantive answer without compare_clause: the agent compares for it
+            final({"verdict": "compliant", "citations": ["rbi-900"], "confidence": 0.9}),
+        ]
+    )
+    pred = agent(store, chat).check(CLAUSE)
+    assert [c.name for c in pred.tool_calls] == [
+        "search_regulations",
+        "fetch_notification",
+        "compare_clause",
+    ]
+    assert pred.tool_calls[-1].arguments == {"doc_ids": ["rbi-900"]}
+    # the judge's verdict is adopted, not the planner's
+    assert pred.verdict == "conflict" and pred.citations == ["rbi-900"]
+    assert pred.evidence and pred.evidence[0].verified
+    assert any("without compare_clause" in n for n in pred.notes)
+
+
+def test_agent_auto_compare_needs_a_notification(store: RegulationStore) -> None:
+    chat = scripted_agent_model(
+        [final({"verdict": "compliant", "citations": ["rbi-900"], "confidence": 0.9})]
+    )
+    pred = agent(store, chat).check(CLAUSE)  # rbi-900 never shown: nothing to compare
+    assert pred.verdict == "insufficient_evidence" and pred.steps == 0
+
+
+def test_fit_history_shortens_oldest_results_first() -> None:
+    search = json.dumps(
+        {
+            "hits": [
+                {
+                    "doc_id": f"rbi-{i}",
+                    "title": f"T{i}",
+                    "entity": "Commercial Banks",
+                    "snippet": "s" * 2000,
+                }
+                for i in range(3)
+            ],
+            "confidence": 0.5,
+        }
+    )
+    fetch = json.dumps(
+        {
+            "doc_id": "rbi-1",
+            "title": "T1",
+            "passages": [{"para": "42", "heading": "h", "text": "p" * 6000}],
+        }
+    )
+    compare = json.dumps({"verdict": "gap", "citations": ["rbi-1"]})
+    messages = [
+        ChatMessage(role="system", content="sys"),
+        ChatMessage(role="user", content="clause"),
+        ChatMessage(role="tool", tool_call_id="a", content=search),
+        ChatMessage(role="tool", tool_call_id="b", content=fetch),
+        ChatMessage(role="tool", tool_call_id="c", content=compare),
+    ]
+    assert history_tokens(messages) > 3000
+    assert fit_history(messages, 2000) == 1  # the search result alone is enough
+    assert messages[2].content and messages[2].content.startswith(SHORTENED)
+    assert "rbi-2" in messages[2].content and "sss" not in messages[2].content
+    assert messages[3].content == fetch
+    assert fit_history(messages, 300) == 1
+    assert '"passages_read":["42"]' in (messages[3].content or "")
+    assert messages[4].content == compare  # comparisons are kept
+    assert fit_history(messages, 10) == 0  # nothing left to shorten
+
+
+def test_agent_retries_a_request_rejected_as_too_large(store: RegulationStore) -> None:
+    steps = [
+        tool_call("search_regulations", {"query": "periodic updation KYC high risk customers"}),
+        tool_call("compare_clause", {"doc_ids": ["rbi-900"]}, call_id="c2"),
+    ]
+    rejected: list[int] = []
+
+    def reply(messages: Sequence[ChatMessage], tools: Any) -> ChatMessage:
+        if is_judge(messages):
+            return ChatMessage(role="assistant", content=json.dumps(JUDGE_CONFLICT))
+        if steps:
+            return steps.pop(0)
+        if not rejected and not any((m.content or "").startswith(SHORTENED) for m in messages):
+            rejected.append(1)
+            raise RequestRejectedError("HTTP 413: Request too large for model")
+        return final({"verdict": "conflict", "citations": ["rbi-900"], "confidence": 0.8})
+
+    pred = agent(store, ScriptedChatModel(reply), planner_context_tokens=100_000).check(CLAUSE)
+    assert rejected and pred.error is None and pred.verdict == "conflict"
 
 
 def test_agent_errors(store: RegulationStore) -> None:

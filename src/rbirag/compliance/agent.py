@@ -6,17 +6,29 @@ judge call), then reply with a JSON final answer. The loop stops at the final an
 when the tool budget is spent (the planner is then asked for its answer with tools
 disabled). :func:`rbirag.compliance.guards.decide` turns the proposal into the decision.
 
+Two safety nets found necessary on the dev split:
+
+* if the planner proposes compliant / conflict / gap without having called
+  ``compare_clause``, the agent calls it on the notifications the planner cited (or read)
+  and adopts the judge's answer: the verdict always comes from a comparison against
+  passages, with quotes that can be verified;
+* before each planner call the oldest tool results are shortened to keep the request
+  inside ``planner_context_tokens`` (small free-tier models reject oversized requests);
+  a request rejected as too large is retried once with the history halved.
+
 Latency is the sum of the recorded LLM and tool latencies, so it is the same whether a
 run is live or replayed from the response cache.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from collections.abc import Mapping
 from typing import Any
 
+from rbirag.compliance.context import fit_history, history_tokens
 from rbirag.compliance.guards import Proposal, decide
 from rbirag.compliance.judge import (
     ClauseInput,
@@ -34,12 +46,12 @@ from rbirag.compliance.llm import (
     ToolCallRequest,
 )
 from rbirag.compliance.prompts import FINALIZE_USER, PLANNER_USER, planner_system
-from rbirag.compliance.records import ClausePrediction
+from rbirag.compliance.records import SUBSTANTIVE_VERDICTS, ClausePrediction
 from rbirag.compliance.regulations import RegulationStore
 from rbirag.compliance.tools import TOOL_SCHEMAS, ToolBox
 from rbirag.config import ModelPrice, Settings
 from rbirag.generation.cost import compute_cost
-from rbirag.generation.llm import ConfigurationError, QuotaExhaustedError
+from rbirag.generation.llm import ConfigurationError, QuotaExhaustedError, RequestRejectedError
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +130,7 @@ class ComplianceAgent:
         entity: str = "Commercial Banks",
         max_steps: int = 8,
         planner_max_tokens: int = 1024,
+        planner_context_tokens: int = 4500,
         judge_max_tokens: int = 1200,
         judge_context_tokens: int = 3000,
         abstain_threshold: float = 0.0,
@@ -139,6 +152,7 @@ class ComplianceAgent:
         self.entity = entity
         self.max_steps = max_steps
         self.planner_max_tokens = planner_max_tokens
+        self.planner_context_tokens = planner_context_tokens
         self.abstain_threshold = abstain_threshold
         self.require_verified_quote = require_verified_quote
         self.prices = prices or {}
@@ -157,6 +171,7 @@ class ComplianceAgent:
             entity=settings.compliance_entity,
             max_steps=settings.compliance_max_steps,
             planner_max_tokens=settings.compliance_planner_max_tokens,
+            planner_context_tokens=settings.compliance_planner_context_tokens,
             judge_max_tokens=settings.compliance_judge_max_tokens,
             judge_context_tokens=settings.compliance_judge_context_tokens,
             abstain_threshold=settings.compliance_abstain_threshold,
@@ -171,7 +186,7 @@ class ComplianceAgent:
         toolbox = ToolBox(self.store, self.judge, clause)
         started = time.perf_counter()
         try:
-            proposal, judgement = self._loop(clause, toolbox, meter)
+            proposal, judgement, agent_notes = self._loop(clause, toolbox, meter)
         except FATAL_ERRORS:
             raise
         except Exception as exc:
@@ -207,7 +222,7 @@ class ComplianceAgent:
             confidence=decision.confidence,
             rationale=decision.rationale,
             evidence=decision.evidence,
-            notes=decision.notes,
+            notes=agent_notes + decision.notes,
             tool_calls=toolbox.calls,
             llm_calls=meter.llm_calls,
             input_tokens=meter.input_tokens,
@@ -220,7 +235,7 @@ class ComplianceAgent:
 
     def _loop(
         self, clause: ClauseInput, toolbox: ToolBox, meter: Meter
-    ) -> tuple[Proposal | None, Judgement | None]:
+    ) -> tuple[Proposal | None, Judgement | None, list[str]]:
         messages: list[ChatMessage] = [
             ChatMessage(role="system", content=self.system_prompt),
             ChatMessage(
@@ -240,12 +255,7 @@ class ComplianceAgent:
             if not budget_left and not finalize_sent:
                 messages.append(ChatMessage(role="user", content=FINALIZE_USER))
                 finalize_sent = True
-            result = self.chat.chat(
-                messages,
-                tools=TOOL_SCHEMAS if budget_left else None,
-                max_tokens=self.planner_max_tokens,
-                json_object=not budget_left,
-            )
+            result = self._plan(messages, tools=TOOL_SCHEMAS if budget_left else None)
             meter.add(result)
             msg = result.message
             calls = list(msg.tool_calls)
@@ -278,13 +288,72 @@ class ComplianceAgent:
                 continue
             proposal = self._proposal(msg.content)
             if proposal is not None:
-                return proposal, judgement
+                if proposal.verdict in SUBSTANTIVE_VERDICTS and judgement is None:
+                    return self._auto_compare(proposal, toolbox, meter)
+                return proposal, judgement, []
             if repaired:
                 break
             repaired = True  # one chance to fix a malformed final answer
             messages.append(ChatMessage(role="assistant", content=msg.content or "", raw=msg.raw))
             messages.append(ChatMessage(role="user", content=REPAIR_PROMPT))
-        return None, judgement
+        return None, judgement, []
+
+    def _plan(self, messages: list[ChatMessage], *, tools: Any) -> ChatResult:
+        """One planner call with the history fitted to the context budget."""
+        fit_history(messages, self.planner_context_tokens, tools or ())
+        try:
+            return self.chat.chat(
+                messages,
+                tools=tools,
+                max_tokens=self.planner_max_tokens,
+                json_object=tools is None,
+            )
+        except RequestRejectedError as exc:
+            text = str(exc).lower()
+            if "413" not in text and "too large" not in text:
+                raise
+            logger.warning("planner request too large; retrying with a smaller history")
+            current = history_tokens(messages, tools or ())
+            target = min(self.planner_context_tokens, current) // 2
+            if not fit_history(messages, target, tools or ()):
+                raise
+            return self.chat.chat(
+                messages,
+                tools=tools,
+                max_tokens=self.planner_max_tokens,
+                json_object=tools is None,
+            )
+
+    def _auto_compare(
+        self, proposal: Proposal, toolbox: ToolBox, meter: Meter
+    ) -> tuple[Proposal | None, Judgement | None, list[str]]:
+        """The planner skipped compare_clause: run it and adopt the judge's answer."""
+        fetched = [
+            d
+            for c in toolbox.calls
+            if c.name == "fetch_notification" and c.valid
+            for d in c.result_doc_ids
+        ]
+        cited = [c for c in proposal.citations if c in toolbox.seen_doc_ids]
+        doc_ids = list(dict.fromkeys(cited or fetched))[:4]
+        if not doc_ids:
+            return proposal, None, []
+        outcome = toolbox.run("compare_clause", json.dumps({"doc_ids": doc_ids}))
+        judgement = outcome.judgement
+        if judgement is None:
+            return proposal, None, []
+        meter.add(outcome.judge_result)
+        note = (
+            f"planner proposed {proposal.verdict} without compare_clause; compared "
+            f"{', '.join(doc_ids)} automatically and adopted the result ({judgement.verdict})"
+        )
+        adopted = Proposal(
+            verdict=judgement.verdict,
+            citations=judgement.citations or doc_ids,
+            confidence=judgement.confidence,
+            rationale=judgement.rationale or proposal.rationale,
+        )
+        return adopted, judgement, [note]
 
     @staticmethod
     def _proposal(content: str | None) -> Proposal | None:

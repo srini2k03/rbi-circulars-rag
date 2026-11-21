@@ -35,6 +35,7 @@ PROMPT_SETTINGS = (
     "compliance_as_of",
     "compliance_max_steps",
     "compliance_planner_max_tokens",
+    "compliance_planner_context_tokens",
     "compliance_judge_max_tokens",
     "compliance_judge_context_tokens",
     "compliance_abstain_threshold",

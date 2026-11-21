@@ -205,6 +205,8 @@ class Settings(BaseSettings):
     compliance_llm_cache_dir: Path = Path(".cache/compliance-llm")
     compliance_max_steps: int = Field(default=8, ge=1, le=20)
     compliance_planner_max_tokens: int = Field(default=1024, ge=64)
+    # history budget per planner call; older tool results are shortened to fit
+    compliance_planner_context_tokens: int = Field(default=4500, ge=1000)
     compliance_judge_max_tokens: int = Field(default=1200, ge=64)
     # Token budget for the notification passages given to compare_clause (all docs).
     compliance_judge_context_tokens: int = Field(default=3000, ge=200)

@@ -1,5 +1,5 @@
 {
-  "systems": "agent,baseline",
+  "systems": "agent",
   "split": "dev",
   "backend": "groq",
   "model": "",

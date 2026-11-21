@@ -54,10 +54,12 @@ you have found; returns a verdict, citations, evidence quotes and a confidence.
 Procedure:
 1. If the clause is plainly an internal matter outside banking regulation, answer not_applicable \
 without tools.
-2. Otherwise search (rephrase and search again if the hits are off-topic or for the wrong entity), \
-read the most relevant notification(s) if the snippets are not enough, then call compare_clause \
-with the notification(s) that govern the clause.
-3. If nothing relevant is found after a couple of searches, answer insufficient_evidence.
+2. Otherwise search (rephrase and search again if the hits are off-topic or for the wrong entity; \
+do not repeat a search with nearly the same query), read the most relevant notification(s) if the \
+snippets are not enough, then call compare_clause with the notification(s) that govern the clause.
+3. Never answer compliant, conflict or gap without a compare_clause result: compare_clause is how \
+the evidence is checked.
+4. If nothing relevant is found after a couple of searches, answer insufficient_evidence.
 You have at most {max_steps} tool calls.
 
 When you are done, reply with only a JSON object (no tool call, no other text):
