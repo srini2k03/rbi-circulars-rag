@@ -1,8 +1,8 @@
 ## Results on the dev split
 
-Runs: agent = `gemini-3.5-flash-lite` via gemini (1 clauses, 25 errors, 2026-11-21, commit `9edeb74`); agent = `openai/gpt-oss-20b` via groq (2 clauses, 0 errors, 2026-11-21, commit `9e1d074`); baseline = `gemini-3.5-flash-lite` via gemini (26 clauses, 0 errors, 2026-11-21, commit `9edeb74`); baseline = `openai/gpt-oss-20b` via groq (26 clauses, 0 errors, 2026-11-21, commit `8002198`)
+Runs: agent = `gemini-3.5-flash-lite` via gemini (1 clauses, 25 errors, 2026-11-21, commit `bc8a2e5`); agent = `openai/gpt-oss-20b` via groq (2 clauses, 0 errors, 2026-11-21, commit `9e1d074`); baseline = `gemini-3.5-flash-lite` via gemini (26 clauses, 0 errors, 2026-11-21, commit `9edeb74`); baseline = `openai/gpt-oss-20b` via groq (26 clauses, 0 errors, 2026-11-21, commit `8002198`)
 
-Models that actually answered (per clause; the provider's fallback chain is used when the configured model is rate-limited): agent: `qwen/qwen3.8-27b` x2; baseline: `qwen/qwen3.8-27b` x25, `openai/gpt-oss-20b` x1
+Models that actually answered (per clause; the provider's fallback chain is used when the configured model is rate-limited): agent via groq: `qwen/qwen3.8-27b` x2; baseline via groq: `qwen/qwen3.8-27b` x25, `openai/gpt-oss-20b` x1
 
 ### Headline metrics (95% bootstrap CIs)
 
@@ -20,16 +20,24 @@ Models that actually answered (per clause; the provider's fallback chain is used
 | LLM calls / clause | 1.00 [1.00, 1.00] | 0.46 [0.00, 1.19] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.00] |
 | tokens / document | 16028 [14702, 17354] | 21141 [0, 42282] | 46003 [42458, 49548] | 46984 [43299, 50669] |
 | cost $ / document | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] |
-| latency s / document | 151 [139, 163] | 332 [0, 663] | 196 [174, 219] | 1500 [1439, 1560] |
+| latency s / document | 76 [73, 78] | 332 [0, 663] | 196 [174, 219] | 1500 [1439, 1560] |
 | ECE | - | - | 0.135 [0.040, 0.285] | 0.122 [0.029, 0.267] |
 
-### Agent vs fixed pipeline (paired, same clauses)
+### Agent vs fixed pipeline via gemini (paired, same clauses)
 
 | metric (n=26) | agent | baseline | agent - baseline [95% CI] |
 |---|---|---|---|
 | verdict accuracy | 0.038 | 0.885 | -0.846 [-0.962, -0.692] |
 | task success | 0.038 | 0.769 | -0.731 [-0.885, -0.577] |
 | citation recall | 0.000 | 0.864 | -0.864 [-1.000, -0.682] |
+
+### Agent vs fixed pipeline via groq (paired, same clauses)
+
+| metric (n=26) | agent | baseline | agent - baseline [95% CI] |
+|---|---|---|---|
+| verdict accuracy | 0.077 | 0.846 | -0.769 [-0.923, -0.538] |
+| task success | 0.077 | 0.808 | -0.731 [-0.923, -0.500] |
+| citation recall | 0.091 | 0.909 | -0.818 [-0.955, -0.636] |
 
 ### F1 per verdict
 

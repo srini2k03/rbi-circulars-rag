@@ -58,10 +58,10 @@
         "chunk_overlap": 64
       },
       "corpus": "corpus-v2",
-      "generated_at": "2026-11-21T10:08:17+00:00",
-      "commit": "9edeb74ee7c5fe12ef8045dfdf556f656a0e0dd0",
-      "cache_hits": 0,
-      "cache_misses": 51,
+      "generated_at": "2026-11-21T10:17:50+00:00",
+      "commit": "bc8a2e5ae1d4a2b026f200500c31b38ac4af2c45",
+      "cache_hits": 26,
+      "cache_misses": 25,
       "completed": 1,
       "errors": 25
     },
@@ -258,10 +258,16 @@
     }
   ],
   "served_by": {
-    "agent": {
+    "agent via gemini": {
+      "gemini-3.5-flash-lite": 26
+    },
+    "agent via groq": {
       "qwen/qwen3.8-27b": 2
     },
-    "baseline": {
+    "baseline via gemini": {
+      "gemini-3.5-flash-lite": 26
+    },
+    "baseline via groq": {
       "openai/gpt-oss-20b": 1,
       "qwen/qwen3.8-27b": 25
     }
@@ -401,9 +407,9 @@
         "n": 26
       },
       "latency_ms_per_clause": {
-        "mean": 11602.238846153845,
-        "low": 10967.480625,
-        "high": 12033.527653846153,
+        "mean": 5817.435384615384,
+        "low": 5348.938375,
+        "high": 6074.593134615385,
         "n": 26
       },
       "cost_usd_per_clause": {
@@ -419,9 +425,9 @@
         "n": 26
       },
       "latency_ms_per_document": {
-        "mean": 150829.10499999998,
-        "low": 138931.21,
-        "high": 162727.0,
+        "mean": 75626.66,
+        "low": 72868.38,
+        "high": 78384.94,
         "n": 2
       },
       "cost_usd_per_document": {
