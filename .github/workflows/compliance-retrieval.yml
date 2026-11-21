@@ -55,6 +55,7 @@ jobs:
           rbirag index --chunker fixed
       - name: Recall per mode and filter (dev, then test)
         run: |
+          set -o pipefail
           for split in dev test; do
             rbirag comply eval retrieval --split "$split" --modes bm25,hybrid,hybrid_rerank \
               --out results/compliance/retrieval.json | tee -a "$GITHUB_STEP_SUMMARY"

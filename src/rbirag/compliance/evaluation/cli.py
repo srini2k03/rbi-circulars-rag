@@ -434,6 +434,7 @@ def retrieval(
             chunker = s.compliance_chunker or s.chunker
             label = f"{chunker} / {mode} / {'entity filter' if flt else 'no filter'}"
             rows.append(evaluate_retrieval(store, items, config=label, entity_filter=flt))
+        store.close()  # one local Qdrant client at a time
     table = retrieval_table(rows)
     typer.echo(f"split={split}\n{table}")
     if out:

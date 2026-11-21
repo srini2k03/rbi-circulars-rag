@@ -170,6 +170,13 @@ class RegulationStore:
         return True
 
     # -- search --------------------------------------------------------------------------
+    def close(self) -> None:
+        """Release the dense index (local Qdrant holds an exclusive lock on its folder,
+        so a second store over the same index can only open after this)."""
+        dense = getattr(self.retriever, "dense", None)
+        if dense is not None:
+            dense.close()
+
     def search(
         self,
         query: str,
