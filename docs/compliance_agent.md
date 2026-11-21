@@ -23,7 +23,7 @@ RAG pipeline is rebuilt or changed.
 
 | # | Phase | Status |
 |---|---|---|
-| 0 | `corpus-v2` (crawl ids above 13050 via `corpus.yml`) | dispatched |
+| 0 | `corpus-v2`: crawl ids above 13050 via `corpus.yml` | done: 2,903 notifications (+750), through 2026-11-11, including 128 Commercial Banks Directions and amendments |
 | 1 | Policy loading, clause splitting, reference graph, `search` / `fetch` tools, CLI, tests | done |
 | 2 | Labeled clause set (~70 clauses in ~8 synthetic policies), labeling guide, metrics + tests | |
 | 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | |
@@ -94,9 +94,25 @@ how well it does.
   document order within a token budget (default 1,500). The largest notification is 235K
   characters, so full text is never returned.
 
+### On `corpus-v2`
+
+The graph has about 3,950 citations: 3,071 mentions, 509 amends, 71 supersedes and 294
+repeals. 93 notifications are marked as replaced. The 2026 amendment Directions name what
+they repeal, which is why repeals rose. Building the graph takes about 16 s, so the API
+will cache it (Phase 5).
+
 ### Early observation for Phase 3
 
 For a KYC clause, search returns the NBFC, UCB and RRB versions of the 2025 KYC
 Directions next to the commercial-bank Master Direction. The agent must check the
 addressee and entity of each notification before relying on it. Wrong-entity citations
 will be a tracked failure category.
+
+On `corpus-v2` the problem is sharper. For the clause "periodic updation ... every three
+years for high risk customers", BM25 ranks the 2016 KYC Master Direction first. The graph
+correctly flags it as replaced by `rbi-13171`. But
+`Reserve Bank of India (Commercial Banks - Know Your Customer) Directions, 2025`
+(`rbi-13141`) is not in the top 5, behind the NBFC, UCB, RRB and ARC versions. Phase 3
+will therefore give `search_regulations` an entity option that prefers notifications
+whose title or addressee names the target entity, and compare it with plain search in
+the evaluation.
