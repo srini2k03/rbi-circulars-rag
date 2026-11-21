@@ -58,7 +58,7 @@ jobs:
             sleep 2
           done
           curl -fsS http://127.0.0.1:7860/_stcore/health
-          docker exec space python - <<'PY'
+          docker exec -i space python - <<'PY'
           import json, time, urllib.request
           API = "http://127.0.0.1:8000"
           def get(path):
@@ -93,6 +93,7 @@ jobs:
           assert steps == ["search_regulations", "compare_clause"], steps
           print("compliance check ok:", report["summary"])
           PY
+          docker exec space test -s /data/indexes/fixed/reference_graph.json.gz  # cache baked in
       - name: Container logs
         if: always()
         run: docker logs space 2>&1 | tail -80
