@@ -58,12 +58,12 @@
         "chunk_overlap": 64
       },
       "corpus": "corpus-v2",
-      "generated_at": "2026-11-21T10:17:50+00:00",
-      "commit": "bc8a2e5ae1d4a2b026f200500c31b38ac4af2c45",
-      "cache_hits": 26,
-      "cache_misses": 25,
-      "completed": 1,
-      "errors": 25
+      "generated_at": "2026-11-21T10:34:54+00:00",
+      "commit": "ecec82da12df7289f41be400a0bef1339aa6256c",
+      "cache_hits": 0,
+      "cache_misses": 146,
+      "completed": 26,
+      "errors": 0
     },
     {
       "system": "agent",
@@ -278,77 +278,77 @@
       "split": "dev",
       "n": 26,
       "verdict_accuracy": {
-        "mean": 0.038461538461538464,
-        "low": 0.0,
-        "high": 0.11538461538461539,
+        "mean": 0.8846153846153846,
+        "low": 0.7692307692307693,
+        "high": 1.0,
         "n": 26
       },
       "macro_f1": {
-        "mean": 0.16296296296296295,
-        "low": 0.0,
-        "high": 0.2571428571428571,
+        "mean": 0.9161344537815126,
+        "low": 0.7465159333270788,
+        "high": 1.0,
         "n": 26
       },
       "per_class": {
         "compliant": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1": 0.0,
+          "precision": 0.7777777777777778,
+          "recall": 0.875,
+          "f1": 0.823529411764706,
           "support": 8.0
         },
         "conflict": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1": 0.0,
+          "precision": 0.9,
+          "recall": 0.9,
+          "f1": 0.9,
           "support": 10.0
         },
         "gap": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1": 0.0,
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571428571428571,
           "support": 4.0
         },
         "not_applicable": {
           "precision": 1.0,
-          "recall": 0.5,
-          "f1": 0.6666666666666666,
+          "recall": 1.0,
+          "f1": 1.0,
           "support": 2.0
         },
         "insufficient_evidence": {
-          "precision": 0.08,
+          "precision": 1.0,
           "recall": 1.0,
-          "f1": 0.14814814814814814,
+          "f1": 1.0,
           "support": 2.0
         }
       },
       "confusion": {
         "compliant": {
-          "compliant": 0,
-          "conflict": 0,
+          "compliant": 7,
+          "conflict": 1,
           "gap": 0,
           "not_applicable": 0,
-          "insufficient_evidence": 8
+          "insufficient_evidence": 0
         },
         "conflict": {
-          "compliant": 0,
-          "conflict": 0,
+          "compliant": 1,
+          "conflict": 9,
           "gap": 0,
           "not_applicable": 0,
-          "insufficient_evidence": 10
+          "insufficient_evidence": 0
         },
         "gap": {
-          "compliant": 0,
+          "compliant": 1,
           "conflict": 0,
-          "gap": 0,
+          "gap": 3,
           "not_applicable": 0,
-          "insufficient_evidence": 4
+          "insufficient_evidence": 0
         },
         "not_applicable": {
           "compliant": 0,
           "conflict": 0,
           "gap": 0,
-          "not_applicable": 1,
-          "insufficient_evidence": 1
+          "not_applicable": 2,
+          "insufficient_evidence": 0
         },
         "insufficient_evidence": {
           "compliant": 0,
@@ -359,15 +359,15 @@
         }
       },
       "citation_precision": {
-        "mean": NaN,
-        "low": NaN,
-        "high": NaN,
+        "mean": 0.9545454545454546,
+        "low": 0.8571428571428571,
+        "high": 1.0,
         "n": 26
       },
       "citation_recall": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
+        "mean": 0.9090909090909091,
+        "low": 0.7727272727272727,
+        "high": 1.0,
         "n": 22
       },
       "tool_argument_validity": {
@@ -377,39 +377,39 @@
         "n": 26
       },
       "fetch_grounding": {
-        "mean": NaN,
-        "low": NaN,
-        "high": NaN,
-        "n": 26
-      },
-      "tool_selection_accuracy": {
-        "mean": 0.15384615384615385,
-        "low": 0.038461538461538464,
-        "high": 0.2692307692307692,
-        "n": 26
-      },
-      "task_success": {
-        "mean": 0.038461538461538464,
-        "low": 0.0,
-        "high": 0.11538461538461539,
-        "n": 26
-      },
-      "avg_steps": {
-        "mean": 0.9615384615384616,
-        "low": 0.8846153846153846,
-        "high": 1.0,
-        "n": 26
-      },
-      "avg_llm_calls": {
         "mean": 1.0,
         "low": 1.0,
         "high": 1.0,
         "n": 26
       },
+      "tool_selection_accuracy": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "task_success": {
+        "mean": 0.8076923076923077,
+        "low": 0.6538461538461539,
+        "high": 0.9615384615384616,
+        "n": 26
+      },
+      "avg_steps": {
+        "mean": 3.576923076923077,
+        "low": 3.076923076923077,
+        "high": 4.038461538461538,
+        "n": 26
+      },
+      "avg_llm_calls": {
+        "mean": 5.615384615384615,
+        "low": 4.961538461538462,
+        "high": 6.1923076923076925,
+        "n": 26
+      },
       "latency_ms_per_clause": {
-        "mean": 5817.435384615384,
-        "low": 5348.938375,
-        "high": 6074.593134615385,
+        "mean": 41442.021538461544,
+        "low": 36048.018432692304,
+        "high": 46341.528201923065,
         "n": 26
       },
       "cost_usd_per_clause": {
@@ -419,15 +419,15 @@
         "n": 26
       },
       "tokens_per_clause": {
-        "mean": 1232.923076923077,
-        "low": 1227.1125,
-        "high": 1239.4625,
+        "mean": 16968.346153846152,
+        "low": 14670.909615384615,
+        "high": 19111.625961538462,
         "n": 26
       },
       "latency_ms_per_document": {
-        "mean": 75626.66,
-        "low": 72868.38,
-        "high": 78384.94,
+        "mean": 538746.28,
+        "low": 471984.56,
+        "high": 605508.0,
         "n": 2
       },
       "cost_usd_per_document": {
@@ -437,20 +437,29 @@
         "n": 2
       },
       "tokens_per_document": {
-        "mean": 16028.0,
-        "low": 14702.0,
-        "high": 17354.0,
+        "mean": 220588.5,
+        "low": 192334.0,
+        "high": 248843.0,
         "n": 2
       },
       "documents": 2,
-      "document_success": 0.0,
-      "ece": null,
-      "aurc": null,
-      "accuracy_at_coverage": {},
+      "document_success": 1.0,
+      "ece": {
+        "mean": 0.09230769230769229,
+        "low": 0.013461538461538514,
+        "high": 0.21153846153846154,
+        "n": 26
+      },
+      "aurc": 0.0464311480302995,
+      "accuracy_at_coverage": {
+        "50%": 0.9230769230769231,
+        "80%": 0.9523809523809523,
+        "100%": 0.8846153846153846
+      },
       "by_tag": {
         "amendment": {
           "n": 2.0,
-          "accuracy": 0.0,
+          "accuracy": 0.5,
           "success": 0.0
         },
         "entity_confusion": {
@@ -460,54 +469,56 @@
         },
         "future_effective": {
           "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 1.0,
+          "success": 1.0
         },
         "not_in_corpus": {
           "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 1.0,
+          "success": 1.0
         },
         "numeric_threshold": {
           "n": 12.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 0.9166666666666666,
+          "success": 0.9166666666666666
         },
         "out_of_scope": {
           "n": 2.0,
-          "accuracy": 0.5,
-          "success": 0.5
+          "accuracy": 1.0,
+          "success": 1.0
         },
         "outdated_rule": {
           "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 1.0,
+          "success": 1.0
         },
         "paraphrase": {
           "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 1.0,
+          "success": 1.0
         },
         "partial_compliance": {
           "n": 4.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 0.75,
+          "success": 0.5
         },
         "prohibition": {
           "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 1.0,
+          "success": 1.0
         },
         "stricter_than_required": {
           "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
+          "accuracy": 0.5,
+          "success": 0.5
         }
       },
       "failures": {
-        "run_error": 25
+        "missed_issue": 2,
+        "citation_miss": 2,
+        "false_alarm": 1
       },
-      "errors": 25
+      "errors": 0
     },
     {
       "system": "agent (openai/gpt-oss-20b)",
