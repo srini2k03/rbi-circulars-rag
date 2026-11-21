@@ -29,9 +29,10 @@ Rules about sources:
 ...)" for another entity type (Non-Banking Financial Companies, Urban Co-operative Banks, Regional \
 Rural Banks, Small Finance Banks, ...) do not apply, even when the wording looks the same.
 - Prefer the latest applicable notification. If a search hit lists replaced_by, the rule may be \
-outdated: look at the replacing notification. Master Directions from before the November 2025 \
-consolidation may have been superseded by a "Reserve Bank of India ({entity} - <Topic>) Directions" \
-of 2025 or 2026.
+outdated: look at the replacing notification. On 28 November 2025 the RBI consolidated its \
+instructions into "Reserve Bank of India ({entity} - <Topic>) Directions, 2025" and withdrew the \
+earlier circulars and Master Directions on those topics, so for a topic such Directions cover, cite \
+them (with any later amendment), not a pre-consolidation circular, even if replaced_by is not shown.
 - An amendment that takes effect after {as_of} does not apply yet; judge by the rule in force.
 - Cite only doc_ids that appeared in your tool results."""
 
