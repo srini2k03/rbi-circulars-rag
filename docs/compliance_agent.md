@@ -28,7 +28,7 @@ RAG pipeline is rebuilt or changed.
 | 2 | Labelled clause set, labelling guide, metrics, review tool, tests | done: 89 clauses in 7 policies (26 dev / 63 test); see `data/eval/compliance/README.md` |
 | 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | done (offline-tested; first live runs in Phase 4) |
 | 4 | Evaluation runs, results, failure analysis, replay CI + live workflow | dev iteration done; locked test run in progress (resumes when the provider quota resets) |
-| 5 | FastAPI endpoints, Streamlit page, Docker, Hugging Face Spaces | |
+| 5 | FastAPI endpoints, Streamlit page, Docker, Hugging Face Spaces | built and smoke-tested in CI; deploys once a free Hugging Face token is configured |
 | 6 | README: architecture, results, limitations | |
 
 ## Phase 1: what exists
@@ -330,4 +330,61 @@ abstention threshold 0.0. The first attempt stopped on the Gemini free tier's da
 quota after 8 agent clauses and 1 baseline clause; it resumes from the recorded
 predictions and responses (`fresh: false`) with no code changes. Results and the failure
 analysis follow when it completes.
+
+## Phase 5: API, UI and the demo Space
+
+Everything runs on free tiers: GitHub Actions (public repository), a Hugging Face CPU
+Space, and the Gemini or Groq free API tiers.
+
+### API (`/comply/*`, in the existing FastAPI app)
+
+| endpoint | what it does |
+|---|---|
+| `GET /comply/status` | corpus loaded?, notifications, as-of date, entity, backends with a key, demo limits |
+| `POST /comply/clauses`, `POST /comply/clauses/upload` | split a policy (text, or a .pdf/.txt/.md upload up to 10 MB) into clauses; no LLM |
+| `POST /comply/check`, `POST /comply/check/upload` | start a background check (`system` agent or baseline, `backend`, `max_clauses`); returns a job (HTTP 202) |
+| `GET /comply/jobs/{id}` | state, clauses done / total, findings so far, and the full report when finished |
+| `GET /comply/jobs/{id}/report.md` | the finished report as Markdown |
+
+A check takes ~5 model calls per clause, so it runs as a job and the client polls. Demo
+limits (settings): `RBIRAG_COMPLIANCE_API_MAX_CLAUSES` per check and
+`RBIRAG_COMPLIANCE_API_MAX_JOBS` checks at once; later checks queue. A failed job keeps
+the clauses finished before the failure (for example when a free quota runs out).
+
+The regulation store loads in the background when the API starts. The reference graph
+is cached next to the index (`reference_graph.json.gz`), keyed by a hash of the corpus
+and of the graph code, which cuts store start-up from ~18 s to under a second; the cached
+graph is identical to a fresh build (tested).
+
+Backend `fake` is a deterministic offline model: it searches with the clause text,
+compares the top hit and always answers `insufficient_evidence`. It exercises the whole
+tool path in smoke tests and keeps a keyless demo honest (it never invents a verdict).
+
+### UI
+
+`ui/pages/1_Policy_check.py` (next to the existing RAG chat page): upload, paste or use
+the bundled sample policy; preview the clauses; pick agent or baseline and the model;
+watch progress; read a verdict summary, a table and per-clause details (rationale, cited
+notifications with links to rbi.org.in, verified evidence quotes, guardrail notes, the
+tool steps); download the report as Markdown or JSON.
+
+### The demo Space
+
+`docker/Dockerfile.space` is one container: FastAPI on 127.0.0.1:8000 and Streamlit on
+port 7860. The image downloads `corpus-v2` and builds the BM25 index and the reference
+graph cache at build time, so it needs no torch and starts in seconds. The RAG chat page
+runs in BM25 mode there (no embedding model on the free CPU tier).
+
+`.github/workflows/space.yml` builds the image on every relevant push, starts it without
+keys and checks the API, a three-clause compliance check with the offline model and the
+Streamlit health endpoint. To deploy (free):
+
+1. create a Hugging Face account and a token with write access;
+2. add the repository secret `HF_TOKEN` and the repository variable `HF_SPACE`
+   (for example `your-name/rbi-policy-check`);
+3. push to the default branch, or change `.github/space-deploy-request.json` on any
+   branch.
+
+The workflow creates the Space if needed, copies the existing `GEMINI_API_KEY` /
+`GROQ_API_KEY` secrets into it as Space secrets (never printed), and uploads the app.
 
