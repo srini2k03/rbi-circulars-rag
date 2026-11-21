@@ -12,19 +12,36 @@ on:
         type: string
         default: "13050"
       max_docs:
-        description: "Stop after this many notifications are stored"
+        description: "Stop after this many notifications are stored (counts resumed ones)"
         type: string
         default: "2200"
+      min_id:
+        description: "Lowest notification id to scan down to"
+        type: string
+        default: "9000"
+      max_consecutive_misses:
+        description: "Stop after this many consecutive empty ids"
+        type: string
+        default: "300"
+      release_tag:
+        description: "Release to publish (corpus-v1 is the snapshot the RAG results use)"
+        type: string
+        default: "corpus-v1"
+      resume_from:
+        description: "Release whose raw archive seeds the crawl (empty = release_tag)"
+        type: string
+        default: ""
 
 permissions:
-  contents: write  # needed to create/update the corpus-v1 release
+  contents: write  # needed to create/update the corpus release
 
 concurrency:
   group: corpus
   cancel-in-progress: false
 
 env:
-  RELEASE_TAG: corpus-v1
+  RELEASE_TAG: ${{ inputs.release_tag }}
+  RESUME_FROM: ${{ inputs.resume_from || inputs.release_tag }}
   RBIRAG_RAW_DIR: data/raw
   RBIRAG_PROCESSED_DIR: data/processed
   PYTHONUNBUFFERED: "1"
@@ -53,9 +70,14 @@ jobs:
         env:
           START_ID: ${{ inputs.start_id }}
           MAX_DOCS: ${{ inputs.max_docs }}
+          MIN_ID: ${{ inputs.min_id }}
+          MAX_MISSES: ${{ inputs.max_consecutive_misses }}
         run: |
-          [[ "$START_ID" =~ ^[0-9]+$ ]] || { echo "start_id must be an integer"; exit 1; }
-          [[ "$MAX_DOCS" =~ ^[0-9]+$ ]] || { echo "max_docs must be an integer"; exit 1; }
+          for v in "$START_ID" "$MAX_DOCS" "$MIN_ID" "$MAX_MISSES"; do
+            [[ "$v" =~ ^[0-9]+$ ]] || { echo "numeric inputs must be integers (got '$v')"; exit 1; }
+          done
+          [[ "$RELEASE_TAG" =~ ^corpus-v[0-9]+$ ]] || { echo "release_tag must look like corpus-vN"; exit 1; }
+          [[ "$RESUME_FROM" =~ ^corpus-v[0-9]+$ ]] || { echo "resume_from must look like corpus-vN"; exit 1; }
 
       - name: Probe RBI (parser diagnostics)
         env:
@@ -83,11 +105,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p data/raw
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release download "$RELEASE_TAG" --pattern 'raw-*.tar.gz' --dir /tmp/prev || true
+          if gh release view "$RESUME_FROM" >/dev/null 2>&1; then
+            gh release download "$RESUME_FROM" --pattern 'raw-*.tar.gz' --dir /tmp/prev || true
             if ls /tmp/prev/raw-*.tar.gz >/dev/null 2>&1; then
               tar -xzf /tmp/prev/raw-*.tar.gz -C data
-              echo "resumed from previous raw archive: $(wc -l < data/raw/manifest.jsonl) manifest lines"
+              echo "resumed from $RESUME_FROM raw archive: $(wc -l < data/raw/manifest.jsonl) manifest lines"
             fi
           fi
 
@@ -96,9 +118,12 @@ jobs:
         env:
           START_ID: ${{ inputs.start_id }}
           MAX_DOCS: ${{ inputs.max_docs }}
+          MIN_ID: ${{ inputs.min_id }}
+          RBIRAG_FETCH_MAX_CONSECUTIVE_MISSES: ${{ inputs.max_consecutive_misses }}
         run: |
           set +e
-          rbirag fetch --start-id "$START_ID" --max-docs "$MAX_DOCS" > data/processed/fetch.log 2>&1
+          rbirag fetch --start-id "$START_ID" --min-id "$MIN_ID" --max-docs "$MAX_DOCS" \
+            > data/processed/fetch.log 2>&1
           status=$?
           tail -n 40 data/processed/fetch.log
           if [ "$status" -eq 2 ]; then
@@ -162,7 +187,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Publish release corpus-v1
+      - name: Publish release ${{ inputs.release_tag }}
         if: ${{ !inputs.probe_only }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,6 +197,6 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release edit "$RELEASE_TAG" --notes "$notes"
           else
-            gh release create "$RELEASE_TAG" --title "Corpus v1" --notes "$notes" --target "${{ github.sha }}"
+            gh release create "$RELEASE_TAG" --title "Corpus ${RELEASE_TAG#corpus-}" --notes "$notes" --target "${{ github.sha }}"
           fi
           gh release upload "$RELEASE_TAG" dist/* --clobber
