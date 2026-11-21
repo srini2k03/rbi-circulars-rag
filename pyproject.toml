@@ -112,6 +112,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG", "PLR", "PT018", "E501"]
+"src/rbirag/compliance/prompts.py" = ["E501"]  # prose prompts read better unwrapped
 
 [tool.ruff.lint.isort]
 known-first-party = ["rbirag"]

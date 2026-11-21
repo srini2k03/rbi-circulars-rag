@@ -12,6 +12,7 @@ import typer
 from rbirag.config import RetrievalMode, get_settings
 
 if TYPE_CHECKING:
+    from rbirag.compliance.checker import ClauseChecker, ClauseFinding
     from rbirag.compliance.regulations import RegulationStore
 
 comply_app = typer.Typer(
@@ -124,3 +125,64 @@ def fetch(
         typer.echo(p.text)
     if view.truncated:
         typer.echo(f"\n[{view.total_chars} chars in total; showing the most relevant passages]")
+
+
+def build_checker(
+    system: str, *, backend: str | None = None, model: str | None = None
+) -> tuple[ClauseChecker, RegulationStore]:
+    """The agent or the baseline, wired from settings (shared by check and eval run)."""
+    from rbirag.compliance.agent import ComplianceAgent
+    from rbirag.compliance.baseline import FixedPipeline
+    from rbirag.compliance.llm import build_chat_model
+
+    s = get_settings()
+    store = _store(None)
+    chat = build_chat_model(s, backend, model=model)
+    if system == "agent":
+        return ComplianceAgent.from_settings(s, store, chat), store
+    if system == "baseline":
+        return FixedPipeline.from_settings(s, store, chat), store
+    raise typer.BadParameter("system must be agent or baseline")
+
+
+@comply_app.command("check")
+def check(
+    policy: Annotated[Path, typer.Argument(help="Policy document (.pdf, .txt, .md).")],
+    system: Annotated[str, typer.Option(help="agent | baseline")] = "agent",
+    backend: Annotated[str | None, typer.Option(help="groq | gemini | ollama | custom")] = None,
+    model: Annotated[str | None, typer.Option(help="Override the model id.")] = None,
+    max_clauses: Annotated[int | None, typer.Option(min=1)] = None,
+    out: Annotated[Path | None, typer.Option(help="Write the Markdown report here.")] = None,
+    json_out: Annotated[Path | None, typer.Option("--json-out", help="Full report JSON.")] = None,
+) -> None:
+    """Check every clause of a policy document and print a report."""
+    from rbirag.compliance.checker import check_policy, render_markdown
+    from rbirag.compliance.policy import PolicyLoadError, load_policy
+
+    try:
+        doc = load_policy(policy)
+    except PolicyLoadError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    checker, store = build_checker(system, backend=backend, model=model)
+    s = get_settings()
+
+    def progress(i: int, n: int, finding: ClauseFinding) -> None:
+        typer.echo(f"[{i}/{n}] {finding.clause.label}: {finding.prediction.verdict}", err=True)
+
+    report = check_policy(
+        doc,
+        checker,
+        store,
+        as_of=s.compliance_as_of,
+        entity=s.compliance_entity,
+        system=system,
+        max_clauses=max_clauses,
+        on_progress=progress,
+    )
+    md = render_markdown(report)
+    if out:
+        out.write_text(md, encoding="utf-8")
+    if json_out:
+        json_out.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    typer.echo(md)

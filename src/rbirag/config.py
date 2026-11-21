@@ -185,6 +185,28 @@ class Settings(BaseSettings):
     # Token budget for one fetch_notification result (passages chosen by relevance).
     compliance_fetch_max_tokens: int = Field(default=1500, ge=100)
     compliance_passage_chars: int = Field(default=2000, ge=200)
+    # Agent: the entity whose policy is checked, and whether search drops notifications
+    # addressed to other entity types (NBFC, UCB, RRB, ... Directions).
+    compliance_entity: str = "Commercial Banks"
+    compliance_entity_filter: bool = True
+    compliance_as_of: str = "2026-11-11"  # corpus snapshot date the verdicts refer to
+    # Tool-calling model: groq | gemini | ollama | custom (OpenAI-compatible, oai_* settings).
+    compliance_llm_backend: Literal["groq", "gemini", "ollama", "custom"] = "groq"
+    compliance_model: str = ""  # empty = the provider preset's generator
+    compliance_model_fallbacks: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["auto"]
+    )
+    # Response cache: use | replay (CI: never call the provider) | refresh | off
+    compliance_llm_cache_mode: Literal["use", "replay", "refresh", "off"] = "use"
+    compliance_llm_cache_dir: Path = Path(".cache/compliance-llm")
+    compliance_max_steps: int = Field(default=8, ge=1, le=20)
+    compliance_planner_max_tokens: int = Field(default=1024, ge=64)
+    compliance_judge_max_tokens: int = Field(default=1200, ge=64)
+    # Token budget for the notification passages given to compare_clause (all docs).
+    compliance_judge_context_tokens: int = Field(default=3000, ge=200)
+    # Substantive verdicts below this confidence become insufficient_evidence (tuned on dev).
+    compliance_abstain_threshold: float = Field(default=0.0, ge=0, le=1)
+    compliance_require_verified_quote: bool = True
 
     # -------------------------------------------------------------------- api
     # JSONL mirror of the API request log (None = in memory only).
@@ -215,7 +237,11 @@ class Settings(BaseSettings):
     seed: int = 13
 
     @field_validator(
-        "oai_model_fallbacks", "qa_model_fallbacks", "judge_model_fallbacks", mode="before"
+        "oai_model_fallbacks",
+        "qa_model_fallbacks",
+        "judge_model_fallbacks",
+        "compliance_model_fallbacks",
+        mode="before",
     )
     @classmethod
     def _split_models(cls, value: object) -> object:

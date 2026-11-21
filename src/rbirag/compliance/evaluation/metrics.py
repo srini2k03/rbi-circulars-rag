@@ -29,6 +29,7 @@ from collections.abc import Callable, Mapping, Sequence
 import numpy as np
 from pydantic import BaseModel, Field
 
+from rbirag.compliance.entities import OTHER_ENTITIES, entity_of
 from rbirag.compliance.evaluation.dataset import EvalItem
 from rbirag.compliance.records import (
     SUBSTANTIVE_VERDICTS,
@@ -38,30 +39,6 @@ from rbirag.compliance.records import (
 from rbirag.eval.stats import Estimate, bootstrap_ci, bootstrap_ratio_ci
 
 DEFAULT_MAX_STEPS = 8
-TARGET_ENTITY = "Commercial Banks"
-# Entity types that have their own consolidated Directions; citing one of these for a
-# commercial bank's policy is a wrong-entity citation.
-OTHER_ENTITIES: frozenset[str] = frozenset(
-    {
-        "Non-Banking Financial Companies",
-        "Urban Co-operative Banks",
-        "Rural Co-operative Banks",
-        "Regional Rural Banks",
-        "Small Finance Banks",
-        "Payments Banks",
-        "Local Area Banks",
-        "All India Financial Institutions",
-        "Asset Reconstruction Companies",
-        "Housing Finance Companies",
-        "Credit Information Companies",
-        "Core Investment Companies",
-        "Mortgage Guarantee Companies",
-        "Standalone Primary Dealers",
-        "Non-Bank Prepaid Payment Instruments Issuers",
-        "Non-Operative Financial Holding Companies",
-    }
-)
-_ENTITY_RE = re.compile(r"^Reserve Bank of India \((?P<entity>[^()]+?)\s+-\s")
 
 FailureType = str
 FAILURE_TYPES: tuple[str, ...] = (
@@ -78,14 +55,6 @@ FAILURE_TYPES: tuple[str, ...] = (
     "invalid_tool_call",  # verdict and citations right, but a tool call was invalid
     "step_budget",  # otherwise right, but over the step budget
 )
-
-
-def entity_of(title: str | None) -> str | None:
-    """``Reserve Bank of India (Urban Co-operative Banks - KYC) Directions`` -> the entity."""
-    if not title:
-        return None
-    m = _ENTITY_RE.match(title)
-    return m.group("entity").strip() if m else None
 
 
 class ItemScore(BaseModel):

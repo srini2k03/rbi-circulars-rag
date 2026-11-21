@@ -29,12 +29,22 @@ class ToolCall(BaseModel):
     latency_ms: float = Field(default=0.0, ge=0)
 
 
+class EvidenceQuote(BaseModel):
+    doc_id: str
+    quote: str
+    verified: bool = Field(description="The quote occurs in text the system actually read.")
+
+
 class ClausePrediction(BaseModel):
     item_id: str
     verdict: Verdict
     citations: list[str] = Field(default_factory=list, description="Cited doc ids.")
     confidence: float | None = Field(default=None, ge=0, le=1)
     rationale: str = ""
+    evidence: list[EvidenceQuote] = Field(default_factory=list)
+    notes: list[str] = Field(
+        default_factory=list, description="Guardrail actions, e.g. a dropped citation."
+    )
     tool_calls: list[ToolCall] = Field(default_factory=list)
     llm_calls: int = Field(default=0, ge=0)
     input_tokens: int = Field(default=0, ge=0)

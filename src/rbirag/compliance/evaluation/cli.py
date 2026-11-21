@@ -182,3 +182,41 @@ def review(
         save_labels(dataset.labels, root / "labels.jsonl")
         done += 1
     typer.echo(f"\n{done} decision(s) saved to {root / 'labels.jsonl'}")
+
+
+@eval_app.command("run")
+def run(
+    system: Annotated[str, typer.Option(help="agent | baseline")] = "agent",
+    split: Annotated[str, typer.Option(help="dev | test | all")] = "dev",
+    root: RootOpt = DEFAULT_ROOT,
+    backend: Annotated[str | None, typer.Option(help="groq | gemini | ollama | custom")] = None,
+    model: Annotated[str | None, typer.Option(help="Override the model id.")] = None,
+    limit: Annotated[int | None, typer.Option(min=1, help="Only the first N items.")] = None,
+    out: Annotated[
+        Path | None, typer.Option(help="Predictions JSONL (appended, resumable).")
+    ] = None,
+    fresh: Annotated[bool, typer.Option("--fresh", help="Ignore earlier predictions.")] = False,
+) -> None:
+    """Run the agent or the baseline over labelled clauses and score the result."""
+    from rbirag.compliance.cli import build_checker
+    from rbirag.compliance.evaluation.metrics import score_predictions, summarize
+    from rbirag.compliance.evaluation.report import render_report
+    from rbirag.compliance.evaluation.run import run_items
+
+    if split not in {"dev", "test", "all"}:
+        raise typer.BadParameter("split must be dev, test or all")
+    dataset = _load(root)
+    items = dataset.items(None if split == "all" else ("dev" if split == "dev" else "test"))
+    if limit:
+        items = items[:limit]
+    path = out or Path("results/compliance/predictions") / f"{system}-{split}.jsonl"
+    checker, store = build_checker(system, backend=backend, model=model)
+
+    def progress(item, pred):  # type: ignore[no-untyped-def]
+        ok = "ok " if pred.verdict == item.label.verdict else "MISS"
+        typer.echo(f"{ok} {item.item_id}: {pred.verdict} (gold {item.label.verdict})", err=True)
+
+    preds = run_items(items, checker, path, resume=not fresh, on_item=progress)
+    titles = {d.doc_id: d.title for d in store.documents.values()}
+    report = summarize(score_predictions(items, preds, titles=titles), system=system, split=split)
+    typer.echo(render_report([report]))

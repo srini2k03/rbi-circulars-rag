@@ -26,7 +26,7 @@ RAG pipeline is rebuilt or changed.
 | 0 | `corpus-v2`: crawl ids above 13050 via `corpus.yml` | done: 2,903 notifications (+750), through 2026-11-11, including 128 Commercial Banks Directions and amendments |
 | 1 | Policy loading, clause splitting, reference graph, `search` / `fetch` tools, CLI, tests | done |
 | 2 | Labelled clause set, labelling guide, metrics, review tool, tests | done: 89 clauses in 7 policies (26 dev / 63 test); see `data/eval/compliance/README.md` |
-| 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | |
+| 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | done (offline-tested; first live runs in Phase 4) |
 | 4 | Evaluation runs, results, failure analysis, replay CI + live workflow | |
 | 5 | FastAPI endpoints, Streamlit page, Docker, Hugging Face Spaces | |
 | 6 | README: architecture, results, limitations | |
@@ -173,3 +173,87 @@ The new `compliance-gold` job in `ci.yml` downloads `corpus-v2`, re-checks every
 citation and quote, confirms the committed `gold_check.json` is current, and runs the
 segmentation score. The offline test job validates the set's structure and checks that
 the rendered policies are current.
+
+## Phase 3: the agent
+
+```
+src/rbirag/compliance/
+  llm.py        tool-calling chat client for Groq / Gemini / Ollama (OpenAI-compatible),
+                response cache with a replay mode, scripted fake for tests
+  tools.py      search_regulations, fetch_notification, compare_clause: schemas,
+                strict argument validation, execution, trajectory
+  judge.py      compare_clause: focused passages -> one JSON judgement; quote checks
+  prompts.py    planner and judge prompts (verdict definitions = LABELING.md)
+  guards.py     proposal -> decision (citation, entity, evidence and threshold rules)
+  agent.py      the bounded tool-calling loop
+  baseline.py   fixed pipeline: search -> top-3 -> judge (no agency)
+  checker.py    whole document: split, check each clause, Markdown / JSON report
+  evaluation/run.py   resumable runs over the labelled set
+```
+
+```bash
+rbirag comply check data/samples/kyc_policy_sample.md --out report.md
+rbirag comply eval run --system agent --split dev      # writes results/compliance/predictions/
+rbirag comply eval run --system baseline --split dev
+```
+
+### How a clause is checked
+
+```mermaid
+flowchart TD
+  C[clause] --> P{planner LLM}
+  P -->|internal matter| F[final JSON]
+  P -->|search_regulations| S[RegulationStore.search<br/>existing retriever, one hit per notification,<br/>other entity types dropped, replaced_by hints]
+  P -->|fetch_notification| R[passages relevant to the clause<br/>within a token budget]
+  P -->|compare_clause doc_ids| J[judge LLM: clause + focused passages<br/>-> verdict, citations, quotes, confidence]
+  S --> P
+  R --> P
+  J --> P
+  P -->|budget spent| F
+  F --> G[guardrails]
+  G --> D[decision: verdict, citations,<br/>verified quotes, confidence, notes]
+```
+
+- **Budget:** at most 8 tool calls. When it is spent, the planner is asked for its answer
+  with tools disabled. A malformed final answer gets one repair prompt; after that the
+  last `compare_clause` judgement is adopted.
+- **Tool validation:** calls are validated strictly (known tool, JSON object, required
+  and only allowed arguments, ids that resolve). An invalid call is not executed: the
+  model gets the error and the call is recorded as invalid. An identical repeated call
+  returns the earlier result but still uses a step.
+- **Text tool calls:** models that write a tool call as JSON text instead of using the
+  tools API (common with small local models) are accepted, and the call is recorded.
+- **Guardrails** (`guards.py`):
+  - citations not shown by a search or fetch are dropped, and so are other entity
+    types' Directions;
+  - `compliant`, `conflict` or `gap` need a `compare_clause` result, a remaining citation
+    and an evidence quote verified against the passages read; otherwise the verdict is
+    `insufficient_evidence`;
+  - confidence is discounted for dropped citations, replaced sources and unverified
+    quotes;
+  - verdicts below the abstention threshold (tuned on dev in Phase 4) also become
+    `insufficient_evidence`.
+- **Failure handling:** quota exhaustion, configuration errors and replay-cache misses
+  stop a run, and what was predicted so far is kept. Any other failure is recorded as
+  that clause's error.
+- **Latency** is the sum of the recorded LLM and tool latencies, so live and replayed
+  runs report the same numbers.
+
+### Checked against the real corpus (offline, scripted model)
+
+- **Entity filter:** for the sample KYC clause, it drops 9 other-entity hits. The
+  commercial-bank KYC Directions (`rbi-13141`) move from outside the top 5 to second.
+  The 2016 Master Direction ranks first, flagged as replaced by `rbi-13171`.
+- **Passages:** focused selection puts the deciding paragraph (para 42(1) of `rbi-13141`,
+  para 38 of `rbi-11566`) in front of the judge, even though both notifications are over
+  100K characters.
+- **Prompt sizes:** about 0.9K, 1.8K and 1.8K tokens for the planner turns and 3.8K for the
+  judge, roughly 8.4K tokens per clause. On the Groq free tier (about 8K tokens per
+  minute, 200K per day for `gpt-oss-20b`) that is about one clause a minute and roughly
+  24 clauses a day. This is why the headline run needs a paid model or Ollama.
+- **Load time:** the store loads in about 22 s, of which the reference graph takes about
+  16 s. Phase 5 caches the graph for the API.
+
+No live LLM run has happened yet: this environment has no provider key and its network
+blocks the providers. The first live runs (dev split) happen in Phase 4 in GitHub Actions
+using the repository's `GROQ_API_KEY` secret.

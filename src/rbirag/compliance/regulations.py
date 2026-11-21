@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
+from rbirag.compliance.entities import TARGET_ENTITY, entity_of, is_other_entity
 from rbirag.compliance.references import (
     ReferenceGraph,
     Relation,
@@ -53,6 +54,7 @@ class SearchHit(BaseModel):
     doc_id: str
     title: str | None
     date: str | None
+    entity: str | None = Field(default=None, description="Entity type the Direction addresses.")
     circular_number: str | None
     department: str | None
     url: str | None
@@ -73,12 +75,16 @@ class SearchResult(BaseModel):
         default=None, description="Reranker confidence that the top hit is relevant (0-1)."
     )
     timings_ms: dict[str, float] = Field(default_factory=dict)
+    excluded_other_entity: int = Field(
+        default=0, description="Hits dropped because they address another entity type."
+    )
 
 
 class NotificationView(BaseModel):
     doc_id: str
     title: str
     date: str | None
+    entity: str | None = None
     department: str | None
     circular_number: str | None
     ref_number: str | None
@@ -117,6 +123,8 @@ class RegulationStore:
         snippet_chars: int = 500,
         fetch_max_tokens: int = 1500,
         passage_chars: int = 2000,
+        entity: str = TARGET_ENTITY,
+        entity_filter: bool = True,
     ) -> None:
         self.retriever = retriever
         self.documents = dict(documents)
@@ -126,6 +134,8 @@ class RegulationStore:
         self.snippet_chars = snippet_chars
         self.fetch_max_tokens = fetch_max_tokens
         self.passage_chars = passage_chars
+        self.entity = entity
+        self.entity_filter = entity_filter
         self._aliases: dict[str, str] = {}
         for d in self.documents.values():
             if d.circular_number:
@@ -167,11 +177,18 @@ class RegulationStore:
         top_k: int | None = None,
         date_from: dt.date | None = None,
         date_to: dt.date | None = None,
+        entity_filter: bool | None = None,
     ) -> SearchResult:
-        """Top notifications for ``query``: one hit per notification, best chunk shown."""
+        """Top notifications for ``query``: one hit per notification, best chunk shown.
+
+        With the entity filter on, notifications addressed to another entity type (the
+        NBFC, UCB, RRB, ... Directions) are skipped; the search goes deeper to compensate.
+        """
         k = top_k or self.top_k
+        drop_other = self.entity_filter if entity_filter is None else entity_filter
         filtered = date_from is not None or date_to is not None
-        depth = k * self.depth_factor * (2 if filtered else 1)
+        depth = k * self.depth_factor * (2 if filtered else 1) * (2 if drop_other else 1)
+        excluded = 0
         retrieval = self.retriever.retrieve(query, top_k=depth)
         hits: list[SearchHit] = []
         seen: set[str] = set()
@@ -181,6 +198,11 @@ class RegulationStore:
                 continue
             meta = chunk.metadata
             doc = self.documents.get(chunk.doc_id)
+            title = _as_str(meta.get("title")) or (doc.title if doc else None)
+            if drop_other and is_other_entity(title, self.entity):
+                seen.add(chunk.doc_id)
+                excluded += 1
+                continue
             date = _as_str(meta.get("date")) or (
                 doc.date.isoformat() if doc is not None and doc.date else None
             )
@@ -195,8 +217,9 @@ class RegulationStore:
                 SearchHit(
                     rank=len(hits) + 1,
                     doc_id=chunk.doc_id,
-                    title=_as_str(meta.get("title")) or (doc.title if doc else None),
+                    title=title,
                     date=date,
+                    entity=entity_of(title),
                     circular_number=_as_str(meta.get("circular_number")),
                     department=(doc.department if doc else None),
                     url=_as_str(meta.get("url")) or (doc.url if doc else None),
@@ -216,6 +239,7 @@ class RegulationStore:
                 round(retrieval.confidence.probability, 4) if retrieval.confidence else None
             ),
             timings_ms=retrieval.timings_ms,
+            excluded_other_entity=excluded,
         )
 
     # -- fetch ---------------------------------------------------------------------------
@@ -245,6 +269,7 @@ class RegulationStore:
             doc_id=doc.doc_id,
             title=doc.title,
             date=doc.date.isoformat() if doc.date else None,
+            entity=entity_of(doc.title),
             department=doc.department,
             circular_number=doc.circular_number,
             ref_number=doc.ref_number,
@@ -317,4 +342,6 @@ class RegulationStore:
             snippet_chars=settings.compliance_snippet_chars,
             fetch_max_tokens=settings.compliance_fetch_max_tokens,
             passage_chars=settings.compliance_passage_chars,
+            entity=settings.compliance_entity,
+            entity_filter=settings.compliance_entity_filter,
         )
