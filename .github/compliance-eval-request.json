@@ -1,6 +1,6 @@
 {
   "systems": "agent,baseline",
-  "split": "dev",
+  "split": "test",
   "backend": "gemini",
   "model": "",
   "limit": "",
@@ -8,5 +8,5 @@
   "cache_mode": "use",
   "fallbacks": "none",
   "fresh": true,
-  "note": "Dev re-run of agent and baseline on Gemini (one model) after the consolidation source rule."
+  "note": "LOCKED test run: agent and baseline frozen at this commit after dev iteration (abstain threshold 0.0 chosen on dev), one model. If a quota stop interrupts it, set fresh to false and push to resume; do not change code in between."
 }
