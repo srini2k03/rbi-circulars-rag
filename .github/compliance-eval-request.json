@@ -1,11 +1,12 @@
 {
-  "systems": "agent",
+  "systems": "agent,baseline",
   "split": "dev",
-  "backend": "groq",
+  "backend": "gemini",
   "model": "",
   "limit": "",
   "abstain_threshold": "0.0",
   "cache_mode": "use",
-  "note": "Dev re-run of the agent after the auto-compare / context-budget fixes (fresh: earlier agent predictions are discarded). Set fresh to false to resume after a quota stop.",
-  "fresh": true
+  "fallbacks": "none",
+  "fresh": true,
+  "note": "Dev run of agent and baseline on the Gemini free tier, one model (Groq's daily quota is spent). Set fresh to false to resume after a quota stop."
 }
