@@ -20,6 +20,15 @@ comply_app = typer.Typer(
 )
 
 
+def _register_eval() -> None:
+    from rbirag.compliance.evaluation.cli import eval_app
+
+    comply_app.add_typer(eval_app, name="eval")
+
+
+_register_eval()
+
+
 def _echo_json(data: object) -> None:
     typer.echo(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
