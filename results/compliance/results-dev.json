@@ -58,75 +58,11 @@
         "chunk_overlap": 64
       },
       "corpus": "corpus-v2",
-      "generated_at": "2026-11-21T10:34:54+00:00",
-      "commit": "ecec82da12df7289f41be400a0bef1339aa6256c",
+      "generated_at": "2026-11-21T10:52:54+00:00",
+      "commit": "6d6c54e70c2efbb46f31fa795eb5fe8accb775ce",
       "cache_hits": 0,
-      "cache_misses": 146,
+      "cache_misses": 145,
       "completed": 26,
-      "errors": 0
-    },
-    {
-      "system": "agent",
-      "split": "dev",
-      "backend": "groq",
-      "model": "openai/gpt-oss-20b",
-      "predictions": "results/compliance/predictions/agent-dev-groq.jsonl",
-      "item_ids": [
-        "kyc/1.1",
-        "kyc/1.2",
-        "kyc/2.1",
-        "kyc/3.1",
-        "kyc/3.2",
-        "kyc/3.3",
-        "kyc/4.1",
-        "kyc/4.2",
-        "kyc/4.3",
-        "kyc/4.4",
-        "kyc/5.1",
-        "kyc/5.2",
-        "kyc/5.3",
-        "kyc/6.1",
-        "retail/1.1",
-        "retail/1.2",
-        "retail/1.3",
-        "retail/1.4",
-        "retail/1.5",
-        "retail/2.1",
-        "retail/3.1",
-        "retail/3.2",
-        "retail/3.3",
-        "retail/3.4",
-        "retail/3.5",
-        "retail/4.1"
-      ],
-      "settings": {
-        "compliance_search_mode": "bm25",
-        "compliance_chunker": "fixed",
-        "compliance_search_top_k": 5,
-        "compliance_search_depth_factor": 4,
-        "compliance_snippet_chars": 500,
-        "compliance_fetch_max_tokens": 1500,
-        "compliance_passage_chars": 2000,
-        "compliance_entity": "Commercial Banks",
-        "compliance_entity_filter": true,
-        "compliance_as_of": "2026-11-11",
-        "compliance_max_steps": 8,
-        "compliance_planner_max_tokens": 1024,
-        "compliance_planner_context_tokens": 4500,
-        "compliance_judge_max_tokens": 1200,
-        "compliance_judge_context_tokens": 3000,
-        "compliance_abstain_threshold": 0.0,
-        "compliance_require_verified_quote": true,
-        "anthropic_effort": "low",
-        "chunk_size": 512,
-        "chunk_overlap": 64
-      },
-      "corpus": "corpus-v2",
-      "generated_at": "2026-11-21T10:00:31+00:00",
-      "commit": "9e1d07452bf99e5f4aacc993c83b87566207bcc7",
-      "cache_hits": 0,
-      "cache_misses": 16,
-      "completed": 2,
       "errors": 0
     },
     {
@@ -186,71 +122,8 @@
         "chunk_overlap": 64
       },
       "corpus": "corpus-v2",
-      "generated_at": "2026-11-21T10:11:54+00:00",
-      "commit": "9edeb74ee7c5fe12ef8045dfdf556f656a0e0dd0",
-      "cache_hits": 0,
-      "cache_misses": 26,
-      "completed": 26,
-      "errors": 0
-    },
-    {
-      "system": "baseline",
-      "split": "dev",
-      "backend": "groq",
-      "model": "openai/gpt-oss-20b",
-      "predictions": "results/compliance/predictions/baseline-dev-groq.jsonl",
-      "item_ids": [
-        "kyc/1.1",
-        "kyc/1.2",
-        "kyc/2.1",
-        "kyc/3.1",
-        "kyc/3.2",
-        "kyc/3.3",
-        "kyc/4.1",
-        "kyc/4.2",
-        "kyc/4.3",
-        "kyc/4.4",
-        "kyc/5.1",
-        "kyc/5.2",
-        "kyc/5.3",
-        "kyc/6.1",
-        "retail/1.1",
-        "retail/1.2",
-        "retail/1.3",
-        "retail/1.4",
-        "retail/1.5",
-        "retail/2.1",
-        "retail/3.1",
-        "retail/3.2",
-        "retail/3.3",
-        "retail/3.4",
-        "retail/3.5",
-        "retail/4.1"
-      ],
-      "settings": {
-        "compliance_search_mode": "bm25",
-        "compliance_chunker": "fixed",
-        "compliance_search_top_k": 5,
-        "compliance_search_depth_factor": 4,
-        "compliance_snippet_chars": 500,
-        "compliance_fetch_max_tokens": 1500,
-        "compliance_passage_chars": 2000,
-        "compliance_entity": "Commercial Banks",
-        "compliance_entity_filter": true,
-        "compliance_as_of": "2026-11-11",
-        "compliance_max_steps": 8,
-        "compliance_planner_max_tokens": 1024,
-        "compliance_judge_max_tokens": 1200,
-        "compliance_judge_context_tokens": 3000,
-        "compliance_abstain_threshold": 0.0,
-        "compliance_require_verified_quote": true,
-        "anthropic_effort": "low",
-        "chunk_size": 512,
-        "chunk_overlap": 64
-      },
-      "corpus": "corpus-v2",
-      "generated_at": "2026-11-21T09:41:48+00:00",
-      "commit": "8002198cb461d21e8d354e7b4d71a235f8ada2ba",
+      "generated_at": "2026-11-21T10:55:44+00:00",
+      "commit": "6d6c54e70c2efbb46f31fa795eb5fe8accb775ce",
       "cache_hits": 0,
       "cache_misses": 26,
       "completed": 26,
@@ -261,15 +134,8 @@
     "agent via gemini": {
       "gemini-3.5-flash-lite": 26
     },
-    "agent via groq": {
-      "qwen/qwen3.8-27b": 2
-    },
     "baseline via gemini": {
       "gemini-3.5-flash-lite": 26
-    },
-    "baseline via groq": {
-      "openai/gpt-oss-20b": 1,
-      "qwen/qwen3.8-27b": 25
     }
   },
   "reports": [
@@ -278,28 +144,275 @@
       "split": "dev",
       "n": 26,
       "verdict_accuracy": {
-        "mean": 0.8846153846153846,
-        "low": 0.7692307692307693,
+        "mean": 0.9230769230769231,
+        "low": 0.8076923076923077,
         "high": 1.0,
         "n": 26
       },
       "macro_f1": {
-        "mean": 0.9161344537815126,
-        "low": 0.7465159333270788,
+        "mean": 0.9444444444444444,
+        "low": 0.840186507936508,
         "high": 1.0,
         "n": 26
       },
       "per_class": {
         "compliant": {
-          "precision": 0.7777777777777778,
+          "precision": 1.0,
           "recall": 0.875,
-          "f1": 0.823529411764706,
+          "f1": 0.9333333333333333,
           "support": 8.0
         },
         "conflict": {
           "precision": 0.9,
           "recall": 0.9,
           "f1": 0.9,
+          "support": 10.0
+        },
+        "gap": {
+          "precision": 0.8,
+          "recall": 1.0,
+          "f1": 0.888888888888889,
+          "support": 4.0
+        },
+        "not_applicable": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 2.0
+        },
+        "insufficient_evidence": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 2.0
+        }
+      },
+      "confusion": {
+        "compliant": {
+          "compliant": 7,
+          "conflict": 1,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 0
+        },
+        "conflict": {
+          "compliant": 0,
+          "conflict": 9,
+          "gap": 1,
+          "not_applicable": 0,
+          "insufficient_evidence": 0
+        },
+        "gap": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 4,
+          "not_applicable": 0,
+          "insufficient_evidence": 0
+        },
+        "not_applicable": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 2,
+          "insufficient_evidence": 0
+        },
+        "insufficient_evidence": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 2
+        }
+      },
+      "citation_precision": {
+        "mean": 0.9090909090909091,
+        "low": 0.7727272727272727,
+        "high": 1.0,
+        "n": 26
+      },
+      "citation_recall": {
+        "mean": 0.8636363636363636,
+        "low": 0.6818181818181818,
+        "high": 1.0,
+        "n": 22
+      },
+      "tool_argument_validity": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "fetch_grounding": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "tool_selection_accuracy": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "task_success": {
+        "mean": 0.8076923076923077,
+        "low": 0.6538461538461539,
+        "high": 0.9615384615384616,
+        "n": 26
+      },
+      "avg_steps": {
+        "mean": 3.6923076923076925,
+        "low": 3.1923076923076925,
+        "high": 4.1923076923076925,
+        "n": 26
+      },
+      "avg_llm_calls": {
+        "mean": 5.576923076923077,
+        "low": 5.0,
+        "high": 6.115384615384615,
+        "n": 26
+      },
+      "latency_ms_per_clause": {
+        "mean": 39252.33576923077,
+        "low": 34845.53491346154,
+        "high": 42999.437874999996,
+        "n": 26
+      },
+      "cost_usd_per_clause": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 26
+      },
+      "tokens_per_clause": {
+        "mean": 16837.0,
+        "low": 14799.149038461537,
+        "high": 18841.153846153844,
+        "n": 26
+      },
+      "latency_ms_per_document": {
+        "mean": 510280.365,
+        "low": 464808.33,
+        "high": 555752.4,
+        "n": 2
+      },
+      "cost_usd_per_document": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 2
+      },
+      "tokens_per_document": {
+        "mean": 218881.0,
+        "low": 197335.0,
+        "high": 240427.0,
+        "n": 2
+      },
+      "documents": 2,
+      "document_success": 1.0,
+      "ece": {
+        "mean": 0.06730769230769229,
+        "low": 0.005769230769230749,
+        "high": 0.1826923076923077,
+        "n": 26
+      },
+      "aurc": 0.02895182690549341,
+      "accuracy_at_coverage": {
+        "50%": 1.0,
+        "80%": 0.9523809523809523,
+        "100%": 0.9230769230769231
+      },
+      "by_tag": {
+        "amendment": {
+          "n": 2.0,
+          "accuracy": 0.5,
+          "success": 0.0
+        },
+        "entity_confusion": {
+          "n": 1.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "future_effective": {
+          "n": 1.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "not_in_corpus": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "numeric_threshold": {
+          "n": 12.0,
+          "accuracy": 0.9166666666666666,
+          "success": 0.75
+        },
+        "out_of_scope": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "outdated_rule": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 0.5
+        },
+        "paraphrase": {
+          "n": 1.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "partial_compliance": {
+          "n": 4.0,
+          "accuracy": 1.0,
+          "success": 0.75
+        },
+        "prohibition": {
+          "n": 1.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "stricter_than_required": {
+          "n": 2.0,
+          "accuracy": 0.5,
+          "success": 0.5
+        }
+      },
+      "failures": {
+        "citation_miss": 3,
+        "conflict_gap_confusion": 1,
+        "false_alarm": 1
+      },
+      "errors": 0
+    },
+    {
+      "system": "baseline (gemini-3.5-flash-lite)",
+      "split": "dev",
+      "n": 26,
+      "verdict_accuracy": {
+        "mean": 0.8846153846153846,
+        "low": 0.7307692307692307,
+        "high": 1.0,
+        "n": 26
+      },
+      "macro_f1": {
+        "mean": 0.9178571428571429,
+        "low": 0.7595472370766488,
+        "high": 1.0,
+        "n": 26
+      },
+      "per_class": {
+        "compliant": {
+          "precision": 0.875,
+          "recall": 0.875,
+          "f1": 0.875,
+          "support": 8.0
+        },
+        "conflict": {
+          "precision": 0.8181818181818182,
+          "recall": 0.9,
+          "f1": 0.8571428571428572,
           "support": 10.0
         },
         "gap": {
@@ -337,8 +450,8 @@
           "insufficient_evidence": 0
         },
         "gap": {
-          "compliant": 1,
-          "conflict": 0,
+          "compliant": 0,
+          "conflict": 1,
           "gap": 3,
           "not_applicable": 0,
           "insufficient_evidence": 0
@@ -359,497 +472,14 @@
         }
       },
       "citation_precision": {
-        "mean": 0.9545454545454546,
-        "low": 0.8571428571428571,
+        "mean": 0.875,
+        "low": 0.7599655172413793,
         "high": 1.0,
         "n": 26
       },
       "citation_recall": {
         "mean": 0.9090909090909091,
         "low": 0.7727272727272727,
-        "high": 1.0,
-        "n": 22
-      },
-      "tool_argument_validity": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "fetch_grounding": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "tool_selection_accuracy": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "task_success": {
-        "mean": 0.8076923076923077,
-        "low": 0.6538461538461539,
-        "high": 0.9615384615384616,
-        "n": 26
-      },
-      "avg_steps": {
-        "mean": 3.576923076923077,
-        "low": 3.076923076923077,
-        "high": 4.038461538461538,
-        "n": 26
-      },
-      "avg_llm_calls": {
-        "mean": 5.615384615384615,
-        "low": 4.961538461538462,
-        "high": 6.1923076923076925,
-        "n": 26
-      },
-      "latency_ms_per_clause": {
-        "mean": 41442.021538461544,
-        "low": 36048.018432692304,
-        "high": 46341.528201923065,
-        "n": 26
-      },
-      "cost_usd_per_clause": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
-        "n": 26
-      },
-      "tokens_per_clause": {
-        "mean": 16968.346153846152,
-        "low": 14670.909615384615,
-        "high": 19111.625961538462,
-        "n": 26
-      },
-      "latency_ms_per_document": {
-        "mean": 538746.28,
-        "low": 471984.56,
-        "high": 605508.0,
-        "n": 2
-      },
-      "cost_usd_per_document": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
-        "n": 2
-      },
-      "tokens_per_document": {
-        "mean": 220588.5,
-        "low": 192334.0,
-        "high": 248843.0,
-        "n": 2
-      },
-      "documents": 2,
-      "document_success": 1.0,
-      "ece": {
-        "mean": 0.09230769230769229,
-        "low": 0.013461538461538514,
-        "high": 0.21153846153846154,
-        "n": 26
-      },
-      "aurc": 0.0464311480302995,
-      "accuracy_at_coverage": {
-        "50%": 0.9230769230769231,
-        "80%": 0.9523809523809523,
-        "100%": 0.8846153846153846
-      },
-      "by_tag": {
-        "amendment": {
-          "n": 2.0,
-          "accuracy": 0.5,
-          "success": 0.0
-        },
-        "entity_confusion": {
-          "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "future_effective": {
-          "n": 1.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "not_in_corpus": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "numeric_threshold": {
-          "n": 12.0,
-          "accuracy": 0.9166666666666666,
-          "success": 0.9166666666666666
-        },
-        "out_of_scope": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "outdated_rule": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "paraphrase": {
-          "n": 1.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "partial_compliance": {
-          "n": 4.0,
-          "accuracy": 0.75,
-          "success": 0.5
-        },
-        "prohibition": {
-          "n": 1.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "stricter_than_required": {
-          "n": 2.0,
-          "accuracy": 0.5,
-          "success": 0.5
-        }
-      },
-      "failures": {
-        "missed_issue": 2,
-        "citation_miss": 2,
-        "false_alarm": 1
-      },
-      "errors": 0
-    },
-    {
-      "system": "agent (openai/gpt-oss-20b)",
-      "split": "dev",
-      "n": 26,
-      "verdict_accuracy": {
-        "mean": 0.07692307692307693,
-        "low": 0.0,
-        "high": 0.19230769230769232,
-        "n": 26
-      },
-      "macro_f1": {
-        "mean": 0.11157731157731159,
-        "low": 0.014814814814814814,
-        "high": 0.22751037157287152,
-        "n": 26
-      },
-      "per_class": {
-        "compliant": {
-          "precision": 1.0,
-          "recall": 0.125,
-          "f1": 0.2222222222222222,
-          "support": 8.0
-        },
-        "conflict": {
-          "precision": 1.0,
-          "recall": 0.1,
-          "f1": 0.18181818181818182,
-          "support": 10.0
-        },
-        "gap": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1": 0.0,
-          "support": 4.0
-        },
-        "not_applicable": {
-          "precision": 0.0,
-          "recall": 0.0,
-          "f1": 0.0,
-          "support": 2.0
-        },
-        "insufficient_evidence": {
-          "precision": 0.08333333333333333,
-          "recall": 1.0,
-          "f1": 0.15384615384615385,
-          "support": 2.0
-        }
-      },
-      "confusion": {
-        "compliant": {
-          "compliant": 1,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 7
-        },
-        "conflict": {
-          "compliant": 0,
-          "conflict": 1,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 9
-        },
-        "gap": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 4
-        },
-        "not_applicable": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 2
-        },
-        "insufficient_evidence": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 2
-        }
-      },
-      "citation_precision": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "citation_recall": {
-        "mean": 0.09090909090909091,
-        "low": 0.0,
-        "high": 0.22727272727272727,
-        "n": 22
-      },
-      "tool_argument_validity": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "fetch_grounding": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "tool_selection_accuracy": {
-        "mean": 0.15384615384615385,
-        "low": 0.038461538461538464,
-        "high": 0.3076923076923077,
-        "n": 26
-      },
-      "task_success": {
-        "mean": 0.07692307692307693,
-        "low": 0.0,
-        "high": 0.19230769230769232,
-        "n": 26
-      },
-      "avg_steps": {
-        "mean": 0.34615384615384615,
-        "low": 0.0,
-        "high": 0.8846153846153846,
-        "n": 26
-      },
-      "avg_llm_calls": {
-        "mean": 0.46153846153846156,
-        "low": 0.0,
-        "high": 1.1923076923076923,
-        "n": 26
-      },
-      "latency_ms_per_clause": {
-        "mean": 25512.792692307692,
-        "low": 0.0,
-        "high": 64910.26115384616,
-        "n": 26
-      },
-      "cost_usd_per_clause": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
-        "n": 26
-      },
-      "tokens_per_clause": {
-        "mean": 1626.2307692307693,
-        "low": 0.0,
-        "high": 4211.653846153846,
-        "n": 26
-      },
-      "latency_ms_per_document": {
-        "mean": 331666.305,
-        "low": 0.0,
-        "high": 663332.61,
-        "n": 2
-      },
-      "cost_usd_per_document": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
-        "n": 2
-      },
-      "tokens_per_document": {
-        "mean": 21141.0,
-        "low": 0.0,
-        "high": 42282.0,
-        "n": 2
-      },
-      "documents": 2,
-      "document_success": 0.0,
-      "ece": null,
-      "aurc": null,
-      "accuracy_at_coverage": {},
-      "by_tag": {
-        "amendment": {
-          "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "entity_confusion": {
-          "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "future_effective": {
-          "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "not_in_corpus": {
-          "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "numeric_threshold": {
-          "n": 12.0,
-          "accuracy": 0.08333333333333333,
-          "success": 0.08333333333333333
-        },
-        "out_of_scope": {
-          "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "outdated_rule": {
-          "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "paraphrase": {
-          "n": 1.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "partial_compliance": {
-          "n": 4.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "prohibition": {
-          "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "stricter_than_required": {
-          "n": 2.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        }
-      },
-      "failures": {
-        "run_error": 24
-      },
-      "errors": 24
-    },
-    {
-      "system": "baseline (gemini-3.5-flash-lite)",
-      "split": "dev",
-      "n": 26,
-      "verdict_accuracy": {
-        "mean": 0.8846153846153846,
-        "low": 0.7307692307692307,
-        "high": 1.0,
-        "n": 26
-      },
-      "macro_f1": {
-        "mean": 0.905,
-        "low": 0.7521153846153846,
-        "high": 1.0,
-        "n": 26
-      },
-      "per_class": {
-        "compliant": {
-          "precision": 0.875,
-          "recall": 0.875,
-          "f1": 0.875,
-          "support": 8.0
-        },
-        "conflict": {
-          "precision": 0.9,
-          "recall": 0.9,
-          "f1": 0.9,
-          "support": 10.0
-        },
-        "gap": {
-          "precision": 0.75,
-          "recall": 0.75,
-          "f1": 0.75,
-          "support": 4.0
-        },
-        "not_applicable": {
-          "precision": 1.0,
-          "recall": 1.0,
-          "f1": 1.0,
-          "support": 2.0
-        },
-        "insufficient_evidence": {
-          "precision": 1.0,
-          "recall": 1.0,
-          "f1": 1.0,
-          "support": 2.0
-        }
-      },
-      "confusion": {
-        "compliant": {
-          "compliant": 7,
-          "conflict": 0,
-          "gap": 1,
-          "not_applicable": 0,
-          "insufficient_evidence": 0
-        },
-        "conflict": {
-          "compliant": 1,
-          "conflict": 9,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 0
-        },
-        "gap": {
-          "compliant": 0,
-          "conflict": 1,
-          "gap": 3,
-          "not_applicable": 0,
-          "insufficient_evidence": 0
-        },
-        "not_applicable": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 2,
-          "insufficient_evidence": 0
-        },
-        "insufficient_evidence": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 0,
-          "insufficient_evidence": 2
-        }
-      },
-      "citation_precision": {
-        "mean": 0.8148148148148148,
-        "low": 0.6873579545454546,
-        "high": 0.9523809523809523,
-        "n": 26
-      },
-      "citation_recall": {
-        "mean": 0.8636363636363636,
-        "low": 0.6818181818181818,
         "high": 1.0,
         "n": 22
       },
@@ -872,9 +502,9 @@
         "n": 26
       },
       "task_success": {
-        "mean": 0.7692307692307693,
-        "low": 0.6153846153846154,
-        "high": 0.9230769230769231,
+        "mean": 0.8076923076923077,
+        "low": 0.6538461538461539,
+        "high": 0.9615384615384616,
         "n": 26
       },
       "avg_steps": {
@@ -890,9 +520,9 @@
         "n": 26
       },
       "latency_ms_per_clause": {
-        "mean": 15108.630769230773,
-        "low": 11305.04617307692,
-        "high": 20013.32567307692,
+        "mean": 11481.383846153847,
+        "low": 10662.071182692309,
+        "high": 11953.977721153846,
         "n": 26
       },
       "cost_usd_per_clause": {
@@ -902,15 +532,15 @@
         "n": 26
       },
       "tokens_per_clause": {
-        "mean": 3538.6923076923076,
-        "low": 3447.189423076923,
-        "high": 3628.086538461538,
+        "mean": 3559.8846153846152,
+        "low": 3468.871153846154,
+        "high": 3650.0067307692307,
         "n": 26
       },
       "latency_ms_per_document": {
-        "mean": 196412.2,
-        "low": 174312.55,
-        "high": 218511.85,
+        "mean": 149257.99,
+        "low": 142903.07,
+        "high": 155612.91,
         "n": 2
       },
       "cost_usd_per_document": {
@@ -920,20 +550,20 @@
         "n": 2
       },
       "tokens_per_document": {
-        "mean": 46003.0,
-        "low": 42458.0,
-        "high": 49548.0,
+        "mean": 46278.5,
+        "low": 42826.0,
+        "high": 49731.0,
         "n": 2
       },
       "documents": 2,
       "document_success": 1.0,
       "ece": {
-        "mean": 0.13461538461538458,
-        "low": 0.04033653846153834,
-        "high": 0.2846634615384615,
+        "mean": 0.15000000000000002,
+        "low": 0.042307692307692345,
+        "high": 0.3039423076923076,
         "n": 26
       },
-      "aurc": 0.10896172246102873,
+      "aurc": 0.10209359059289685,
       "accuracy_at_coverage": {
         "50%": 0.9230769230769231,
         "80%": 0.9047619047619048,
@@ -963,7 +593,7 @@
         "numeric_threshold": {
           "n": 12.0,
           "accuracy": 0.9166666666666666,
-          "success": 0.75
+          "success": 0.8333333333333334
         },
         "out_of_scope": {
           "n": 2.0,
@@ -973,7 +603,7 @@
         "outdated_rule": {
           "n": 2.0,
           "accuracy": 1.0,
-          "success": 0.5
+          "success": 1.0
         },
         "paraphrase": {
           "n": 1.0,
@@ -997,258 +627,10 @@
         }
       },
       "failures": {
-        "citation_miss": 3,
+        "citation_miss": 2,
         "conflict_gap_confusion": 1,
         "missed_issue": 1,
         "false_alarm": 1
-      },
-      "errors": 0
-    },
-    {
-      "system": "baseline (openai/gpt-oss-20b)",
-      "split": "dev",
-      "n": 26,
-      "verdict_accuracy": {
-        "mean": 0.8461538461538461,
-        "low": 0.6923076923076923,
-        "high": 0.9615384615384616,
-        "n": 26
-      },
-      "macro_f1": {
-        "mean": 0.7996901344269765,
-        "low": 0.5668701298701299,
-        "high": 0.9684848484848484,
-        "n": 26
-      },
-      "per_class": {
-        "compliant": {
-          "precision": 1.0,
-          "recall": 0.75,
-          "f1": 0.8571428571428571,
-          "support": 8.0
-        },
-        "conflict": {
-          "precision": 1.0,
-          "recall": 0.9,
-          "f1": 0.9473684210526316,
-          "support": 10.0
-        },
-        "gap": {
-          "precision": 0.5714285714285714,
-          "recall": 1.0,
-          "f1": 0.7272727272727273,
-          "support": 4.0
-        },
-        "not_applicable": {
-          "precision": 0.6666666666666666,
-          "recall": 1.0,
-          "f1": 0.8,
-          "support": 2.0
-        },
-        "insufficient_evidence": {
-          "precision": 1.0,
-          "recall": 0.5,
-          "f1": 0.6666666666666666,
-          "support": 2.0
-        }
-      },
-      "confusion": {
-        "compliant": {
-          "compliant": 6,
-          "conflict": 0,
-          "gap": 2,
-          "not_applicable": 0,
-          "insufficient_evidence": 0
-        },
-        "conflict": {
-          "compliant": 0,
-          "conflict": 9,
-          "gap": 1,
-          "not_applicable": 0,
-          "insufficient_evidence": 0
-        },
-        "gap": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 4,
-          "not_applicable": 0,
-          "insufficient_evidence": 0
-        },
-        "not_applicable": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 2,
-          "insufficient_evidence": 0
-        },
-        "insufficient_evidence": {
-          "compliant": 0,
-          "conflict": 0,
-          "gap": 0,
-          "not_applicable": 1,
-          "insufficient_evidence": 1
-        }
-      },
-      "citation_precision": {
-        "mean": 0.71875,
-        "low": 0.5609218077474893,
-        "high": 0.896551724137931,
-        "n": 26
-      },
-      "citation_recall": {
-        "mean": 0.9090909090909091,
-        "low": 0.7727272727272727,
-        "high": 1.0,
-        "n": 22
-      },
-      "tool_argument_validity": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "fetch_grounding": {
-        "mean": NaN,
-        "low": NaN,
-        "high": NaN,
-        "n": 26
-      },
-      "tool_selection_accuracy": {
-        "mean": 0.2692307692307692,
-        "low": 0.11538461538461539,
-        "high": 0.46153846153846156,
-        "n": 26
-      },
-      "task_success": {
-        "mean": 0.8076923076923077,
-        "low": 0.6538461538461539,
-        "high": 0.9230769230769231,
-        "n": 26
-      },
-      "avg_steps": {
-        "mean": 2.0,
-        "low": 2.0,
-        "high": 2.0,
-        "n": 26
-      },
-      "avg_llm_calls": {
-        "mean": 1.0,
-        "low": 1.0,
-        "high": 1.0,
-        "n": 26
-      },
-      "latency_ms_per_clause": {
-        "mean": 115351.33115384614,
-        "low": 106212.67336538462,
-        "high": 120049.37329807693,
-        "n": 26
-      },
-      "cost_usd_per_clause": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
-        "n": 26
-      },
-      "tokens_per_clause": {
-        "mean": 3614.153846153846,
-        "low": 3516.6749999999997,
-        "high": 3707.395192307692,
-        "n": 26
-      },
-      "latency_ms_per_document": {
-        "mean": 1499567.305,
-        "low": 1438996.1099999999,
-        "high": 1560138.5,
-        "n": 2
-      },
-      "cost_usd_per_document": {
-        "mean": 0.0,
-        "low": 0.0,
-        "high": 0.0,
-        "n": 2
-      },
-      "tokens_per_document": {
-        "mean": 46984.0,
-        "low": 43299.0,
-        "high": 50669.0,
-        "n": 2
-      },
-      "documents": 2,
-      "document_success": 1.0,
-      "ece": {
-        "mean": 0.12192307692307684,
-        "low": 0.028817307692307705,
-        "high": 0.26692307692307693,
-        "n": 26
-      },
-      "aurc": 0.045793998405295605,
-      "accuracy_at_coverage": {
-        "50%": 1.0,
-        "80%": 0.8571428571428571,
-        "100%": 0.8461538461538461
-      },
-      "by_tag": {
-        "amendment": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "entity_confusion": {
-          "n": 1.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "future_effective": {
-          "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "not_in_corpus": {
-          "n": 2.0,
-          "accuracy": 0.5,
-          "success": 0.5
-        },
-        "numeric_threshold": {
-          "n": 12.0,
-          "accuracy": 0.8333333333333334,
-          "success": 0.8333333333333334
-        },
-        "out_of_scope": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "outdated_rule": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "paraphrase": {
-          "n": 1.0,
-          "accuracy": 0.0,
-          "success": 0.0
-        },
-        "partial_compliance": {
-          "n": 4.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "prohibition": {
-          "n": 1.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        },
-        "stricter_than_required": {
-          "n": 2.0,
-          "accuracy": 1.0,
-          "success": 1.0
-        }
-      },
-      "failures": {
-        "false_alarm": 2,
-        "citation_miss": 1,
-        "conflict_gap_confusion": 1,
-        "unsupported_verdict": 1
       },
       "errors": 0
     }

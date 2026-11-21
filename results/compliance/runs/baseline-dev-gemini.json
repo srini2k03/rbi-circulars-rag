@@ -55,8 +55,8 @@
     "chunk_overlap": 64
   },
   "corpus": "corpus-v2",
-  "generated_at": "2026-11-21T10:11:54+00:00",
-  "commit": "9edeb74ee7c5fe12ef8045dfdf556f656a0e0dd0",
+  "generated_at": "2026-11-21T10:55:44+00:00",
+  "commit": "6d6c54e70c2efbb46f31fa795eb5fe8accb775ce",
   "cache_hits": 0,
   "cache_misses": 26,
   "completed": 26,
