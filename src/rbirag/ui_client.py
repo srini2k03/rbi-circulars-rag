@@ -97,3 +97,100 @@ def source_caption(source: dict[str, Any]) -> str:
         if source.get(key):
             bits.append(str(source[key]))
     return " | ".join(bits)
+
+
+# -- compliance page ----------------------------------------------------------------------
+
+VERDICT_STYLE: dict[str, tuple[str, str]] = {
+    "conflict": ("red", "CONFLICT"),
+    "gap": ("orange", "GAP"),
+    "compliant": ("green", "COMPLIANT"),
+    "insufficient_evidence": ("blue", "INSUFFICIENT EVIDENCE"),
+    "not_applicable": ("gray", "NOT APPLICABLE"),
+}
+VERDICT_ORDER = ("conflict", "gap", "compliant", "insufficient_evidence", "not_applicable")
+
+
+def verdict_badge(verdict: str) -> str:
+    """Streamlit Markdown for a coloured verdict label."""
+    colour, label = VERDICT_STYLE.get(verdict, ("gray", verdict.upper()))
+    return f":{colour}[**{label}**]"
+
+
+def post_json(
+    base_url: str,
+    path: str,
+    payload: dict[str, Any],
+    *,
+    client: httpx.Client | None = None,
+    timeout: float = 60,
+) -> tuple[int, dict[str, Any]]:
+    """POST JSON; returns (status, body) without raising, so the UI can show API errors."""
+    own = client is None
+    http = client or httpx.Client(timeout=timeout)
+    try:
+        resp = http.post(base_url.rstrip("/") + path, json=payload)
+        return resp.status_code, _body(resp)
+    finally:
+        if own:
+            http.close()
+
+
+def post_file(
+    base_url: str,
+    path: str,
+    *,
+    filename: str,
+    content: bytes,
+    data: dict[str, str] | None = None,
+    client: httpx.Client | None = None,
+    timeout: float = 120,
+) -> tuple[int, dict[str, Any]]:
+    """POST a multipart upload (``file`` plus form fields); returns (status, body)."""
+    own = client is None
+    http = client or httpx.Client(timeout=timeout)
+    try:
+        resp = http.post(
+            base_url.rstrip("/") + path,
+            files={"file": (filename, content)},
+            data={k: v for k, v in (data or {}).items() if v not in (None, "")},
+        )
+        return resp.status_code, _body(resp)
+    finally:
+        if own:
+            http.close()
+
+
+def _body(resp: httpx.Response) -> dict[str, Any]:
+    try:
+        data = resp.json()
+    except ValueError:
+        return {"detail": resp.text[:500]}
+    return data if isinstance(data, dict) else {"data": data}
+
+
+def findings_rows(findings: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One table row per checked clause."""
+    rows = []
+    for f in findings:
+        p = f["prediction"]
+        conf = p.get("confidence")
+        rows.append(
+            {
+                "clause": f["clause"].get("number") or f["clause"]["clause_id"],
+                "verdict": VERDICT_STYLE.get(p["verdict"], ("", p["verdict"]))[1],
+                "confidence": None if conf is None else round(float(conf), 2),
+                "sources": ", ".join(s["doc_id"] for s in f.get("sources", [])) or "-",
+                "steps": len(p.get("tool_calls", [])),
+                "error": p.get("error") or "",
+            }
+        )
+    return rows
+
+
+def verdict_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
+    counts = dict.fromkeys(VERDICT_ORDER, 0)
+    for f in findings:
+        v = f["prediction"]["verdict"]
+        counts[v] = counts.get(v, 0) + 1
+    return counts

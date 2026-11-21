@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import os
 import threading
 import uuid
 from collections.abc import Callable
@@ -142,8 +143,10 @@ class ComplianceService:
     def backends(self) -> dict[str, bool]:
         from rbirag.api.service import backend_configured
 
-        names = ["gemini", "groq", "ollama", "fake"]
-        return {b: backend_configured(b, self.settings) for b in names}
+        available = {b: backend_configured(b, self.settings) for b in ("gemini", "groq", "fake")}
+        # Ollama needs a server: offer it only where one is configured explicitly
+        available["ollama"] = bool(os.environ.get("RBIRAG_OLLAMA_URL", "").strip())
+        return available
 
     def default_backend(self) -> str:
         configured = self.settings.compliance_llm_backend

@@ -1,0 +1,57 @@
+# One-container demo for a Hugging Face Space (Docker SDK, free CPU tier).
+#
+# FastAPI (127.0.0.1:8000) + Streamlit (0.0.0.0:7860, the port Spaces expose). The image
+# carries the corpus-v2 notifications and a BM25 index built at image build time, so it
+# needs no torch and starts in seconds. LLM calls use free tiers only: set GEMINI_API_KEY
+# (or GROQ_API_KEY) as a Space secret; without one the offline demo model runs.
+FROM python:3.12-slim
+
+ARG CORPUS_URL=https://github.com/srini2k03/rbi-circulars-rag/releases/download/corpus-v2/documents.jsonl.gz
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOME=/home/user \
+    RBIRAG_DATA_DIR=/data \
+    RBIRAG_RAW_DIR=/data/raw \
+    RBIRAG_PROCESSED_DIR=/data/processed \
+    RBIRAG_INDEX_DIR=/data/indexes \
+    RBIRAG_LLM_CACHE_DIR=/data/.cache/llm \
+    RBIRAG_COMPLIANCE_LLM_CACHE_DIR=/data/.cache/compliance-llm \
+    RBIRAG_CHUNKER=fixed \
+    RBIRAG_COMPLIANCE_CHUNKER=fixed \
+    RBIRAG_EMBEDDER=fake \
+    RBIRAG_RERANKER=none \
+    RBIRAG_RETRIEVAL_MODE=bm25 \
+    RBIRAG_COMPLIANCE_SEARCH_MODE=bm25 \
+    RBIRAG_LLM_BACKEND=openai_compatible \
+    RBIRAG_LLM_PROVIDER=gemini \
+    RBIRAG_COMPLIANCE_LLM_BACKEND=gemini \
+    RBIRAG_COMPLIANCE_API_MAX_CLAUSES=15 \
+    RBIRAG_COMPLIANCE_API_MAX_JOBS=1 \
+    RBIRAG_API_URL=http://127.0.0.1:8000 \
+    RBIRAG_SAMPLE_POLICY=/app/data/samples/kyc_policy_sample.md
+
+# Spaces run the container as uid 1000
+RUN useradd --create-home --uid 1000 user && mkdir -p /data && chown -R user /data
+WORKDIR /app
+COPY --chown=user pyproject.toml README.md LICENSE ./
+COPY --chown=user src ./src
+RUN pip install ".[ingest,retrieval,llm,api,ui]"
+COPY --chown=user ui ./ui
+COPY --chown=user data/samples ./data/samples
+COPY --chown=user docker/space-entrypoint.sh /usr/local/bin/space-entrypoint.sh
+COPY --chown=user docker/streamlit-config.toml /home/user/.streamlit/config.toml
+RUN chmod +x /usr/local/bin/space-entrypoint.sh
+
+USER user
+# Corpus, BM25 index and reference-graph cache, baked into the image (~1-2 min).
+RUN mkdir -p /data/processed \
+    && python -c "import urllib.request, gzip, shutil, sys; r = urllib.request.urlopen(sys.argv[1], timeout=120); shutil.copyfileobj(gzip.GzipFile(fileobj=r), open('/data/processed/documents.jsonl', 'wb'))" "${CORPUS_URL}" \
+    && rbirag index --chunker fixed \
+    && python -c "from rbirag.config import get_settings; from rbirag.compliance.regulations import RegulationStore; s = RegulationStore.from_settings(get_settings()); print(len(s.documents), 'notifications;', len(s.graph), 'references')"
+
+EXPOSE 7860
+HEALTHCHECK --interval=20s --timeout=5s --start-period=60s --retries=10 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/_stcore/health', timeout=4)"
+CMD ["space-entrypoint.sh"]

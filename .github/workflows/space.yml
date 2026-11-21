@@ -1,0 +1,161 @@
+name: Demo Space (build, smoke test, deploy)
+
+# Builds the one-container demo image (docker/Dockerfile.space), starts it and checks the
+# API, a compliance check with the offline demo model, and the Streamlit health endpoint.
+#
+# Deploy (free): create a Hugging Face account and a write token, then add
+#   - repository secret HF_TOKEN (the token)
+#   - repository variable HF_SPACE (e.g. your-name/rbi-policy-check)
+# The workflow creates the Space if needed, copies GEMINI_API_KEY / GROQ_API_KEY into it
+# as Space secrets, and uploads the app. It deploys on pushes to the default branch that
+# touch the app, or when .github/space-deploy-request.json changes on any branch.
+
+on:
+  push:
+    paths:
+      - docker/Dockerfile.space
+      - docker/space-entrypoint.sh
+      - docker/streamlit-config.toml
+      - deploy/space/**
+      - src/**
+      - ui/**
+      - pyproject.toml
+      - .github/workflows/space.yml
+      - .github/space-deploy-request.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: space-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: build and smoke-test the demo image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.space
+          tags: rbi-space:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: "Start (no API keys, so the offline demo model)"
+        run: docker run -d --name space -p 7860:7860 rbi-space:ci
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 90); do
+            curl -fsS http://127.0.0.1:7860/_stcore/health && break
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:7860/_stcore/health
+          docker exec space python - <<'PY'
+          import json, time, urllib.request
+          API = "http://127.0.0.1:8000"
+          def get(path):
+              return json.load(urllib.request.urlopen(API + path, timeout=30))
+          def post(path, body):
+              req = urllib.request.Request(API + path, data=json.dumps(body).encode(),
+                                           headers={"Content-Type": "application/json"})
+              return json.load(urllib.request.urlopen(req, timeout=30))
+          for _ in range(60):
+              status = get("/comply/status")
+              if status["loaded"]:
+                  break
+              time.sleep(1)
+          print(status)
+          assert status["loaded"] and status["notifications"] > 2800, status
+          assert status["default_backend"] == "fake", status  # no key in CI
+          health = get("/health")
+          assert health["index_loaded"] and health["chunker"] == "fixed", health
+          text = open("/app/data/samples/kyc_policy_sample.md").read()
+          clauses = post("/comply/clauses", {"name": "kyc.md", "text": text})
+          assert len(clauses["clauses"]) >= 5, clauses
+          job = post("/comply/check", {"name": "kyc.md", "text": text, "max_clauses": 3})
+          for _ in range(120):
+              job = get(f"/comply/jobs/{job['job_id']}")
+              if job["state"] in ("succeeded", "failed"):
+                  break
+              time.sleep(1)
+          assert job["state"] == "succeeded", job
+          report = job["report"]
+          assert len(report["findings"]) == 3 and report["model"] == "offline-demo"
+          steps = [c["name"] for c in report["findings"][0]["prediction"]["tool_calls"]]
+          assert steps == ["search_regulations", "compare_clause"], steps
+          print("compliance check ok:", report["summary"])
+          PY
+      - name: Container logs
+        if: always()
+        run: docker logs space 2>&1 | tail -80
+
+  deploy:
+    name: deploy to Hugging Face Spaces
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      || contains(join(github.event.commits.*.modified, ','), '.github/space-deploy-request.json')
+      || contains(join(github.event.commits.*.added, ','), '.github/space-deploy-request.json')
+      || github.event_name == 'workflow_dispatch'
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_SPACE: ${{ vars.HF_SPACE }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+    steps:
+      - name: Deployment configured?
+        id: cfg
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "::notice::Set the HF_TOKEN secret and the HF_SPACE variable to deploy the demo (free)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.cfg.outputs.ok == 'true'
+      - uses: actions/setup-python@v5
+        if: steps.cfg.outputs.ok == 'true'
+        with:
+          python-version: "3.12"
+      - name: Assemble and upload the Space
+        if: steps.cfg.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          pip install -q "huggingface_hub>=0.24"
+          out=$(mktemp -d)
+          cp -r src ui pyproject.toml LICENSE "$out/"
+          mkdir -p "$out/data" "$out/docker"
+          cp -r data/samples "$out/data/"
+          cp docker/space-entrypoint.sh docker/streamlit-config.toml "$out/docker/"
+          cp docker/Dockerfile.space "$out/Dockerfile"
+          cp deploy/space/README.md "$out/README.md"
+          python - "$out" <<'PY'
+          import os, sys
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          space = os.environ["HF_SPACE"]
+          api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
+          for name in ("GEMINI_API_KEY", "GROQ_API_KEY"):
+              value = os.environ.get(name, "")
+              if value:
+                  api.add_space_secret(space, name, value)  # never printed
+          api.upload_folder(
+              repo_id=space,
+              repo_type="space",
+              folder_path=sys.argv[1],
+              commit_message=f"Deploy {os.environ['GITHUB_SHA'][:7]}",
+              delete_patterns=["*"],
+          )
+          print(f"deployed: https://huggingface.co/spaces/{space}")
+          PY

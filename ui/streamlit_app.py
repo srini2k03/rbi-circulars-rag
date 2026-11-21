@@ -32,7 +32,12 @@ def sidebar() -> dict[str, Any]:
         )
     backends = [b for b, ok in (health.get("backends") or {"groq": True}).items() if ok]
     default = health.get("default_backend", "groq")
-    mode = st.sidebar.selectbox("Retrieval mode", ["hybrid_rerank", "hybrid", "dense", "bm25"])
+    modes = ["hybrid_rerank", "hybrid", "dense", "bm25"]
+    if health and (
+        not health.get("dense_index") or str(health.get("embedder", "")).startswith("fake")
+    ):
+        modes = ["bm25"]  # no real embeddings in this deployment (e.g. the free demo Space)
+    mode = st.sidebar.selectbox("Retrieval mode", modes)
     top_k = st.sidebar.slider("Sources (top-k)", 1, 10, 5)
     backend = st.sidebar.selectbox(
         "LLM backend",
@@ -77,6 +82,7 @@ def render_answer(resp: dict[str, Any], key: str) -> None:
 
 def main() -> None:
     st.title("Ask the RBI notifications")
+    st.caption("See also: **Policy check** (sidebar) to check a policy document clause by clause.")
     st.caption('Answers cite their sources; low-confidence questions get "I don\'t know".')
     opts = sidebar()
     history: list[dict[str, Any]] = st.session_state.setdefault("history", [])

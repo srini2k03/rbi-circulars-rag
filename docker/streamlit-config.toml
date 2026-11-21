@@ -1,0 +1,12 @@
+[server]
+headless = true
+# uploads through the Spaces iframe proxy fail with 403 otherwise (public demo, no logins)
+enableXsrfProtection = false
+enableCORS = false
+maxUploadSize = 10
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "viewer"
