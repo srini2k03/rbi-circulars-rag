@@ -120,6 +120,9 @@ jobs:
             echo "::error::Replayed predictions differ from the recorded ones (regression)."
           fi
           exit "$status"
+      - name: README results section is current
+        if: steps.runs.outputs.present == 'true'
+        run: rbirag comply eval readme --check --documents data/processed/documents.jsonl
       - name: Metrics from the recorded runs
         if: steps.runs.outputs.present == 'true'
         run: |

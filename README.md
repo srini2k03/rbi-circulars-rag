@@ -1,15 +1,302 @@
 # rbi-circulars-rag
 
-Hybrid-retrieval RAG over 2,000+ Reserve Bank of India notifications. It answers with
-numbered citations to the source notifications and says "I don't know" when retrieval
-confidence is low. The evaluation (retrieval and generation metrics, ablations,
-bootstrap confidence intervals) is the centrepiece.
+Two systems over 2,900 Reserve Bank of India (RBI) notifications, each with its own
+evaluation:
+
+1. **[A compliance agent](#compliance-agent)** that reads a bank's internal policy
+   document, checks it clause by clause against RBI regulations, and reports for each
+   clause a verdict (**conflict**, **gap**, **compliant**, **not applicable** or
+   **insufficient evidence**), the notifications relied on, verified evidence quotes and
+   a confidence. It says "insufficient evidence" rather than guess.
+2. **[A hybrid-retrieval RAG](#retrieval-augmented-qa-the-agents-search-tool)** (BM25 +
+   bge-small in Qdrant, RRF fusion, cross-encoder reranking) that answers questions with
+   numbered citations and says "I don't know" when retrieval confidence is low. The
+   agent uses its retrieval stack as a tool.
+
+Everything runs on free tiers: GitHub Actions on a public repository, Gemini and Groq
+free API tiers, local Ollama, a free Hugging Face CPU Space and GitHub Pages. Every
+number below comes from a recorded run (date, commit, model); nothing is typed in by
+hand.
+
+- **Policy-check demo (Hugging Face Space):** built and smoke-tested by `space.yml`;
+  live once a free Hugging Face token is configured (see [Deploy](#deploy-the-demo-free)).
+- **Browser search demo:** https://srini2k03.github.io/rbi-circulars-rag/ (`pages.yml`)
+- **Everything locally:** `docker compose up` (see [Run it](#run-it-1)).
+
+# Compliance agent
+
+## What it does
+
+Five real outputs of the agent (dev split, `gemini-3.5-flash-lite`, recorded in
+`results/compliance/predictions/agent-dev-gemini.jsonl`, commit `6d6c54e`), one per
+verdict, all matching the labels:
+
+| policy clause (excerpt) | verdict | evidence quote the verdict rests on (verified in the notification) |
+|---|---|---|
+| "KYC records of new customers shall be uploaded to the Central KYC Records Registry within 30 days ..." | **conflict**, rbi-13141 | "the bank shall capture customer's KYC records and upload onto CKYCR within 10 days of commencement of an account-based relationship" |
+| "the Bank shall send the customer at least three advance intimations through the available communication channels" | **gap**, rbi-13141 | "at least three advance intimations, including at least one intimation by letter" |
+| "Periodic updation of KYC ... at least once every two years for high-risk customers, once every eight years for medium-risk ..." | **compliant**, rbi-13141 | "periodic updation at least once in every two years for high-risk customers, once in every eight years for medium risk customers ..." |
+| "All customers shall be screened against adverse media sources at onboarding and at least once a year" | **insufficient evidence** | none: no notification in the corpus governs adverse-media screening |
+| "The Compliance Department shall hold its weekly coordination meeting every Monday at 10 a.m." | **not applicable** | none: an internal matter no RBI regulation governs |
+
+Input: a policy as PDF, text or Markdown. The clause splitter follows the policy's own
+numbering (1., 1.1, (a) ...) and headings, keeps sub-items with their parent clause and
+handles text extracted from PDFs (segmentation P/R/F1 1.00 on the labelled policies, as
+text and as rendered PDFs). Output: a Markdown or JSON report, through the CLI, the API
+(`/comply/*`) or the Streamlit page.
+
+The regulations are a snapshot of 2,903 RBI notifications up to 2026-11-11 (release
+`corpus-v2`), including the November 2025 consolidated "Reserve Bank of India
+(Commercial Banks - ...) Directions" and their 2026 amendments. Clauses are judged as of
+that date, for a commercial bank.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  P[policy: PDF / text / Markdown] --> S[clause splitter<br/>numbering + headings]
+  S --> L{each clause}
+  L --> PL[planner LLM<br/>tool calling, at most 8 steps]
+  PL -->|search_regulations| R[BM25 over the RAG index<br/>+ entity filter + date filter]
+  PL -->|fetch_notification| F[the passages of one notification<br/>most relevant to the clause]
+  PL -->|compare_clause| J[judge LLM: verdict,<br/>verbatim evidence quotes]
+  G[(reference graph<br/>repeals / supersedes / amends)] -.->|replaced_by hints| R & F
+  J --> PL
+  PL --> GR[guardrails<br/>citations must have been seen,<br/>other-entity sources dropped,<br/>quotes verified against the text,<br/>confidence discounts]
+  GR --> RP[report: verdict, sources,<br/>quotes, confidence, tool steps]
+  RP --> API[FastAPI /comply/*<br/>background jobs] --> UI[Streamlit page<br/>Hugging Face Space]
+```
+
+How one clause is checked:
+
+1. **Plan.** The planner sees the clause, its section and three tools. An internal
+   matter (staff leave, office events) can be answered `not_applicable` straight away.
+2. **Search.** `search_regulations` runs BM25 over the RAG's index and returns one hit
+   per notification with its date, the entity it is addressed to and, from the reference
+   graph, whether a later notification repeals or supersedes it. Directions addressed to
+   other entity types (NBFCs, urban co-operative banks, ...) are filtered out: their
+   wording is often identical, and they are the wrong authority for a commercial bank.
+3. **Read.** `fetch_notification` returns the passages of one notification most
+   relevant to the clause, within a token budget (some Directions exceed 100K
+   characters).
+4. **Compare.** `compare_clause` sends the clause and the passages of up to four
+   notifications to a separate judge call, which returns a verdict, citations, verbatim
+   evidence quotes and a confidence. If the planner answers without comparing, the agent
+   compares for it and adopts the judge's verdict.
+5. **Guard.** A substantive verdict (compliant, conflict, gap) must rest on a comparison,
+   cite only notifications a tool actually showed, not cite another entity's Directions,
+   and carry at least one quote that is found (fuzzy-matched) in the passages read.
+   Otherwise it becomes `insufficient_evidence`. Confidence is discounted for dropped
+   citations, replaced sources and unverified quotes.
+
+The **baseline** (`--system baseline`) is the fixed pipeline: search with the clause
+text, compare against the top three hits, same guardrails. The evaluation measures what
+the agent's own planning adds.
+
+## Results
+
+<!-- COMPLIANCE:START (generated by `rbirag comply eval readme`) -->
+**Labelled set:** 89 synthetic policy clauses in 7 policies (26 dev / 63 test, split by policy), written by an AI from real notifications with every evidence quote machine-checked against the corpus; **0 human-verified**. Cost of every run: $0 (free tiers).
+
+**Test split (locked, n = 63): in progress** (agent 8/63, baseline 1/63 clauses). The run resumes each day within the free-tier quota with the code frozen; its numbers replace this note when every test clause has a prediction. Until then the dev numbers below are the only results, and they were used for iteration.
+
+**Dev split (n = 26; used to iterate on prompts and to choose the abstention threshold):** agent: `gemini-3.5-flash-lite` via gemini, commit `6d6c54e`, 2026-11-21; baseline: `gemini-3.5-flash-lite` via gemini, commit `6d6c54e`, 2026-11-21. 95% bootstrap CIs.
+
+| metric | agent | fixed pipeline (baseline) |
+|---|---|---|
+| verdict accuracy | 0.923 [0.808, 1.000] | 0.885 [0.731, 1.000] |
+| macro-F1 | 0.944 [0.840, 1.000] | 0.918 [0.760, 1.000] |
+| citation precision | 0.909 [0.773, 1.000] | 0.875 [0.760, 1.000] |
+| citation recall | 0.864 [0.682, 1.000] | 0.909 [0.773, 1.000] |
+| tool-argument validity | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] |
+| tool-selection accuracy | 1.000 [1.000, 1.000] | 0.269 [0.115, 0.462] |
+| task success | 0.808 [0.654, 0.962] | 0.808 [0.654, 0.962] |
+| calibration error (ECE, lower is better) | 0.067 [0.006, 0.183] | 0.150 [0.042, 0.304] |
+| tool steps / clause | 3.7 [3.2, 4.2] | 2.0 [2.0, 2.0] |
+| LLM calls / clause | 5.6 [5.0, 6.1] | 1.0 [1.0, 1.0] |
+| tokens / clause | 16837 [14799, 18841] | 3560 [3469, 3650] |
+| latency s / clause | 39.3 [34.8, 43.0] | 11.5 [10.7, 12.0] |
+
+Agent minus baseline on dev (paired bootstrap):
+
+| metric (n=26) | agent | baseline | agent - baseline [95% CI] |
+|---|---|---|---|
+| verdict accuracy | 0.923 | 0.885 | +0.038 [-0.077, +0.192] |
+| task success | 0.808 | 0.808 | +0.000 [-0.192, +0.231] |
+| citation recall | 0.864 | 0.909 | -0.045 [-0.273, +0.136] |
+
+Failures by type (dev split; each failing clause counted once, under its most important failure):
+
+| failure type | meaning | agent | baseline |
+|---|---|---|---|
+| `missed_issue` | called a conflict or gap compliant | 0 | 1 |
+| `false_alarm` | called a compliant clause a conflict or gap | 1 | 1 |
+| `conflict_gap_confusion` | conflict and gap swapped | 1 | 1 |
+| `citation_miss` | right verdict, a required notification not cited | 3 | 2 |
+| **clauses without a failure** | | 21 | 21 |
+
+| retrieval (clause text as the query) | dev R@5 | dev MRR | test R@5 | test MRR | p50 ms |
+|---|---|---|---|---|---|
+| BM25, no entity filter | 0.50 | 0.29 | 0.62 | 0.35 | 78 |
+| **BM25 + entity filter (used)** | 1.00 | 0.58 | 0.92 | 0.70 | 76 |
+| hybrid (BM25 + bge-small, RRF) + filter | 0.95 | 0.68 | 0.91 | 0.68 | 129 |
+| hybrid + cross-encoder rerank + filter | 1.00 | 0.63 | 0.92 | 0.61 | 7,347 |
+| section chunks, BM25 + filter | 0.95 | 0.48 | 0.81 | 0.65 | 308 |
+
+Full reports: [`results/compliance/`](results/compliance/) (`results-dev.md`, `results-test.md`, predictions with every tool call, run records).
+<!-- COMPLIANCE:END -->
+
+What the metrics mean (definitions in `src/rbirag/compliance/evaluation/metrics.py`):
+
+- **Verdict accuracy / macro-F1** over the five verdicts (F1 averaged over the verdicts
+  present in the split).
+- **Citation precision:** cited notifications that are gold or explicitly acceptable.
+  **Citation recall:** gold citation groups hit (a group is "any of these", e.g. a
+  Direction or the amendment that inserted the rule). Non-substantive verdicts cite
+  nothing.
+- **Tool-argument validity:** tool calls whose arguments pass the schema. **Tool-selection
+  accuracy:** clauses where the system called the tools the label expects (for example,
+  `compare_clause` before a substantive verdict, no tools for an internal matter).
+- **Task success:** verdict right *and* every gold citation group hit *and* no run error.
+- **ECE:** expected calibration error of the confidence against correctness.
+- Cost, tokens and latency are per clause and per document (policy); latency is the sum
+  of recorded LLM and tool time, so live and replayed runs report the same numbers.
+
+## Failure analysis
+
+Grouped by the failure types in the table above (each failing clause is counted once,
+under its most important failure). This analysis covers the **dev split**; it will be
+extended with the locked test run when that completes.
+
+- **Judgement errors by a small model** (`false_alarm`, `conflict_gap_confusion`,
+  `missed_issue`). A clause that is *stricter* than the rule (prior consent for a renewed
+  card, where the rule only requires an option to decline) was called a conflict, though
+  the prompt defines stricter clauses as compliant; a penalty counted per *working* day
+  instead of per *calendar* day was read as a gap instead of a conflict; the baseline
+  missed that a risk-categorisation review "at the time of periodic updation" falls short
+  of a six-monthly review. These are reasoning errors of a lite free-tier model on
+  wording that differs in one word.
+- **Right verdict, outdated citation** (`citation_miss`). The 28 November 2025
+  consolidation withdrew thousands of earlier circulars, but the withdrawal list is in
+  annexes the corpus does not contain, so nothing in the text marks a 2016 Master
+  Direction or a 2021 circular as withdrawn. Both systems sometimes cite the old
+  instrument, whose rule is unchanged. The source rules now state the consolidation,
+  which fixed one case on dev and not two others.
+- **Amendment vs amended Direction** (`citation_miss`). The agent cited the 2026
+  amendment that inserted a timing rule, where the label requires the consolidated
+  Directions and lists the amendment only as acceptable. Defensible; the label was not
+  changed after seeing the output.
+- **Engineering failures found on dev and fixed** (not in the table, which shows the
+  final runs): the planner skipping `compare_clause` (13/26 clauses forced to
+  `insufficient_evidence` by the guardrail on Groq), requests growing past a free tier's
+  size limit (HTTP 413), Gemini rejecting tool calls without their thought signature,
+  and a fallback chain silently answering with a different model. See the iteration log
+  in [`docs/compliance_agent.md`](docs/compliance_agent.md#dev-iteration-log-dev-split-only-test-untouched-until-frozen).
+
+## Design decisions
+
+- **A plain tool-calling loop, not LangGraph.** Per clause the agent takes at most eight
+  steps over three tools with one exit (the final answer). A hand-written loop of ~100
+  lines keeps the full trajectory for the tool-call metrics, reuses the repository's
+  rate limiter, model fallback chain and response cache (which make free tiers and
+  exact CI replay workable), and has no graph state to serialise. LangGraph would pay
+  off with branching multi-agent flows or human-in-the-loop checkpoints, neither of
+  which this needs.
+- **The judge is a separate call.** The planner decides what to read; `compare_clause`
+  decides the verdict from passages only, with verbatim quotes that are verified against
+  the text. The guardrails turn an unsupported verdict into `insufficient_evidence`
+  instead of passing it on.
+- **BM25 with an entity filter as the search tool.** Chosen on dev with the retrieval
+  ablation above: the filter matters far more than dense retrieval or reranking, and
+  BM25 is deterministic, needs no torch, and keeps replay exact.
+- **A reference graph instead of withdrawal flags.** The corpus has no "withdrawn" flag,
+  so citations between notifications (by circular number, reference number or Master
+  Direction title) are extracted and labelled repeals / supersedes / amends / mentions
+  from their wording. Hits carry `replaced_by` hints; 3,945 links, 93 notifications
+  marked replaced.
+- **Evaluation that can run on every push for free.** Live runs record every LLM
+  response; CI replays all recorded runs from those responses with no provider call and
+  fails on any changed prediction or any request that no longer matches (a prompt,
+  tool or retrieval change).
+- **A locked test split.** Prompts and the abstention threshold were tuned on 26 dev
+  clauses from two policies; the 63 test clauses from five other policies are run once,
+  with the code frozen.
+
+## Run it
+
+```bash
+pip install -e ".[ingest,retrieval,llm,api,ui,eval,dev]"
+gh release download corpus-v2 --pattern documents.jsonl.gz --dir data/processed  # or the GitHub release page
+gunzip data/processed/documents.jsonl.gz
+rbirag index --chunker fixed                         # BM25 index (~1 min, no torch)
+export GEMINI_API_KEY=...                            # free key from aistudio.google.com (or GROQ_API_KEY)
+rbirag comply clauses data/samples/kyc_policy_sample.md          # how the policy is split
+rbirag comply check data/samples/kyc_policy_sample.md --backend gemini --out report.md
+rbirag comply eval run --system agent --split dev --backend gemini   # evaluate
+rbirag comply eval report --split dev                                 # tables with CIs
+rbirag serve & streamlit run ui/streamlit_app.py     # API :8000 and UI :8501 ("Policy check" page)
+```
+
+Without a key, `--backend fake` runs an offline model that walks the same tool path and
+always answers `insufficient_evidence`.
+
+## Deploy the demo (free)
+
+`docker/Dockerfile.space` is a one-container image (FastAPI + Streamlit on port 7860,
+corpus and BM25 index baked in, no torch) for a free Hugging Face CPU Space.
+`.github/workflows/space.yml` builds it, starts it and checks the API, a compliance
+check and the UI on every relevant push. To deploy:
+
+1. create a Hugging Face account and a write token;
+2. add the repository secret `HF_TOKEN` and the repository variable `HF_SPACE`
+   (e.g. `your-name/rbi-policy-check`);
+3. push to the default branch or change `.github/space-deploy-request.json`.
+
+The workflow creates the Space, copies `GEMINI_API_KEY` / `GROQ_API_KEY` into it as
+Space secrets and uploads the app. The demo checks at most 15 clauses per run.
+
+## Evaluation workflows
+
+| Workflow | What it does |
+|---|---|
+| `compliance-ci.yml` | every push: ruff, mypy and the compliance tests; the labels checked against `corpus-v2` (every citation exists, every evidence quote is verbatim, clause segmentation); a replay of every recorded run with no provider call |
+| `compliance-eval.yml` | live runs (agent and/or baseline, dev or test, Gemini or Groq free tier), started by pushing `.github/compliance-eval-request.json`; commits predictions, run records, reports, this README section and every LLM response; resumes after a quota stop |
+| `compliance-retrieval.yml` | the retrieval ablation with real embeddings (BM25, hybrid, hybrid + rerank; with and without the entity filter) |
+| `space.yml` | builds and smoke-tests the demo image; deploys it when configured |
+| `corpus.yml` | crawls RBI notifications and publishes the corpus releases (`corpus-v2`: 2,903 notifications) |
+
+## Limitations
+
+- **Synthetic, AI-authored labels.** The 89 clauses and their verdicts were written by
+  an AI from real notifications; every citation and evidence quote is machine-checked
+  against the corpus in CI, but no label is human-verified yet
+  (`rbirag comply eval review` is the review tool). The set is small: confidence
+  intervals are wide, and dev (26 clauses) cannot separate the agent from the baseline.
+- **Small free-tier models.** All reported runs use `gemini-3.5-flash-lite`. Most
+  remaining errors are judgement errors on one-word differences that a stronger model
+  would likely avoid; the free tier also limits a full test run to about one split per
+  day.
+- **Corpus snapshot without withdrawal flags.** The corpus stops at 2026-11-11, and the
+  withdrawal lists of the November 2025 consolidation are in annexes it does not
+  contain. The reference graph catches repeals stated in the text, not those.
+- **Text-only policies.** No OCR for scanned PDFs; tables in policies are read as text.
+- **One entity type.** Verdicts assume a commercial bank (`RBIRAG_COMPLIANCE_ENTITY`
+  changes it, but the labelled set covers commercial banks only).
+- **Not legal advice.** The agent shows its sources and quotes so a compliance officer
+  can check every verdict; it does not replace that check.
+
+# Retrieval-augmented QA (the agent's search tool)
+
+Hybrid-retrieval RAG over the same RBI notifications. It answers with numbered citations
+to the source notifications and says "I don't know" when retrieval confidence is low.
+The evaluation (retrieval and generation metrics, ablations, bootstrap confidence
+intervals) is the centrepiece.
 
 - **Live demo (browser-only search, optional answers with your own key):**
   https://srini2k03.github.io/rbi-circulars-rag/ (published by `pages.yml`)
-- **API + chat UI:** `docker compose up` (see [Run it](#run-it))
+- **API + chat UI:** `docker compose up` (see [Run it](#run-it-1))
 
-Every number in this README comes from a real run recorded in `results/run_metadata.json`
+Every number in this part comes from a real run recorded in `results/run_metadata.json`
 (date, commit, judge model, test-set label). Nothing is filled in by hand.
 
 ## Architecture
@@ -412,6 +699,6 @@ Guards against misleading output:
   - query rewriting for very short questions;
   - per-question cost and latency budgets in the API.
 
-## License
+# License
 
 MIT, see [LICENSE](LICENSE).

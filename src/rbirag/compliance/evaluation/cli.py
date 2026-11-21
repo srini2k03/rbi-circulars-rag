@@ -342,6 +342,47 @@ def replay(
         raise typer.Exit(code=2)
 
 
+@eval_app.command("readme")
+def readme(
+    documents: Annotated[
+        Path, typer.Option(help="Corpus JSONL (wrong-entity detection, as in the reports).")
+    ] = Path("data/processed/documents.jsonl"),
+    readme_path: Annotated[Path, typer.Option("--readme")] = Path("README.md"),
+    runs_dir: Annotated[Path, typer.Option()] = Path("results/compliance/runs"),
+    retrieval_path: Annotated[Path, typer.Option("--retrieval")] = Path(
+        "results/compliance/retrieval.json"
+    ),
+    backend: Annotated[
+        str | None, typer.Option(help="Only runs on this backend (default: all).")
+    ] = None,
+    root: RootOpt = DEFAULT_ROOT,
+    check: Annotated[
+        bool, typer.Option("--check", help="Exit 1 if the README section is out of date.")
+    ] = False,
+) -> None:
+    """Rebuild the README's compliance results section from the recorded runs."""
+    from rbirag.compliance.evaluation.readme import readme_section, update_readme
+    from rbirag.document import iter_documents_jsonl
+
+    titles = {d.doc_id: d.title for d in iter_documents_jsonl(documents)}
+    section = readme_section(
+        _load(root),
+        runs_dir=runs_dir,
+        retrieval_path=retrieval_path,
+        titles=titles,
+        backend=backend,
+    )
+    if check:
+        current = readme_path.read_text(encoding="utf-8")
+        if section not in current:
+            typer.echo("README compliance section is out of date: run `rbirag comply eval readme`")
+            raise typer.Exit(code=1)
+        typer.echo("README compliance section is current")
+        return
+    changed = update_readme(readme_path, section)
+    typer.echo(f"{readme_path}: {'updated' if changed else 'unchanged'}")
+
+
 @eval_app.command("report")
 def report(
     split: Annotated[str, typer.Option(help="dev | test")] = "test",

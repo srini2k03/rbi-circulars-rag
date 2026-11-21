@@ -198,6 +198,7 @@ jobs:
           rbirag comply eval report --split "$SPLIT" \
             --documents data/processed/documents.jsonl \
             --out "results/compliance/results-$SPLIT.md" > /dev/null || true
+          rbirag comply eval readme --documents data/processed/documents.jsonl || true
           echo "status=$status" >> "$GITHUB_OUTPUT"
 
       - name: Commit predictions, run records and recorded responses
@@ -209,7 +210,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add results/compliance data/eval/compliance/llm_cache
+          git add results/compliance data/eval/compliance/llm_cache README.md
           if git diff --cached --quiet; then echo "nothing to commit"; exit 0; fi
           git commit -m "Compliance eval: $SYSTEMS on $SPLIT via $BACKEND (run ${{ github.run_id }})"
           for i in 1 2 3 4; do

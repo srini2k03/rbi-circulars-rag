@@ -29,7 +29,7 @@ RAG pipeline is rebuilt or changed.
 | 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | done (offline-tested; first live runs in Phase 4) |
 | 4 | Evaluation runs, results, failure analysis, replay CI + live workflow | dev iteration done; locked test run in progress (resumes when the provider quota resets) |
 | 5 | FastAPI endpoints, Streamlit page, Docker, Hugging Face Spaces | built and smoke-tested in CI; deploys once a free Hugging Face token is configured |
-| 6 | README: architecture, results, limitations | |
+| 6 | README: architecture, results, limitations | done; the results section is generated (`rbirag comply eval readme`) and fills in the locked test numbers when the run completes |
 
 ## Phase 1: what exists
 
