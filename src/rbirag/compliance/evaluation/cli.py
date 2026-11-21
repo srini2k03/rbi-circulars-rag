@@ -111,3 +111,19 @@ def score(
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
     typer.echo(render_report([report]))
+
+
+@eval_app.command("segmentation")
+def segmentation(
+    root: RootOpt = DEFAULT_ROOT,
+    pdf: Annotated[bool, typer.Option("--pdf/--no-pdf", help="Also score rendered PDFs.")] = True,
+    out: Annotated[Path | None, typer.Option(help="Write the rows as JSON here.")] = None,
+) -> None:
+    """Clause-splitting precision / recall / F1 against the gold clause boundaries."""
+    from rbirag.compliance.evaluation.segmentation import segmentation_report, segmentation_table
+
+    rows = segmentation_report(_load(root), pdf=pdf)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps([r.model_dump() for r in rows], indent=2) + "\n", "utf-8")
+    typer.echo(segmentation_table(rows))

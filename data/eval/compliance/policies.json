@@ -1,0 +1,180 @@
+[
+  {
+    "policy_id": "kyc",
+    "title": "Sample Bank Ltd. - Know Your Customer and Anti-Money Laundering Policy",
+    "topic": "kyc",
+    "split": "dev",
+    "format": "markdown",
+    "sections": [
+      {
+        "number": "1",
+        "title": "Policy and Governance"
+      },
+      {
+        "number": "2",
+        "title": "Customer Acceptance"
+      },
+      {
+        "number": "3",
+        "title": "Customer Due Diligence"
+      },
+      {
+        "number": "4",
+        "title": "Ongoing Due Diligence"
+      },
+      {
+        "number": "5",
+        "title": "Record Management and Reporting"
+      },
+      {
+        "number": "6",
+        "title": "Administration"
+      }
+    ]
+  },
+  {
+    "policy_id": "fraud",
+    "title": "Sample Bank Ltd. (a private sector bank) - Fraud Risk Management Policy",
+    "topic": "fraud",
+    "split": "test",
+    "format": "plain",
+    "sections": [
+      {
+        "number": "1",
+        "title": "Governance"
+      },
+      {
+        "number": "2",
+        "title": "Early Warning Signals and Red Flagging"
+      },
+      {
+        "number": "3",
+        "title": "Classification and Reporting"
+      },
+      {
+        "number": "4",
+        "title": "Other Measures"
+      }
+    ]
+  },
+  {
+    "policy_id": "outsourcing",
+    "title": "Sample Bank Ltd. - Outsourcing of Financial and IT Services Policy",
+    "topic": "outsourcing",
+    "split": "test",
+    "format": "markdown",
+    "sections": [
+      {
+        "number": "1",
+        "title": "Scope and Governance"
+      },
+      {
+        "number": "2",
+        "title": "Selection of Service Providers"
+      },
+      {
+        "number": "3",
+        "title": "Outsourcing Agreements"
+      },
+      {
+        "number": "4",
+        "title": "Monitoring and Termination"
+      },
+      {
+        "number": "5",
+        "title": "Administration"
+      }
+    ]
+  },
+  {
+    "policy_id": "it_cyber",
+    "title": "Sample Bank Ltd. - Information Technology and Cyber Security Policy",
+    "topic": "it_cyber",
+    "split": "test",
+    "format": "plain",
+    "sections": [
+      {
+        "number": "1",
+        "title": "IT Governance"
+      },
+      {
+        "number": "2",
+        "title": "Security Operations"
+      },
+      {
+        "number": "3",
+        "title": "Incident Management"
+      },
+      {
+        "number": "4",
+        "title": "Digital Payments"
+      },
+      {
+        "number": "5",
+        "title": "General"
+      }
+    ]
+  },
+  {
+    "policy_id": "customer_service",
+    "title": "Sample Bank Ltd. - Customer Service and Grievance Redress Policy",
+    "topic": "customer_service",
+    "split": "test",
+    "format": "markdown",
+    "sections": [
+      {
+        "number": "1",
+        "title": "Internal Ombudsman"
+      },
+      {
+        "number": "2",
+        "title": "Complaint Handling"
+      },
+      {
+        "number": "3",
+        "title": "Deceased Customers and Nomination"
+      },
+      {
+        "number": "4",
+        "title": "Loans and Recovery"
+      },
+      {
+        "number": "5",
+        "title": "General"
+      }
+    ]
+  },
+  {
+    "policy_id": "digital_lending",
+    "title": "Sample Bank Ltd. - Digital Lending Policy",
+    "topic": "digital_lending",
+    "split": "test",
+    "format": "plain",
+    "sections": [
+      {
+        "number": "1",
+        "title": "Loan Terms"
+      },
+      {
+        "number": "2",
+        "title": "Disbursement and Charges"
+      },
+      {
+        "number": "3",
+        "title": "Borrower Protection"
+      },
+      {
+        "number": "4",
+        "title": "Data Storage"
+      },
+      {
+        "number": "5",
+        "title": "Default Loss Guarantee"
+      },
+      {
+        "number": "6",
+        "title": "General"
+      }
+    ]
+  }
+]

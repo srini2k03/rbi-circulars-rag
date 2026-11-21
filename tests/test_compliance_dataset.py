@@ -233,6 +233,8 @@ def test_check_gold_and_cli(tmp_path: Path) -> None:
     assert json.loads(out_file.read_text())["missing_quotes"] == []
     res = runner.invoke(app, ["comply", "eval", "stats", "--root", str(root)])
     assert res.exit_code == 0 and '"items": 4' in res.output
+    res = runner.invoke(app, ["comply", "eval", "segmentation", "--root", str(root)])
+    assert res.exit_code == 0 and "| **all** | pdf | 4 | 4 | 1.00 | 1.00 | 1.00 |" in res.output
     res = runner.invoke(app, ["comply", "eval", "render", "--root", str(root), "--pdf"])
     assert (
         res.exit_code == 0

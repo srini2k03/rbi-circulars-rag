@@ -339,12 +339,18 @@ class SegmentationScore(BaseModel):
     f1: float
 
 
+def _segment_key(text: str) -> str:
+    # whitespace-insensitive, and a line break after a hyphen ("low-\nrisk") is not a
+    # boundary difference
+    return re.sub(r"-\s+", "-", " ".join(text.split()))
+
+
 def segmentation_score(gold: Sequence[str], predicted: Sequence[str]) -> SegmentationScore:
     """Exact clause matches (whitespace-normalised text), one-to-one."""
-    pool = Counter(" ".join(t.split()) for t in gold)
+    pool = Counter(_segment_key(t) for t in gold)
     matched = 0
     for text in predicted:
-        key = " ".join(text.split())
+        key = _segment_key(text)
         if pool[key] > 0:
             pool[key] -= 1
             matched += 1

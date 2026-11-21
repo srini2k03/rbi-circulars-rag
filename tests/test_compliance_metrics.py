@@ -225,6 +225,7 @@ def test_ece_and_risk_coverage() -> None:
 def test_segmentation_and_retrieval_recall() -> None:
     seg = segmentation_score(["1.1 A  b", "1.2 C", "1.3 D"], ["1.1 A b", "1.2 C\nextra", "1.3 D"])
     assert (seg.matched, seg.precision, seg.recall) == (2, 2 / 3, 2 / 3)
+    assert segmentation_score(["4.2 low-risk customers"], ["4.2 low-\nrisk customers"]).f1 == 1.0
     assert retrieval_recall_at_k(["a", "b", "c"], [["c"], ["x", "b"]], k=2) == 0.5
     assert retrieval_recall_at_k(["a", "b", "c"], [["c"], ["x", "b"]], k=3) == 1.0
     assert math.isnan(retrieval_recall_at_k(["a"], [], k=1))
