@@ -83,6 +83,40 @@ jobs:
           RBIRAG_REQUIRE_BROWSER: "1"
         run: pytest tests/test_web_js.py tests/test_web_export.py tests/test_web_browser.py -v
 
+  compliance-gold:
+    name: compliance labels vs corpus-v2 (quotes, citations, segmentation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[ingest]"
+      - name: Download corpus-v2
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download corpus-v2 --pattern documents.jsonl.gz --dir /tmp/corpus
+          gunzip /tmp/corpus/documents.jsonl.gz
+      - name: Every citation exists and every evidence quote is verbatim
+        run: rbirag comply eval check --documents /tmp/corpus/documents.jsonl --out /tmp/gold_check.json
+      - name: Committed gold check is current
+        run: |
+          python - <<'PY2'
+          import json
+          fresh = json.load(open("/tmp/gold_check.json"))
+          committed = json.load(open("results/compliance/gold_check.json"))
+          assert fresh == committed, "re-run: rbirag comply eval check --out results/compliance/gold_check.json"
+          PY2
+      - name: Clause segmentation (text and PDF)
+        run: rbirag comply eval segmentation
+
   docker-smoke:
     name: docker compose smoke (fake LLM, fixture index)
     runs-on: ubuntu-latest

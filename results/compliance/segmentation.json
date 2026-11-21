@@ -1,0 +1,170 @@
+[
+  {
+    "policy_id": "kyc",
+    "source": "text",
+    "score": {
+      "gold": 14,
+      "predicted": 14,
+      "matched": 14,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "kyc",
+    "source": "pdf",
+    "score": {
+      "gold": 14,
+      "predicted": 14,
+      "matched": 14,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "retail",
+    "source": "text",
+    "score": {
+      "gold": 12,
+      "predicted": 12,
+      "matched": 12,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "retail",
+    "source": "pdf",
+    "score": {
+      "gold": 12,
+      "predicted": 12,
+      "matched": 12,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "fraud",
+    "source": "text",
+    "score": {
+      "gold": 13,
+      "predicted": 13,
+      "matched": 13,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "fraud",
+    "source": "pdf",
+    "score": {
+      "gold": 13,
+      "predicted": 13,
+      "matched": 13,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "outsourcing",
+    "source": "text",
+    "score": {
+      "gold": 12,
+      "predicted": 12,
+      "matched": 12,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "outsourcing",
+    "source": "pdf",
+    "score": {
+      "gold": 12,
+      "predicted": 12,
+      "matched": 12,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "it_cyber",
+    "source": "text",
+    "score": {
+      "gold": 13,
+      "predicted": 13,
+      "matched": 13,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "it_cyber",
+    "source": "pdf",
+    "score": {
+      "gold": 13,
+      "predicted": 13,
+      "matched": 13,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "customer_service",
+    "source": "text",
+    "score": {
+      "gold": 13,
+      "predicted": 13,
+      "matched": 13,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "customer_service",
+    "source": "pdf",
+    "score": {
+      "gold": 13,
+      "predicted": 13,
+      "matched": 13,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "digital_lending",
+    "source": "text",
+    "score": {
+      "gold": 12,
+      "predicted": 12,
+      "matched": 12,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  },
+  {
+    "policy_id": "digital_lending",
+    "source": "pdf",
+    "score": {
+      "gold": 12,
+      "predicted": 12,
+      "matched": 12,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0
+    }
+  }
+]

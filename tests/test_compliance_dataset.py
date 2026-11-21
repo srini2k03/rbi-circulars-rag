@@ -310,3 +310,30 @@ def test_committed_policies_are_rendered_and_split_cleanly(committed) -> None:  
         clauses = split_clauses(load_policy(on_disk).text)
         gold = [f"{lb.number} {lb.text}" for lb in labels]
         assert segmentation_score(gold, [c.text for c in clauses]).f1 == 1.0, policy.policy_id
+
+
+def test_review_cli_records_decisions(tmp_path: Path) -> None:
+    from rbirag.cli import app
+
+    root = write_set(tmp_path / "set", POLICIES, LABELS)
+    runner = CliRunner()
+    # accept kyc/1.1, edit kyc/1.2 to gap, reject kyc/2.1, then quit
+    keys = "a\nlooks right\ne\n\ngap\nr\nnot a real clause\nq\n"
+    res = runner.invoke(
+        app, ["comply", "eval", "review", "--root", str(root), "--reviewer", "srini"], input=keys
+    )
+    assert res.exit_code == 0, res.output
+    assert "3 decision(s) saved" in res.output
+    ds = load_dataset(root)
+    by_id = {lb.item_id: lb for lb in ds.labels}
+    assert by_id["kyc/1.1"].reviews[0].decision == "accepted"
+    assert by_id["kyc/1.1"].human_verified
+    assert by_id["kyc/1.2"].verdict == "gap"
+    assert by_id["kyc/1.2"].reviews[0].note.startswith("verdict conflict -> gap")
+    assert by_id["kyc/2.1"].rejected
+    assert "kyc/2.1" not in [i.item_id for i in ds.items()]
+    # already-reviewed items are not shown again
+    res = runner.invoke(
+        app, ["comply", "eval", "review", "--root", str(root), "--reviewer", "srini"], input="q\n"
+    )
+    assert "frm/1.1" in res.output and "kyc/1.1" not in res.output

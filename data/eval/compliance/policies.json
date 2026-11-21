@@ -33,6 +33,31 @@
     ]
   },
   {
+    "policy_id": "retail",
+    "title": "Sample Bank Ltd. - Retail Products Policy (Cards and Deposits)",
+    "topic": "cards_deposits",
+    "split": "dev",
+    "format": "markdown",
+    "sections": [
+      {
+        "number": "1",
+        "title": "Credit Cards"
+      },
+      {
+        "number": "2",
+        "title": "Debit Cards"
+      },
+      {
+        "number": "3",
+        "title": "Deposits"
+      },
+      {
+        "number": "4",
+        "title": "General"
+      }
+    ]
+  },
+  {
     "policy_id": "fraud",
     "title": "Sample Bank Ltd. (a private sector bank) - Fraud Risk Management Policy",
     "topic": "fraud",

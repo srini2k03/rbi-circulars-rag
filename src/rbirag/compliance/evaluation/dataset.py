@@ -190,6 +190,15 @@ def load_dataset(root: Path = DEFAULT_ROOT, *, validate: bool = True) -> Dataset
     return dataset
 
 
+def save_labels(labels: Iterable[Label], path: Path) -> None:
+    """Rewrite ``labels.jsonl`` (same order, one JSON object per line), atomically."""
+    tmp = path.with_suffix(".jsonl.tmp")
+    with tmp.open("w", encoding="utf-8") as fh:
+        for lb in labels:
+            fh.write(lb.model_dump_json(exclude_none=False) + "\n")
+    tmp.replace(path)
+
+
 def validate_dataset(dataset: Dataset) -> list[str]:
     """Structural problems (no corpus needed). An empty list means the set is consistent."""
     problems: list[str] = []

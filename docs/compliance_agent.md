@@ -25,7 +25,7 @@ RAG pipeline is rebuilt or changed.
 |---|---|---|
 | 0 | `corpus-v2`: crawl ids above 13050 via `corpus.yml` | done: 2,903 notifications (+750), through 2026-11-11, including 128 Commercial Banks Directions and amendments |
 | 1 | Policy loading, clause splitting, reference graph, `search` / `fetch` tools, CLI, tests | done |
-| 2 | Labeled clause set (~70 clauses in ~8 synthetic policies), labeling guide, metrics + tests | |
+| 2 | Labelled clause set, labelling guide, metrics, review tool, tests | done: 89 clauses in 7 policies (26 dev / 63 test); see `data/eval/compliance/README.md` |
 | 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | |
 | 4 | Evaluation runs, results, failure analysis, replay CI + live workflow | |
 | 5 | FastAPI endpoints, Streamlit page, Docker, Hugging Face Spaces | |
@@ -116,3 +116,60 @@ correctly flags it as replaced by `rbi-13171`. But
 will therefore give `search_regulations` an entity option that prefers notifications
 whose title or addressee names the target entity, and compare it with plain search in
 the evaluation.
+
+## Phase 2: what exists
+
+```
+data/eval/compliance/
+  policies.json, labels.jsonl   the labelled set (source of truth)
+  policies/*.md                 policy documents rendered from it
+  LABELING.md, README.md        labelling rules and dataset card
+src/rbirag/compliance/
+  records.py                    ClausePrediction / ToolCall: what a system must output
+  evaluation/dataset.py         schema, validation, rendering, gold check
+  evaluation/metrics.py         all metrics, bootstrap CIs, failure taxonomy
+  evaluation/segmentation.py    clause-splitting P/R/F1 (text and PDF)
+  evaluation/report.py, cli.py  markdown reports; rbirag comply eval ...
+results/compliance/
+  gold_check.json               every citation and quote verified against corpus-v2
+  segmentation.json             1.00 F1 on text and PDF (tidy synthetic documents)
+```
+
+### How the set was built
+
+1. Four research passes, each on two topics, extracted requirements from `corpus-v2`
+   as verbatim quotes, each one checked against the corpus. They also listed older
+   versions with different values, other entity types' versions, and topics the
+   corpus does not cover (absence shown by search).
+2. Clauses and labels were written from those requirements, following `LABELING.md`.
+   The tricky clauses come from documented differences: older rules, other entity
+   types, amendments and future effective dates.
+3. Every quote was re-verified (`rbirag comply eval check`). Every policy is rendered and
+   split back into exactly its gold clauses. The structural rules are enforced by
+   `validate_dataset`.
+
+### Metric definitions (see `evaluation/metrics.py`)
+
+| Metric | Definition |
+|---|---|
+| verdict accuracy, macro-F1 | over the 5 verdicts; abstaining correctly (`insufficient_evidence`) counts as correct |
+| citation precision | cited notifications that are gold or acceptable / all cited (micro) |
+| citation recall | gold citation groups with at least one cited member / groups (mean over clauses with gold) |
+| tool-argument validity | valid tool calls / tool calls |
+| fetch grounding | fetches of a notification shown by an earlier search / fetches |
+| tool-selection accuracy | expected tools used, `compare_clause` before any substantive verdict, within the step budget (8) |
+| task success | correct verdict, all gold groups cited, no invalid call, no error |
+| cost / latency | steps, LLM calls, tokens, USD and seconds per clause and per document |
+| calibration | ECE (10 bins) and accuracy at 50/80/100% coverage when ranked by confidence |
+| failures | first matching type, in this order: run error, unsupported verdict, over-abstention, scope error, wrong entity, outdated rule missed, missed issue, false alarm, conflict/gap confusion, citation miss, invalid tool call, step budget |
+
+Intervals are 95% percentile bootstraps (1,000 resamples, seed 13) over clauses, or over
+documents for per-document numbers. `paired_bootstrap_difference` compares the agent
+with the baseline on the same clauses.
+
+### CI
+
+The new `compliance-gold` job in `ci.yml` downloads `corpus-v2`, re-checks every
+citation and quote, confirms the committed `gold_check.json` is current, and runs the
+segmentation score. The offline test job validates the set's structure and checks that
+the rendered policies are current.

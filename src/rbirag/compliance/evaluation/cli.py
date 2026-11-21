@@ -8,14 +8,14 @@ from typing import Annotated
 
 import typer
 
-from rbirag.compliance.evaluation.dataset import DEFAULT_ROOT, DatasetError, load_dataset
+from rbirag.compliance.evaluation.dataset import DEFAULT_ROOT, Dataset, DatasetError, load_dataset
 
 eval_app = typer.Typer(help="Labelled clause set: check, render, score.", no_args_is_help=True)
 
 RootOpt = Annotated[Path, typer.Option(help="Directory with policies.json and labels.jsonl.")]
 
 
-def _load(root: Path):  # type: ignore[no-untyped-def]
+def _load(root: Path) -> Dataset:
     try:
         return load_dataset(root)
     except DatasetError as exc:
@@ -65,7 +65,7 @@ def check(
     path = documents or get_settings().documents_path
     docs = {d.doc_id: d for d in iter_documents_jsonl(path)}
     result = check_gold(dataset, docs)
-    payload = {"documents_file": path.name, "corpus_documents": len(docs), **result.model_dump()}
+    payload = {"corpus_documents": len(docs), **result.model_dump()}
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -93,7 +93,7 @@ def score(
     if split not in {"dev", "test", "all"}:
         raise typer.BadParameter("split must be dev, test or all")
     dataset = _load(root)
-    items = dataset.items(None if split == "all" else split)
+    items = dataset.items(None if split == "all" else ("dev" if split == "dev" else "test"))
     preds: dict[str, ClausePrediction] = {}
     systems: set[str] = set()
     for line in predictions.read_text(encoding="utf-8").splitlines():
@@ -127,3 +127,58 @@ def segmentation(
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps([r.model_dump() for r in rows], indent=2) + "\n", "utf-8")
     typer.echo(segmentation_table(rows))
+
+
+@eval_app.command("review")
+def review(
+    root: RootOpt = DEFAULT_ROOT,
+    reviewer: Annotated[str, typer.Option(help="Your name; stored as human:<name>.")] = "",
+    limit: Annotated[int, typer.Option(min=1, help="Stop after this many items.")] = 20,
+    split: Annotated[str, typer.Option(help="dev | test | all")] = "all",
+) -> None:
+    """Review unreviewed labels: (a)ccept, (e)dit the verdict, (r)eject, (s)kip, (q)uit.
+
+    Each decision is written to labels.jsonl immediately, so you can stop at any time."""
+    from rbirag.compliance.evaluation.dataset import Review, save_labels
+    from rbirag.compliance.records import VERDICTS
+
+    name = reviewer.strip() or typer.prompt("Reviewer name")
+    who = f"human:{name}"
+    dataset = _load(root)
+    by_policy = {p.policy_id: p for p in dataset.policies}
+    done = 0
+    for label in dataset.labels:
+        if done >= limit:
+            break
+        if any(r.reviewer == who for r in label.reviews):
+            continue
+        if split != "all" and by_policy[label.policy_id].split != split:
+            continue
+        typer.echo("\n" + "=" * 78)
+        typer.echo(f"{label.item_id}  [{by_policy[label.policy_id].title}]")
+        typer.echo(f"\nCLAUSE: {label.number} {label.text}")
+        typer.echo(f"\nLABEL:  {label.verdict}   tags: {', '.join(label.tags) or '-'}")
+        typer.echo(f"CITES:  {label.citations or '-'}   acceptable: {label.acceptable or '-'}")
+        typer.echo(f"WHY:    {label.rationale}")
+        for ev in label.evidence:
+            typer.echo(f'  {ev.doc_id} para {ev.paragraph}: "{ev.quote}"')
+        choice = (
+            typer.prompt("\n(a)ccept (e)dit (r)eject (s)kip (q)uit", default="s").strip().lower()
+        )
+        if choice == "q":
+            break
+        if choice not in {"a", "e", "r"}:
+            continue
+        note = typer.prompt("Note (optional)", default="", show_default=False)
+        if choice == "e":
+            verdict = typer.prompt(f"New verdict {VERDICTS}", default=label.verdict)
+            if verdict not in VERDICTS:
+                typer.echo(f"unknown verdict {verdict!r}; skipped", err=True)
+                continue
+            note = f"verdict {label.verdict} -> {verdict}. {note}".strip()
+            label.verdict = verdict
+        decision = {"a": "accepted", "e": "edited", "r": "rejected"}[choice]
+        label.reviews.append(Review(reviewer=who, decision=decision, note=note))  # type: ignore[arg-type]
+        save_labels(dataset.labels, root / "labels.jsonl")
+        done += 1
+    typer.echo(f"\n{done} decision(s) saved to {root / 'labels.jsonl'}")
