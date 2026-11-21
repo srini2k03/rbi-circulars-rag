@@ -293,3 +293,24 @@ def test_summarize_end_to_end() -> None:
 def test_summarize_rejects_empty() -> None:
     with pytest.raises(ValueError, match="no scored items"):
         summarize([])
+
+
+def test_threshold_sweep_and_choice() -> None:
+    from rbirag.compliance.evaluation.threshold import apply_threshold, choose, sweep
+
+    items = [
+        item("1.1", "compliant", [["rbi-1"]]),
+        item("1.2", "insufficient_evidence", tags=["not_in_corpus"]),
+        item("1.3", "conflict", [["rbi-1"]]),
+    ]
+    preds = {
+        "kyc/1.1": pred("kyc/1.1", "compliant", ["rbi-1"], confidence=0.9),
+        "kyc/1.2": pred("kyc/1.2", "conflict", ["rbi-1"], confidence=0.3),  # wrong, low confidence
+        "kyc/1.3": pred("kyc/1.3", "conflict", ["rbi-1"], confidence=0.6),
+    }
+    assert apply_threshold(preds["kyc/1.2"], 0.5) == "insufficient_evidence"
+    assert apply_threshold(preds["kyc/1.1"], 0.5) == "compliant"
+    rows = sweep(items, preds, grid=(0.0, 0.5, 0.7))
+    assert [r.accuracy for r in rows] == pytest.approx([2 / 3, 1.0, 2 / 3])
+    assert [r.abstained for r in rows] == [0, 1, 2]
+    assert choose(rows).threshold == 0.5

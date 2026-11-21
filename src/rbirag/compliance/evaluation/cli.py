@@ -446,3 +446,24 @@ def retrieval(
         existing += [{"split": split, **r.model_dump()} for r in rows]
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+
+
+@eval_app.command("threshold")
+def threshold(
+    predictions: Annotated[Path, typer.Argument(help="Dev-split predictions JSONL.")],
+    root: RootOpt = DEFAULT_ROOT,
+    out: Annotated[Path | None, typer.Option(help="Write the sweep as JSON here.")] = None,
+) -> None:
+    """Sweep the abstention threshold over recorded dev predictions (no LLM calls)."""
+    from rbirag.compliance.evaluation.run import load_predictions
+    from rbirag.compliance.evaluation.threshold import choose, sweep, threshold_table
+
+    items = _load(root).items("dev")
+    rows = sweep(items, load_predictions(predictions))
+    best = choose(rows)
+    typer.echo(threshold_table(rows, best))
+    typer.echo(f"\nchosen threshold: {best.threshold:.2f} (macro-F1 {best.macro_f1:.3f} on dev)")
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"chosen": best.model_dump(), "rows": [r.model_dump() for r in rows]}
+        out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
