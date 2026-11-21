@@ -290,8 +290,13 @@ class RegulationStore:
         *,
         embedder: Embedder | None = None,
         reranker: Reranker | None = None,
+        graph: ReferenceGraph | None = None,
+        documents: Mapping[str, Document] | None = None,
     ) -> RegulationStore:
-        """Load the persisted index and documents exactly as the RAG API does."""
+        """Load the persisted index and documents exactly as the RAG API does.
+
+        ``graph`` and ``documents`` can be passed in to share them between stores (the
+        reference graph takes ~15 s to build on the full corpus)."""
         from rbirag.index.build import load_bundle
         from rbirag.index.embedder import build_embedder
         from rbirag.retrieval.pipeline import make_retriever
@@ -302,7 +307,8 @@ class RegulationStore:
                 f"no documents at {settings.documents_path}; run `rbirag ingest` or download "
                 "the corpus release"
             )
-        index_dir = settings.index_dir / settings.chunker
+        chunker = settings.compliance_chunker or settings.chunker
+        index_dir = settings.index_dir / chunker
         if not (index_dir / "chunks.jsonl").exists():
             raise FileNotFoundError(f"no index at {index_dir}; run `rbirag index` first")
         mode = settings.compliance_search_mode or settings.retrieval_mode
@@ -319,7 +325,7 @@ class RegulationStore:
         bundle = load_bundle(
             index_dir,
             embedder=emb,
-            collection=f"{settings.qdrant_collection}_{settings.chunker}",
+            collection=f"{settings.qdrant_collection}_{chunker}",
             qdrant_url=settings.qdrant_url,
             qdrant_path=None
             if settings.qdrant_url
@@ -333,10 +339,12 @@ class RegulationStore:
         retriever = make_retriever(
             settings, bundle.store, bm25=bundle.bm25, dense=bundle.dense, reranker=rr, mode=mode
         )
-        documents = {d.doc_id: d for d in iter_documents_jsonl(settings.documents_path)}
+        if documents is None:
+            documents = {d.doc_id: d for d in iter_documents_jsonl(settings.documents_path)}
         return cls(
             retriever,
             documents,
+            graph=graph,
             top_k=settings.compliance_search_top_k,
             depth_factor=settings.compliance_search_depth_factor,
             snippet_chars=settings.compliance_snippet_chars,

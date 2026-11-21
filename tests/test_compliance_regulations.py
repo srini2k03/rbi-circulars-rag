@@ -119,7 +119,10 @@ def test_from_settings_and_cli(tmp_path: Path, corpus: list[Document]) -> None:
         s.model_copy(update={"compliance_search_mode": "bm25"})
     )
     assert bm25_store.search("KYC updation").mode == "bm25"
-    full = RegulationStore.from_settings(s)
+    assert RegulationStore.from_settings(s).search("KYC updation").mode == "bm25"  # the default
+    full = RegulationStore.from_settings(
+        s.model_copy(update={"compliance_search_mode": "hybrid_rerank"})
+    )
     assert full.search("KYC updation").mode == "hybrid_rerank"
     assert full.retriever.dense is not None
     full.retriever.dense.close()

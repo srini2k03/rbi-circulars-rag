@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 Role = Literal["system", "user", "assistant", "tool"]
 CacheMode = Literal["use", "replay", "refresh", "off"]
-CHAT_BACKENDS = ("groq", "gemini", "ollama", "custom", "fake")
+CHAT_BACKENDS = ("groq", "gemini", "ollama", "custom", "anthropic", "fake")
 
 
 class ToolCallRequest(BaseModel):
@@ -47,6 +47,9 @@ class ChatMessage(BaseModel):
     content: str | None = None
     tool_calls: list[ToolCallRequest] = Field(default_factory=list)
     tool_call_id: str | None = None
+    # Provider-native content blocks of an assistant turn (Anthropic: thinking, text and
+    # tool_use blocks), replayed unchanged to the same provider on the next request.
+    raw: list[dict[str, Any]] | None = None
 
     def to_openai(self) -> dict[str, Any]:
         msg: dict[str, Any] = {"role": self.role, "content": self.content}
@@ -333,6 +336,49 @@ def final(payload: dict[str, Any]) -> ChatMessage:
     return ChatMessage(role="assistant", content=json.dumps(payload))
 
 
+class ReplayOnlyModel:
+    """Stands in for a provider in replay mode: it has the configured model id (the cache
+    key) but no credentials, and any call means the cache is stale."""
+
+    def __init__(self, model: str, backend: str) -> None:
+        self._model = model
+        self._backend = backend
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    @property
+    def backend(self) -> str:
+        return self._backend
+
+    def chat(
+        self,
+        messages: Sequence[ChatMessage],
+        *,
+        tools: Sequence[dict[str, Any]] | None = None,
+        max_tokens: int = 1024,
+        json_object: bool = False,
+    ) -> ChatResult:
+        raise CacheMissError(f"replay mode: no recorded response ({self._model})")
+
+
+def configured_model(settings: Settings, backend: str) -> str:
+    """The model id a backend is configured with (before any fallback)."""
+    from rbirag.providers import get_preset
+
+    if settings.compliance_model:
+        return settings.compliance_model
+    if backend == "anthropic":
+        return settings.anthropic_model
+    if backend == "ollama":
+        return settings.ollama_model
+    if backend in {"custom", settings.llm_provider}:
+        return settings.oai_model
+    preset = get_preset(backend)
+    return preset.generator[0] if preset else settings.oai_model
+
+
 # ----------------------------------------------------------------------------- factory
 
 
@@ -352,8 +398,21 @@ def build_chat_model(
         raise ValueError(f"unknown chat backend {name!r}; expected one of {CHAT_BACKENDS}")
     if name == "fake":
         raise ValueError("the fake backend is built in tests with ScriptedChatModel")
+    mode = cache_mode or settings.compliance_llm_cache_mode
     inner: ChatModel
-    if name == "ollama":
+    if mode == "replay":
+        # no credentials needed: every response must come from the cache
+        replay = ReplayOnlyModel(model or configured_model(settings, name), name)
+        return CachedChatModel(replay, settings.compliance_llm_cache_dir, "replay")
+    if name == "anthropic":
+        from rbirag.compliance.anthropic_chat import AnthropicToolChat
+
+        inner = AnthropicToolChat(
+            model or settings.compliance_model or settings.anthropic_model,
+            effort=settings.anthropic_effort,
+            timeout_seconds=settings.anthropic_timeout_seconds,
+        )
+    elif name == "ollama":
         inner = OpenAIToolChat(
             model or settings.compliance_model or settings.ollama_model,
             base_url=settings.ollama_url.rstrip("/") + "/v1",
@@ -389,7 +448,6 @@ def build_chat_model(
             backoff_base_seconds=provider.llm_backoff_base_seconds,
             backend_name=name,
         )
-    mode = cache_mode or settings.compliance_llm_cache_mode
     if mode == "off":
         return inner
     return CachedChatModel(inner, settings.compliance_llm_cache_dir, mode)

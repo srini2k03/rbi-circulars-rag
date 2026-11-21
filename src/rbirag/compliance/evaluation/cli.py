@@ -189,34 +189,260 @@ def run(
     system: Annotated[str, typer.Option(help="agent | baseline")] = "agent",
     split: Annotated[str, typer.Option(help="dev | test | all")] = "dev",
     root: RootOpt = DEFAULT_ROOT,
-    backend: Annotated[str | None, typer.Option(help="groq | gemini | ollama | custom")] = None,
+    backend: Annotated[
+        str | None, typer.Option(help="anthropic | groq | gemini | ollama | custom")
+    ] = None,
     model: Annotated[str | None, typer.Option(help="Override the model id.")] = None,
     limit: Annotated[int | None, typer.Option(min=1, help="Only the first N items.")] = None,
     out: Annotated[
         Path | None, typer.Option(help="Predictions JSONL (appended, resumable).")
     ] = None,
+    runs_dir: Annotated[Path, typer.Option(help="Where run records go.")] = Path(
+        "results/compliance/runs"
+    ),
     fresh: Annotated[bool, typer.Option("--fresh", help="Ignore earlier predictions.")] = False,
 ) -> None:
-    """Run the agent or the baseline over labelled clauses and score the result."""
+    """Run the agent or the baseline over labelled clauses, record the run, score it.
+
+    Stops cleanly (exit 3) when the provider's quota runs out: predictions made so far
+    are kept and the next run resumes from them."""
+    from rbirag.compliance.agent import FATAL_ERRORS
     from rbirag.compliance.cli import build_checker
     from rbirag.compliance.evaluation.metrics import score_predictions, summarize
     from rbirag.compliance.evaluation.report import render_report
     from rbirag.compliance.evaluation.run import run_items
+    from rbirag.compliance.evaluation.runs import (
+        RunRecord,
+        current_commit,
+        prompt_settings,
+        run_name,
+        save_run,
+    )
+    from rbirag.compliance.llm import CachedChatModel, configured_model
+    from rbirag.config import get_settings
 
     if split not in {"dev", "test", "all"}:
         raise typer.BadParameter("split must be dev, test or all")
+    s = get_settings()
+    backend_name = backend or s.compliance_llm_backend
     dataset = _load(root)
     items = dataset.items(None if split == "all" else ("dev" if split == "dev" else "test"))
     if limit:
         items = items[:limit]
-    path = out or Path("results/compliance/predictions") / f"{system}-{split}.jsonl"
-    checker, store = build_checker(system, backend=backend, model=model)
+    path = (
+        out
+        or Path("results/compliance/predictions") / f"{run_name(system, split, backend_name)}.jsonl"
+    )
+    checker, store = build_checker(system, backend=backend_name, model=model, settings=s)
 
     def progress(item, pred):  # type: ignore[no-untyped-def]
-        ok = "ok " if pred.verdict == item.label.verdict else "MISS"
+        ok = "ok " if pred.verdict == item.label.verdict and not pred.error else "MISS"
         typer.echo(f"{ok} {item.item_id}: {pred.verdict} (gold {item.label.verdict})", err=True)
 
-    preds = run_items(items, checker, path, resume=not fresh, on_item=progress)
+    stopped: BaseException | None = None
+    try:
+        run_items(items, checker, path, resume=not fresh, on_item=progress)
+    except FATAL_ERRORS as exc:
+        stopped = exc
+        typer.echo(f"run stopped: {type(exc).__name__}: {exc}", err=True)
+    from rbirag.compliance.evaluation.run import load_predictions
+
+    preds = {k: v for k, v in load_predictions(path).items() if k in {i.item_id for i in items}}
+    chat = getattr(checker, "chat", None) or getattr(getattr(checker, "judge", None), "chat", None)
+    record = RunRecord(
+        system=system,
+        split=split,
+        backend=backend_name,
+        model=model or configured_model(s, backend_name),
+        predictions=str(path),
+        item_ids=[i.item_id for i in items],
+        settings=prompt_settings(s),
+        commit=current_commit(),
+        cache_hits=chat.hits if isinstance(chat, CachedChatModel) else 0,
+        cache_misses=chat.misses if isinstance(chat, CachedChatModel) else 0,
+        completed=sum(1 for p in preds.values() if p.error is None),
+        errors=sum(1 for p in preds.values() if p.error),
+    )
+    save_run(record, runs_dir)
     titles = {d.doc_id: d.title for d in store.documents.values()}
     report = summarize(score_predictions(items, preds, titles=titles), system=system, split=split)
     typer.echo(render_report([report]))
+    if stopped is not None:
+        raise typer.Exit(code=3)
+
+
+@eval_app.command("replay")
+def replay(
+    runs_dir: Annotated[Path, typer.Option(help="Run records to replay.")] = Path(
+        "results/compliance/runs"
+    ),
+    root: RootOpt = DEFAULT_ROOT,
+    split: Annotated[str | None, typer.Option(help="Only runs of this split.")] = None,
+) -> None:
+    """Re-run recorded evaluations from the response cache (no provider calls) and check
+    that every prediction is reproduced. Exit 1: a prediction changed (a regression).
+    Exit 2: a request is not in the cache (prompts or code changed: re-run live)."""
+    import tempfile
+
+    from rbirag.compliance.cli import build_checker
+    from rbirag.compliance.evaluation.run import load_predictions, run_items
+    from rbirag.compliance.evaluation.runs import apply_run_settings, load_runs
+    from rbirag.compliance.llm import CacheMissError
+    from rbirag.config import get_settings
+
+    records = load_runs(runs_dir, split=split)
+    if not records:
+        typer.echo(f"no run records in {runs_dir}", err=True)
+        raise typer.Exit(code=1)
+    dataset = _load(root)
+    by_id = {i.item_id: i for i in dataset.items(include_rejected=True)}
+    changed = stale = 0
+    for record in records:
+        s = apply_run_settings(get_settings(), record).model_copy(
+            update={"compliance_llm_cache_mode": "replay"}
+        )
+        recorded = load_predictions(Path(record.predictions))
+        items = [
+            by_id[i]
+            for i in record.item_ids
+            if i in by_id and i in recorded and recorded[i].error is None
+        ]
+        checker, _ = build_checker(
+            record.system, backend=record.backend, model=record.model, settings=s
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                fresh = run_items(items, checker, Path(tmp) / "replay.jsonl", resume=False)
+            except CacheMissError as exc:
+                stale += 1
+                typer.echo(f"STALE {record.system}/{record.split}/{record.backend}: {exc}")
+                continue
+        diffs = []
+        for item in items:
+            a, b = recorded[item.item_id], fresh[item.item_id]
+            if (a.verdict, a.citations, [c.name for c in a.tool_calls]) != (
+                b.verdict,
+                b.citations,
+                [c.name for c in b.tool_calls],
+            ):
+                diffs.append(
+                    f"  {item.item_id}: {a.verdict} {a.citations} -> {b.verdict} {b.citations}"
+                )
+        status = "OK   " if not diffs else "DIFF "
+        typer.echo(
+            f"{status}{record.system}/{record.split}/{record.backend}: {len(items)} items replayed"
+        )
+        for line in diffs:
+            typer.echo(line)
+        changed += bool(diffs)
+    if changed:
+        raise typer.Exit(code=1)
+    if stale:
+        raise typer.Exit(code=2)
+
+
+@eval_app.command("report")
+def report(
+    split: Annotated[str, typer.Option(help="dev | test")] = "test",
+    runs_dir: Annotated[Path, typer.Option()] = Path("results/compliance/runs"),
+    root: RootOpt = DEFAULT_ROOT,
+    documents: Annotated[
+        Path | None, typer.Option(help="Corpus JSONL (wrong-entity detection).")
+    ] = None,
+    out: Annotated[
+        Path | None, typer.Option(help="Write Markdown here (and .json next to it).")
+    ] = None,
+) -> None:
+    """Compare every recorded system on a split: headline metrics, paired differences."""
+    from rbirag.compliance.evaluation.metrics import score_predictions, summarize
+    from rbirag.compliance.evaluation.report import comparison_report
+    from rbirag.compliance.evaluation.run import load_predictions
+    from rbirag.compliance.evaluation.runs import load_runs
+    from rbirag.document import iter_documents_jsonl
+
+    records = load_runs(runs_dir, split=split)
+    if not records:
+        typer.echo(f"no runs for split {split}", err=True)
+        raise typer.Exit(code=1)
+    dataset = _load(root)
+    items = dataset.items("dev" if split == "dev" else "test")
+    titles = {d.doc_id: d.title for d in iter_documents_jsonl(documents)} if documents else None
+    scored = {}
+    for record in records:
+        preds = load_predictions(Path(record.predictions))
+        label = f"{record.system} ({record.model})"
+        scored[label] = score_predictions(items, preds, titles=titles)
+    reports = [summarize(v, system=k, split=split) for k, v in scored.items()]
+    md = comparison_report(reports, scored, records)
+    typer.echo(md)
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(md, encoding="utf-8")
+        payload = {
+            "split": split,
+            "runs": [r.model_dump() for r in records],
+            "reports": [r.model_dump() for r in reports],
+        }
+        out.with_suffix(".json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+@eval_app.command("retrieval")
+def retrieval(
+    split: Annotated[str, typer.Option(help="dev | test | all")] = "dev",
+    modes: Annotated[str, typer.Option(help="Comma-separated retrieval modes.")] = "bm25",
+    root: RootOpt = DEFAULT_ROOT,
+    out: Annotated[Path | None, typer.Option(help="Append rows to this JSON file.")] = None,
+) -> None:
+    """Recall of gold notifications for clause queries, per mode, with and without the
+    entity filter (no LLM). Uses the index of the configured compliance chunker."""
+    from rbirag.compliance.evaluation.retrieval import evaluate_retrieval, retrieval_table
+    from rbirag.compliance.references import ReferenceGraph
+    from rbirag.compliance.regulations import RegulationStore
+    from rbirag.config import get_settings
+    from rbirag.document import iter_documents_jsonl
+    from rbirag.index.embedder import build_embedder
+    from rbirag.retrieval.rerank import build_reranker
+
+    s = get_settings()
+    dataset = _load(root)
+    items = dataset.items(None if split == "all" else ("dev" if split == "dev" else "test"))
+    documents = {d.doc_id: d for d in iter_documents_jsonl(s.documents_path)}
+    graph = ReferenceGraph.build(documents.values())
+    wanted = [m.strip() for m in modes.split(",") if m.strip()]
+    embedder = reranker = None
+    if any(m != "bm25" for m in wanted):
+        embedder = build_embedder(
+            s.embedder,
+            model_name=s.embedding_model,
+            query_instruction=s.embedding_query_instruction,
+            batch_size=s.embedding_batch_size,
+            device=s.device,
+            fake_dim=s.fake_embedding_dim,
+        )
+    if "hybrid_rerank" in wanted:
+        reranker = build_reranker(s.reranker, model_name=s.reranker_model, device=s.device)
+    rows = []
+    for mode in wanted:
+        store = RegulationStore.from_settings(
+            s.model_copy(update={"compliance_search_mode": mode}),
+            embedder=embedder,
+            reranker=reranker,
+            graph=graph,
+            documents=documents,
+        )
+        for flt in (False, True):
+            chunker = s.compliance_chunker or s.chunker
+            label = f"{chunker} / {mode} / {'entity filter' if flt else 'no filter'}"
+            rows.append(evaluate_retrieval(store, items, config=label, entity_filter=flt))
+    table = retrieval_table(rows)
+    typer.echo(f"split={split}\n{table}")
+    if out:
+        existing = json.loads(out.read_text("utf-8")) if out.exists() else []
+        existing = [
+            r
+            for r in existing
+            if r.get("split") != split or r["config"] not in {x.config for x in rows}
+        ]
+        existing += [{"split": split, **r.model_dump()} for r in rows]
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")

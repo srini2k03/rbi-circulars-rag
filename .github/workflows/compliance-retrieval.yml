@@ -1,0 +1,73 @@
+name: Compliance retrieval ablation
+
+# Retrieval-only study (no LLM): recall of the gold notifications for clause queries with
+# BM25, hybrid (BM25 + bge-small dense, RRF) and hybrid + cross-encoder rerank, with and
+# without the entity filter, on the dev and test splits. Needs the embedding models, so
+# it is a separate, manually dispatched workflow.
+
+on:
+  push:
+    paths:
+      - .github/compliance-retrieval-request.json  # request a run from a feature branch
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compliance-retrieval-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  HF_HOME: /home/runner/.cache/huggingface
+  RBIRAG_EMBEDDING_CACHE_DIR: /home/runner/.cache/rbirag-embeddings
+
+jobs:
+  retrieval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[ingest,retrieval,llm,eval,ml]"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            /home/runner/.cache/huggingface
+            /home/runner/.cache/rbirag-embeddings
+          key: compliance-retrieval-corpus-v2-bge-small-fixed512
+      - name: Download corpus-v2 and build the fixed-512 index with real embeddings
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p data/processed
+          gh release download corpus-v2 --pattern documents.jsonl.gz --dir /tmp/corpus
+          gunzip -c /tmp/corpus/documents.jsonl.gz > data/processed/documents.jsonl
+          rbirag index --chunker fixed
+      - name: Recall per mode and filter (dev, then test)
+        run: |
+          for split in dev test; do
+            rbirag comply eval retrieval --split "$split" --modes bm25,hybrid,hybrid_rerank \
+              --out results/compliance/retrieval.json | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results/compliance/retrieval.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Compliance retrieval ablation (run ${{ github.run_id }})"
+          for i in 1 2 3 4; do
+            if git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
+            sleep $((i * 5))
+          done
+          exit 1

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from rbirag.config import RetrievalMode, get_settings
+from rbirag.config import RetrievalMode, Settings, get_settings
 
 if TYPE_CHECKING:
     from rbirag.compliance.checker import ClauseChecker, ClauseFinding
@@ -128,15 +128,25 @@ def fetch(
 
 
 def build_checker(
-    system: str, *, backend: str | None = None, model: str | None = None
+    system: str,
+    *,
+    backend: str | None = None,
+    model: str | None = None,
+    settings: Settings | None = None,
 ) -> tuple[ClauseChecker, RegulationStore]:
-    """The agent or the baseline, wired from settings (shared by check and eval run)."""
+    """The agent or the baseline, wired from settings (shared by check, eval run and
+    eval replay)."""
     from rbirag.compliance.agent import ComplianceAgent
     from rbirag.compliance.baseline import FixedPipeline
     from rbirag.compliance.llm import build_chat_model
+    from rbirag.compliance.regulations import RegulationStore
 
-    s = get_settings()
-    store = _store(None)
+    s = settings or get_settings()
+    try:
+        store = RegulationStore.from_settings(s)
+    except FileNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     chat = build_chat_model(s, backend, model=model)
     if system == "agent":
         return ComplianceAgent.from_settings(s, store, chat), store

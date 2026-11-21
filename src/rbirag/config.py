@@ -176,8 +176,11 @@ class Settings(BaseSettings):
     usd_to_inr: float = Field(default=88.0, gt=0)
 
     # ------------------------------------------------------- compliance agent
-    # Retrieval used by the agent's search_regulations tool (None = retrieval_mode).
-    compliance_search_mode: RetrievalMode | None = None
+    # Retrieval used by the agent's search_regulations tool. Chosen on the dev split
+    # (rbirag comply eval retrieval): fixed-512 BM25 + entity filter reached R@5 = 1.00 on
+    # clause queries, and needs no embedding model (deterministic CI replay).
+    compliance_search_mode: RetrievalMode | None = "bm25"  # None = retrieval_mode
+    compliance_chunker: ChunkerName | None = "fixed"  # None = chunker
     compliance_search_top_k: int = Field(default=5, ge=1, le=20)
     # Chunks retrieved per requested notification, before grouping by notification.
     compliance_search_depth_factor: int = Field(default=4, ge=1)
@@ -190,8 +193,9 @@ class Settings(BaseSettings):
     compliance_entity: str = "Commercial Banks"
     compliance_entity_filter: bool = True
     compliance_as_of: str = "2026-11-11"  # corpus snapshot date the verdicts refer to
-    # Tool-calling model: groq | gemini | ollama | custom (OpenAI-compatible, oai_* settings).
-    compliance_llm_backend: Literal["groq", "gemini", "ollama", "custom"] = "groq"
+    # Tool-calling model: groq | gemini | ollama | custom (OpenAI-compatible, oai_* settings)
+    # | anthropic (Claude via the official SDK; anthropic_model, anthropic_effort).
+    compliance_llm_backend: Literal["groq", "gemini", "ollama", "custom", "anthropic"] = "groq"
     compliance_model: str = ""  # empty = the provider preset's generator
     compliance_model_fallbacks: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["auto"]

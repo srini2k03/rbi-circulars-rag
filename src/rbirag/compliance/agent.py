@@ -255,7 +255,9 @@ class ComplianceAgent:
                     calls = [text_call]
             if calls and budget_left:
                 messages.append(
-                    ChatMessage(role="assistant", content=msg.content, tool_calls=calls)
+                    ChatMessage(
+                        role="assistant", content=msg.content, tool_calls=calls, raw=msg.raw
+                    )
                 )
                 for call in calls:
                     if len(toolbox.calls) >= self.max_steps:
@@ -280,7 +282,7 @@ class ComplianceAgent:
             if repaired:
                 break
             repaired = True  # one chance to fix a malformed final answer
-            messages.append(ChatMessage(role="assistant", content=msg.content or ""))
+            messages.append(ChatMessage(role="assistant", content=msg.content or "", raw=msg.raw))
             messages.append(ChatMessage(role="user", content=REPAIR_PROMPT))
         return None, judgement
 

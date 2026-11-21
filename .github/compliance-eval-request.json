@@ -1,0 +1,10 @@
+{
+  "systems": "agent,baseline",
+  "split": "dev",
+  "backend": "anthropic",
+  "model": "",
+  "limit": "",
+  "abstain_threshold": "0.0",
+  "cache_mode": "use",
+  "note": "First live run: dev split, Claude Haiku 5.5, no abstention threshold."
+}

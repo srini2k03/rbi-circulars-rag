@@ -685,7 +685,7 @@ def test_openai_tool_chat_request_and_response() -> None:
 
 
 def test_build_chat_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from rbirag.compliance.llm import build_chat_model
+    from rbirag.compliance.llm import ReplayOnlyModel, build_chat_model
 
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
@@ -698,13 +698,19 @@ def test_build_chat_model(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> No
     gemini = build_chat_model(s, "gemini", cache_mode="off")
     assert isinstance(gemini, OpenAIToolChat) and "generativelanguage" in gemini.base_url
     assert gemini.model.startswith("gemini-")
-    ollama = build_chat_model(s, "ollama", model="qwen2.5:7b-instruct", cache_mode="replay")
-    assert isinstance(ollama, CachedChatModel) and ollama.mode == "replay"
-    assert isinstance(ollama.inner, OpenAIToolChat)
+    ollama = build_chat_model(s, "ollama", model="qwen2.5:7b-instruct")
+    assert isinstance(ollama, CachedChatModel) and isinstance(ollama.inner, OpenAIToolChat)
     assert (
         ollama.inner.base_url == "http://localhost:11434/v1/"
         and ollama.model == "qwen2.5:7b-instruct"
     )
+    # replay needs no credentials: a stub with the configured model id answers from the cache
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    replay = build_chat_model(s, "anthropic", cache_mode="replay")
+    assert isinstance(replay, CachedChatModel) and replay.mode == "replay"
+    assert isinstance(replay.inner, ReplayOnlyModel) and replay.model == "claude-haiku-5-5"
+    with pytest.raises(CacheMissError):
+        replay.chat([ChatMessage(role="user", content="never recorded")])
     pinned = build_chat_model(
         s.model_copy(
             update={"compliance_model": "qwen/qwen3.8-27b", "compliance_model_fallbacks": []}
@@ -727,7 +733,7 @@ def test_cli_check_and_eval_run(
     def reply(messages: Sequence[ChatMessage], tools: Any) -> ChatMessage:
         return ChatMessage(role="assistant", content=json.dumps(JUDGE_CONFLICT))
 
-    def fake_build(system: str, *, backend: Any = None, model: Any = None):  # type: ignore[no-untyped-def]
+    def fake_build(system: str, **kw: Any):  # type: ignore[no-untyped-def]
         assert system == "baseline"
         return FixedPipeline(store, ScriptedChatModel(reply), judge_context_tokens=600), store
 
@@ -804,3 +810,104 @@ def test_cli_check_and_eval_run(
     assert res.exit_code == 0, res.output
     assert "| verdict accuracy | 1.000" in res.output
     assert load_predictions(preds)["kyc/3.2"].verdict == "conflict"
+
+
+def test_eval_replay_reproduces_detects_changes_and_staleness(
+    store: RegulationStore, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    import rbirag.compliance.cli as comply_cli
+    from rbirag.cli import app
+    from rbirag.compliance.llm import ReplayOnlyModel
+
+    cache_dir = tmp_path / "llm_cache"
+    prompt_suffix = {"value": ""}
+
+    def reply(messages: Sequence[ChatMessage], tools: Any) -> ChatMessage:
+        return ChatMessage(role="assistant", content=json.dumps(JUDGE_CONFLICT))
+
+    def fake_build(system: str, *, settings: Any = None, backend: Any = None, model: Any = None):  # type: ignore[no-untyped-def]
+        mode = settings.compliance_llm_cache_mode if settings is not None else "use"
+        inner: Any = (
+            ReplayOnlyModel(model or "m", "groq")
+            if mode == "replay"
+            else ScriptedChatModel(reply, model=model or "m")
+        )
+        chat = CachedChatModel(inner, cache_dir, mode)
+        pipe = FixedPipeline(
+            store,
+            chat,
+            judge_context_tokens=600,
+            entity=prompt_suffix["value"] or "Commercial Banks",
+        )
+        return pipe, store
+
+    monkeypatch.setattr(comply_cli, "build_checker", fake_build)
+    root = tmp_path / "set"
+    root.mkdir()
+    (root / "policies.json").write_text(
+        json.dumps(
+            [
+                {
+                    "policy_id": "kyc",
+                    "title": "KYC",
+                    "topic": "kyc",
+                    "split": "dev",
+                    "sections": [{"number": "3", "title": "CDD"}],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    label = {
+        "item_id": "kyc/3.2",
+        "policy_id": "kyc",
+        "section": "3",
+        "number": "3.2",
+        "text": CLAUSE.text,
+        "verdict": "conflict",
+        "citations": [["rbi-900"]],
+        "rationale": "two years, not three",
+        "evidence": [{"doc_id": "rbi-900", "quote": CB_RULE}],
+    }
+    (root / "labels.jsonl").write_text(json.dumps(label) + "\n", encoding="utf-8")
+    runs, preds = tmp_path / "runs", tmp_path / "baseline-dev-groq.jsonl"
+    runner = CliRunner()
+    res = runner.invoke(
+        app,
+        [
+            "comply",
+            "eval",
+            "run",
+            "--system",
+            "baseline",
+            "--split",
+            "dev",
+            "--root",
+            str(root),
+            "--out",
+            str(preds),
+            "--runs-dir",
+            str(runs),
+            "--backend",
+            "groq",
+            "--model",
+            "m",
+        ],
+    )
+    assert res.exit_code == 0, res.output
+    args = ["comply", "eval", "replay", "--runs-dir", str(runs), "--root", str(root)]
+    res = runner.invoke(app, args)
+    assert res.exit_code == 0, res.output
+    assert "OK   baseline/dev/groq: 1 items replayed" in res.output
+    # a recorded prediction that the code no longer reproduces -> regression
+    recorded = json.loads(preds.read_text())
+    preds.write_text(json.dumps({**recorded, "verdict": "gap"}) + "\n", encoding="utf-8")
+    res = runner.invoke(app, args)
+    assert res.exit_code == 1 and "DIFF" in res.output and "gap" in res.output
+    # different prompts -> requests not in the cache -> stale, needs a live run
+    preds.write_text(json.dumps(recorded) + "\n", encoding="utf-8")
+    prompt_suffix["value"] = "Commercial Bank branches"  # changes the judge's system prompt
+    res = runner.invoke(app, args)
+    assert res.exit_code == 2 and "STALE" in res.output

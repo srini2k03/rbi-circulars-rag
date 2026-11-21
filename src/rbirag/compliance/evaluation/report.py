@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
-from rbirag.compliance.evaluation.metrics import Report
+from rbirag.compliance.evaluation.metrics import ItemScore, Report, paired_bootstrap_difference
+from rbirag.compliance.evaluation.runs import RunRecord
 from rbirag.compliance.records import VERDICTS
 from rbirag.eval.stats import Estimate
 
@@ -98,6 +99,100 @@ def render_report(reports: Sequence[Report]) -> str:
             failure_table(r),
             "",
             f"## {r.system}: by tag",
+            "",
+            tag_table(r),
+        ]
+    return "\n".join(parts) + "\n"
+
+
+def paired_table(
+    scored: Mapping[str, Sequence[ItemScore]], *, agent_key: str, baseline_key: str
+) -> str:
+    """Agent minus baseline on the same clauses, with paired bootstrap CIs."""
+    a = {s.item_id: s for s in scored[agent_key]}
+    b = {s.item_id: s for s in scored[baseline_key]}
+    common = sorted(set(a) & set(b))
+    rows: list[tuple[str, list[float], list[float]]] = [
+        (
+            "verdict accuracy",
+            [float(a[i].correct) for i in common],
+            [float(b[i].correct) for i in common],
+        ),
+        (
+            "task success",
+            [float(a[i].success) for i in common],
+            [float(b[i].success) for i in common],
+        ),
+    ]
+    with_gold = [i for i in common if a[i].groups]
+    rows.append(
+        (
+            "citation recall",
+            [a[i].groups_hit / a[i].groups for i in with_gold],
+            [b[i].groups_hit / b[i].groups for i in with_gold],
+        )
+    )
+    lines = [
+        f"| metric (n={len(common)}) | agent | baseline | agent - baseline [95% CI] |",
+        "|---|---|---|---|",
+    ]
+    for name, va, vb in rows:
+        diff = paired_bootstrap_difference(va, vb)
+        lines.append(
+            f"| {name} | {sum(va) / len(va):.3f} | {sum(vb) / len(vb):.3f} | "
+            f"{diff.mean:+.3f} [{diff.low:+.3f}, {diff.high:+.3f}] |"
+        )
+    return "\n".join(lines)
+
+
+def per_class_table(reports: Sequence[Report]) -> str:
+    head = "| verdict | support | " + " | ".join(f"{r.system} F1" for r in reports) + " |"
+    lines = [head, "|---|---|" + "---|" * len(reports)]
+    for v in VERDICTS:
+        support = int(reports[0].per_class[v]["support"])
+        cells = " | ".join(f"{r.per_class[v]['f1']:.2f}" for r in reports)
+        lines.append(f"| {v} | {support} | {cells} |")
+    return "\n".join(lines)
+
+
+def comparison_report(
+    reports: Sequence[Report],
+    scored: Mapping[str, Sequence[ItemScore]],
+    runs: Sequence[RunRecord],
+) -> str:
+    split = reports[0].split
+    parts = [f"## Results on the {split} split", ""]
+    parts.append(
+        "Runs: "
+        + "; ".join(
+            f"{r.system} = `{r.model}` via {r.backend} ({r.completed} clauses, "
+            f"{r.errors} errors, {r.generated_at[:10]}, commit `{(r.commit or '?')[:7]}`)"
+            for r in runs
+        )
+    )
+    parts += ["", "### Headline metrics (95% bootstrap CIs)", "", headline_table(reports)]
+    agent = next((k for k in scored if k.startswith("agent")), None)
+    baseline = next((k for k in scored if k.startswith("baseline")), None)
+    if agent and baseline:
+        parts += [
+            "",
+            "### Agent vs fixed pipeline (paired, same clauses)",
+            "",
+            paired_table(scored, agent_key=agent, baseline_key=baseline),
+        ]
+    parts += ["", "### F1 per verdict", "", per_class_table(reports)]
+    for r in reports:
+        parts += [
+            "",
+            f"### {r.system}: confusion matrix",
+            "",
+            confusion_table(r),
+            "",
+            f"### {r.system}: failures by type",
+            "",
+            failure_table(r),
+            "",
+            f"### {r.system}: by tag",
             "",
             tag_table(r),
         ]
