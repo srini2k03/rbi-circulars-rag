@@ -1,0 +1,701 @@
+{
+  "split": "test",
+  "runs": [
+    {
+      "system": "agent",
+      "split": "test",
+      "backend": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "predictions": "results/compliance/predictions/agent-test-gemini.jsonl",
+      "item_ids": [
+        "fraud/1.1",
+        "fraud/1.2",
+        "fraud/1.3",
+        "fraud/2.1",
+        "fraud/2.2",
+        "fraud/2.3",
+        "fraud/3.1",
+        "fraud/3.2",
+        "fraud/3.3",
+        "fraud/3.4",
+        "fraud/4.1",
+        "fraud/4.2",
+        "fraud/4.3",
+        "outsourcing/1.1",
+        "outsourcing/1.2",
+        "outsourcing/1.3",
+        "outsourcing/2.1",
+        "outsourcing/2.2",
+        "outsourcing/3.1",
+        "outsourcing/3.2",
+        "outsourcing/3.3",
+        "outsourcing/4.1",
+        "outsourcing/4.2",
+        "outsourcing/4.3",
+        "outsourcing/5.1",
+        "it_cyber/1.1",
+        "it_cyber/1.2",
+        "it_cyber/1.3",
+        "it_cyber/2.1",
+        "it_cyber/2.2",
+        "it_cyber/2.3",
+        "it_cyber/3.1",
+        "it_cyber/3.2",
+        "it_cyber/4.1",
+        "it_cyber/4.2",
+        "it_cyber/4.3",
+        "it_cyber/4.4",
+        "it_cyber/5.1",
+        "customer_service/1.1",
+        "customer_service/1.2",
+        "customer_service/1.3",
+        "customer_service/2.1",
+        "customer_service/2.2",
+        "customer_service/3.1",
+        "customer_service/3.2",
+        "customer_service/3.3",
+        "customer_service/3.4",
+        "customer_service/4.1",
+        "customer_service/4.2",
+        "customer_service/5.1",
+        "customer_service/5.2",
+        "digital_lending/1.1",
+        "digital_lending/1.2",
+        "digital_lending/2.1",
+        "digital_lending/2.2",
+        "digital_lending/3.1",
+        "digital_lending/3.2",
+        "digital_lending/3.3",
+        "digital_lending/4.1",
+        "digital_lending/5.1",
+        "digital_lending/5.2",
+        "digital_lending/6.1",
+        "digital_lending/6.2"
+      ],
+      "settings": {
+        "compliance_search_mode": "bm25",
+        "compliance_chunker": "fixed",
+        "compliance_search_top_k": 5,
+        "compliance_search_depth_factor": 4,
+        "compliance_snippet_chars": 500,
+        "compliance_fetch_max_tokens": 1500,
+        "compliance_passage_chars": 2000,
+        "compliance_entity": "Commercial Banks",
+        "compliance_entity_filter": true,
+        "compliance_as_of": "2026-11-11",
+        "compliance_max_steps": 8,
+        "compliance_planner_max_tokens": 1024,
+        "compliance_planner_context_tokens": 4500,
+        "compliance_judge_max_tokens": 1200,
+        "compliance_judge_context_tokens": 3000,
+        "compliance_abstain_threshold": 0.0,
+        "compliance_require_verified_quote": true,
+        "anthropic_effort": "low",
+        "chunk_size": 512,
+        "chunk_overlap": 64
+      },
+      "corpus": "corpus-v2",
+      "generated_at": "2026-11-21T11:03:00+00:00",
+      "commit": "e66924e49becaef8410d42c89c8382ab388154b1",
+      "cache_hits": 0,
+      "cache_misses": 45,
+      "completed": 8,
+      "errors": 0
+    },
+    {
+      "system": "baseline",
+      "split": "test",
+      "backend": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "predictions": "results/compliance/predictions/baseline-test-gemini.jsonl",
+      "item_ids": [
+        "fraud/1.1",
+        "fraud/1.2",
+        "fraud/1.3",
+        "fraud/2.1",
+        "fraud/2.2",
+        "fraud/2.3",
+        "fraud/3.1",
+        "fraud/3.2",
+        "fraud/3.3",
+        "fraud/3.4",
+        "fraud/4.1",
+        "fraud/4.2",
+        "fraud/4.3",
+        "outsourcing/1.1",
+        "outsourcing/1.2",
+        "outsourcing/1.3",
+        "outsourcing/2.1",
+        "outsourcing/2.2",
+        "outsourcing/3.1",
+        "outsourcing/3.2",
+        "outsourcing/3.3",
+        "outsourcing/4.1",
+        "outsourcing/4.2",
+        "outsourcing/4.3",
+        "outsourcing/5.1",
+        "it_cyber/1.1",
+        "it_cyber/1.2",
+        "it_cyber/1.3",
+        "it_cyber/2.1",
+        "it_cyber/2.2",
+        "it_cyber/2.3",
+        "it_cyber/3.1",
+        "it_cyber/3.2",
+        "it_cyber/4.1",
+        "it_cyber/4.2",
+        "it_cyber/4.3",
+        "it_cyber/4.4",
+        "it_cyber/5.1",
+        "customer_service/1.1",
+        "customer_service/1.2",
+        "customer_service/1.3",
+        "customer_service/2.1",
+        "customer_service/2.2",
+        "customer_service/3.1",
+        "customer_service/3.2",
+        "customer_service/3.3",
+        "customer_service/3.4",
+        "customer_service/4.1",
+        "customer_service/4.2",
+        "customer_service/5.1",
+        "customer_service/5.2",
+        "digital_lending/1.1",
+        "digital_lending/1.2",
+        "digital_lending/2.1",
+        "digital_lending/2.2",
+        "digital_lending/3.1",
+        "digital_lending/3.2",
+        "digital_lending/3.3",
+        "digital_lending/4.1",
+        "digital_lending/5.1",
+        "digital_lending/5.2",
+        "digital_lending/6.1",
+        "digital_lending/6.2"
+      ],
+      "settings": {
+        "compliance_search_mode": "bm25",
+        "compliance_chunker": "fixed",
+        "compliance_search_top_k": 5,
+        "compliance_search_depth_factor": 4,
+        "compliance_snippet_chars": 500,
+        "compliance_fetch_max_tokens": 1500,
+        "compliance_passage_chars": 2000,
+        "compliance_entity": "Commercial Banks",
+        "compliance_entity_filter": true,
+        "compliance_as_of": "2026-11-11",
+        "compliance_max_steps": 8,
+        "compliance_planner_max_tokens": 1024,
+        "compliance_planner_context_tokens": 4500,
+        "compliance_judge_max_tokens": 1200,
+        "compliance_judge_context_tokens": 3000,
+        "compliance_abstain_threshold": 0.0,
+        "compliance_require_verified_quote": true,
+        "anthropic_effort": "low",
+        "chunk_size": 512,
+        "chunk_overlap": 64
+      },
+      "corpus": "corpus-v2",
+      "generated_at": "2026-11-21T11:03:22+00:00",
+      "commit": "e66924e49becaef8410d42c89c8382ab388154b1",
+      "cache_hits": 0,
+      "cache_misses": 2,
+      "completed": 1,
+      "errors": 0
+    }
+  ],
+  "served_by": {
+    "agent via gemini": {
+      "gemini-3.5-flash-lite": 8
+    },
+    "baseline via gemini": {
+      "gemini-3.5-flash-lite": 1
+    }
+  },
+  "reports": [
+    {
+      "system": "agent (gemini-3.5-flash-lite)",
+      "split": "test",
+      "n": 63,
+      "verdict_accuracy": {
+        "mean": 0.1111111111111111,
+        "low": 0.031746031746031744,
+        "high": 0.19047619047619047,
+        "n": 63
+      },
+      "macro_f1": {
+        "mean": 0.13636363636363638,
+        "low": 0.06833147729413981,
+        "high": 0.208568337265451,
+        "n": 63
+      },
+      "per_class": {
+        "compliant": {
+          "precision": 1.0,
+          "recall": 0.1,
+          "f1": 0.18181818181818182,
+          "support": 20.0
+        },
+        "conflict": {
+          "precision": 1.0,
+          "recall": 0.2,
+          "f1": 0.33333333333333337,
+          "support": 25.0
+        },
+        "gap": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8.0
+        },
+        "not_applicable": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 5.0
+        },
+        "insufficient_evidence": {
+          "precision": 0.09090909090909091,
+          "recall": 1.0,
+          "f1": 0.16666666666666669,
+          "support": 5.0
+        }
+      },
+      "confusion": {
+        "compliant": {
+          "compliant": 2,
+          "conflict": 0,
+          "gap": 1,
+          "not_applicable": 0,
+          "insufficient_evidence": 17
+        },
+        "conflict": {
+          "compliant": 0,
+          "conflict": 5,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 20
+        },
+        "gap": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 8
+        },
+        "not_applicable": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 5
+        },
+        "insufficient_evidence": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 5
+        }
+      },
+      "citation_precision": {
+        "mean": 0.75,
+        "low": 0.3628787878787879,
+        "high": 1.0,
+        "n": 63
+      },
+      "citation_recall": {
+        "mean": 0.11320754716981132,
+        "low": 0.03773584905660377,
+        "high": 0.20754716981132076,
+        "n": 53
+      },
+      "tool_argument_validity": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 63
+      },
+      "fetch_grounding": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 63
+      },
+      "tool_selection_accuracy": {
+        "mean": 0.20634920634920634,
+        "low": 0.1111111111111111,
+        "high": 0.31746031746031744,
+        "n": 63
+      },
+      "task_success": {
+        "mean": 0.09523809523809523,
+        "low": 0.031746031746031744,
+        "high": 0.1746031746031746,
+        "n": 63
+      },
+      "avg_steps": {
+        "mean": 0.4444444444444444,
+        "low": 0.15873015873015872,
+        "high": 0.746031746031746,
+        "n": 63
+      },
+      "avg_llm_calls": {
+        "mean": 0.6984126984126984,
+        "low": 0.25396825396825395,
+        "high": 1.1749999999999996,
+        "n": 63
+      },
+      "latency_ms_per_clause": {
+        "mean": 5666.266507936509,
+        "low": 2103.738158730159,
+        "high": 9792.321496031745,
+        "n": 63
+      },
+      "cost_usd_per_clause": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 63
+      },
+      "tokens_per_clause": {
+        "mean": 2122.6190476190477,
+        "low": 759.5404761904762,
+        "high": 3594.187698412698,
+        "n": 63
+      },
+      "latency_ms_per_document": {
+        "mean": 71394.958,
+        "low": 0.0,
+        "high": 214184.87399999998,
+        "n": 5
+      },
+      "cost_usd_per_document": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 5
+      },
+      "tokens_per_document": {
+        "mean": 26745.0,
+        "low": 0.0,
+        "high": 80235.0,
+        "n": 5
+      },
+      "documents": 5,
+      "document_success": 0.0,
+      "ece": null,
+      "aurc": null,
+      "accuracy_at_coverage": {},
+      "by_tag": {
+        "amendment": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "entity_confusion": {
+          "n": 9.0,
+          "accuracy": 0.1111111111111111,
+          "success": 0.1111111111111111
+        },
+        "future_effective": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "multi_source": {
+          "n": 2.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "not_in_corpus": {
+          "n": 5.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "numeric_threshold": {
+          "n": 24.0,
+          "accuracy": 0.20833333333333334,
+          "success": 0.16666666666666666
+        },
+        "out_of_scope": {
+          "n": 5.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "outdated_rule": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "paraphrase": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "partial_compliance": {
+          "n": 8.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "prohibition": {
+          "n": 10.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "stricter_than_required": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        }
+      },
+      "failures": {
+        "run_error": 55,
+        "false_alarm": 1,
+        "citation_miss": 1
+      },
+      "errors": 55
+    },
+    {
+      "system": "baseline (gemini-3.5-flash-lite)",
+      "split": "test",
+      "n": 63,
+      "verdict_accuracy": {
+        "mean": 0.015873015873015872,
+        "low": 0.0,
+        "high": 0.047619047619047616,
+        "n": 63
+      },
+      "macro_f1": {
+        "mean": 0.04889836531627577,
+        "low": 0.012307692307692308,
+        "high": 0.0961868686868687,
+        "n": 63
+      },
+      "per_class": {
+        "compliant": {
+          "precision": 1.0,
+          "recall": 0.05,
+          "f1": 0.09523809523809523,
+          "support": 20.0
+        },
+        "conflict": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 25.0
+        },
+        "gap": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 8.0
+        },
+        "not_applicable": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 5.0
+        },
+        "insufficient_evidence": {
+          "precision": 0.08064516129032258,
+          "recall": 1.0,
+          "f1": 0.1492537313432836,
+          "support": 5.0
+        }
+      },
+      "confusion": {
+        "compliant": {
+          "compliant": 1,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 19
+        },
+        "conflict": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 25
+        },
+        "gap": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 8
+        },
+        "not_applicable": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 5
+        },
+        "insufficient_evidence": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 5
+        }
+      },
+      "citation_precision": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 63
+      },
+      "citation_recall": {
+        "mean": 0.018867924528301886,
+        "low": 0.0,
+        "high": 0.05660377358490566,
+        "n": 53
+      },
+      "tool_argument_validity": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 63
+      },
+      "fetch_grounding": {
+        "mean": NaN,
+        "low": NaN,
+        "high": NaN,
+        "n": 63
+      },
+      "tool_selection_accuracy": {
+        "mean": 0.09523809523809523,
+        "low": 0.031746031746031744,
+        "high": 0.1746031746031746,
+        "n": 63
+      },
+      "task_success": {
+        "mean": 0.015873015873015872,
+        "low": 0.0,
+        "high": 0.047619047619047616,
+        "n": 63
+      },
+      "avg_steps": {
+        "mean": 0.031746031746031744,
+        "low": 0.0,
+        "high": 0.09523809523809523,
+        "n": 63
+      },
+      "avg_llm_calls": {
+        "mean": 0.015873015873015872,
+        "low": 0.0,
+        "high": 0.047619047619047616,
+        "n": 63
+      },
+      "latency_ms_per_clause": {
+        "mean": 32.15571428571428,
+        "low": 0.0,
+        "high": 96.46714285714286,
+        "n": 63
+      },
+      "cost_usd_per_clause": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 63
+      },
+      "tokens_per_clause": {
+        "mean": 60.98412698412698,
+        "low": 0.0,
+        "high": 182.95238095238096,
+        "n": 63
+      },
+      "latency_ms_per_document": {
+        "mean": 405.162,
+        "low": 0.0,
+        "high": 1215.486,
+        "n": 5
+      },
+      "cost_usd_per_document": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 5
+      },
+      "tokens_per_document": {
+        "mean": 768.4,
+        "low": 0.0,
+        "high": 2305.2,
+        "n": 5
+      },
+      "documents": 5,
+      "document_success": 0.0,
+      "ece": null,
+      "aurc": null,
+      "accuracy_at_coverage": {},
+      "by_tag": {
+        "amendment": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "entity_confusion": {
+          "n": 9.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "future_effective": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "multi_source": {
+          "n": 2.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "not_in_corpus": {
+          "n": 5.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "numeric_threshold": {
+          "n": 24.0,
+          "accuracy": 0.041666666666666664,
+          "success": 0.041666666666666664
+        },
+        "out_of_scope": {
+          "n": 5.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "outdated_rule": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "paraphrase": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "partial_compliance": {
+          "n": 8.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "prohibition": {
+          "n": 10.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "stricter_than_required": {
+          "n": 4.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        }
+      },
+      "failures": {
+        "run_error": 62
+      },
+      "errors": 62
+    }
+  ]
+}
