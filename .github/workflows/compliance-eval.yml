@@ -30,8 +30,8 @@ on:
       backend:
         description: "LLM backend"
         type: choice
-        options: [anthropic, groq, gemini]
-        default: anthropic
+        options: [gemini, groq]  # free tiers only
+        default: gemini
       model:
         description: "Model id (empty = the backend's default)"
         type: string
@@ -101,7 +101,7 @@ jobs:
               req = json.load(open(".github/compliance-eval-request.json"))
               v = {
                   "systems": req.get("systems", "agent,baseline"), "split": req.get("split", "dev"),
-                  "backend": req.get("backend", "anthropic"), "model": req.get("model", ""),
+                  "backend": req.get("backend", "gemini"), "model": req.get("model", ""),
                   "limit": str(req.get("limit", "") or ""), "threshold": str(req.get("abstain_threshold", "0.0")),
                   "cache": req.get("cache_mode", "use"),
                   "fresh": str(req.get("fresh", False)).lower(),
@@ -122,7 +122,7 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[ingest,retrieval,llm,anthropic,eval]"
+          pip install -e ".[ingest,retrieval,llm,eval]"
 
       - name: Validate inputs
         env:
@@ -137,7 +137,7 @@ jobs:
         run: |
           [[ "$SYSTEMS" =~ ^(agent|baseline)(,(agent|baseline))?$ ]] || { echo "systems must be agent and/or baseline"; exit 1; }
           [[ "$SPLIT" =~ ^(dev|test)$ ]] || { echo "split must be dev or test"; exit 1; }
-          [[ "$BACKEND" =~ ^(anthropic|groq|gemini)$ ]] || { echo "invalid backend"; exit 1; }
+          [[ "$BACKEND" =~ ^(groq|gemini)$ ]] || { echo "backend must be gemini or groq (free tiers)"; exit 1; }
           [[ "$CACHE" =~ ^(use|refresh)$ ]] || { echo "invalid cache mode"; exit 1; }
           [[ -z "$MODEL" || "$MODEL" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "invalid model id"; exit 1; }
           [[ -z "$LIMIT" || "$LIMIT" =~ ^[0-9]+$ ]] || { echo "limit must be an integer"; exit 1; }
@@ -147,12 +147,10 @@ jobs:
       - name: Check the API key (its value is never printed)
         env:
           BACKEND: ${{ steps.in.outputs.backend }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           case "$BACKEND" in
-            anthropic) var=ANTHROPIC_API_KEY ;;
             groq) var=GROQ_API_KEY ;;
             gemini) var=GEMINI_API_KEY ;;
           esac
@@ -183,7 +181,6 @@ jobs:
           RBIRAG_COMPLIANCE_MODEL_FALLBACKS: ${{ steps.in.outputs.fallbacks }}
           RBIRAG_COMPLIANCE_ABSTAIN_THRESHOLD: ${{ steps.in.outputs.threshold }}
           RBIRAG_COMPLIANCE_LLM_CACHE_MODE: ${{ steps.in.outputs.cache }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |

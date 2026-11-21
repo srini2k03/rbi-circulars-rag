@@ -14,7 +14,7 @@ RAG pipeline is rebuilt or changed.
 | Framework | A plain, bounded tool-calling loop (no LangGraph) | Per clause the agent takes at most ~6 steps over 3 tools; owning the loop gives full trajectories for tool-call metrics and keeps the existing rate limiter, model fallbacks and response cache (which make free tiers and CI replay workable) |
 | Corpus | `corpus-v2`: `corpus-v1` plus notifications above id 13050 | `corpus-v1` has the November 2025 consolidated Directions for NBFCs, UCBs, RCBs and RRBs but not the Commercial Banks set; `corpus-v1` stays untouched so the RAG results remain reproducible |
 | Ground truth | "As per the corpus snapshot", with the snapshot date stated | The corpus has no withdrawal flags; the reference graph (below) is a heuristic hint, not truth |
-| Headline LLM | Planned: Groq free tier for development, Claude Haiku 5.5 for the reported numbers. Actual (Phase 4): `gemini-3.5-flash-lite` (Gemini free tier) for dev and the locked test run, one model for both systems; Haiku is added if an `ANTHROPIC_API_KEY` secret is configured | The Groq free tier ran out after one dev run (~200K tokens per model per day) and its fallback chain mixed models within a run; no Anthropic key is configured |
+| LLM | Free tiers only: `gemini-3.5-flash-lite` (Gemini free tier) for dev and the locked test run, one model for both systems; Groq's free tier and local Ollama also work. The Claude backend exists in the code but is never used by the workflows | The project runs at $0. The Groq free tier ran out after one dev run (~200K tokens per model per day) and its fallback chain mixed models within a run; Gemini's free tier fits a full split in a day or two |
 | CI | Every push: deterministic replay of the full evaluation from committed LLM responses, failing on a metric regression or a stale cache. Live runs: manual or nightly, resumable | A live evaluation on every push does not fit any free tier |
 | Labels | AI-authored from real notifications, every quote machine-checked against the corpus, labelled "0 human-verified" until reviewed | Same honesty rules as the RAG test set |
 | Deployment | Hugging Face Spaces (Docker, free CPU tier, 16 GB RAM) | Render's free tier (512 MB) cannot hold torch plus the embedder and reranker |
@@ -250,7 +250,7 @@ flowchart TD
 - **Prompt sizes:** about 0.9K, 1.8K and 1.8K tokens for the planner turns and 3.8K for the
   judge, roughly 8.4K tokens per clause. On the Groq free tier (about 8K tokens per
   minute, 200K per day for `gpt-oss-20b`) that is about one clause a minute and roughly
-  24 clauses a day. This is why the headline run needs a paid model or Ollama.
+  24 clauses a day. This is why the reported runs moved to the Gemini free tier (Phase 4).
 - **Load time:** the store loads in about 22 s, of which the reference graph takes about
   16 s. Phase 5 caches the graph for the API.
 
@@ -309,7 +309,7 @@ Final dev numbers (n = 26, `gemini-3.5-flash-lite` for both systems, 95% bootstr
 | ECE | 0.067 | 0.150 |
 | LLM calls / clause | 5.6 | 1.0 |
 | tokens / clause (in + out) | 16.5K + 0.4K | 3.4K + 0.1K |
-| est. cost / 13-clause policy at Claude Haiku 5.5 list prices | ~$0.024 | ~$0.005 |
+| cost | $0 (free tier) | $0 (free tier) |
 
 Paired agent minus baseline: accuracy +0.04 [-0.08, +0.19], task success +0.00
 [-0.19, +0.23]. On dev the agent is at least as good, better calibrated and cites
