@@ -1,0 +1,618 @@
+{
+  "split": "dev",
+  "runs": [
+    {
+      "system": "agent",
+      "split": "dev",
+      "backend": "groq",
+      "model": "openai/gpt-oss-20b",
+      "predictions": "results/compliance/predictions/agent-dev-groq.jsonl",
+      "item_ids": [
+        "kyc/1.1",
+        "kyc/1.2",
+        "kyc/2.1",
+        "kyc/3.1",
+        "kyc/3.2",
+        "kyc/3.3",
+        "kyc/4.1",
+        "kyc/4.2",
+        "kyc/4.3",
+        "kyc/4.4",
+        "kyc/5.1",
+        "kyc/5.2",
+        "kyc/5.3",
+        "kyc/6.1",
+        "retail/1.1",
+        "retail/1.2",
+        "retail/1.3",
+        "retail/1.4",
+        "retail/1.5",
+        "retail/2.1",
+        "retail/3.1",
+        "retail/3.2",
+        "retail/3.3",
+        "retail/3.4",
+        "retail/3.5",
+        "retail/4.1"
+      ],
+      "settings": {
+        "compliance_search_mode": "bm25",
+        "compliance_chunker": "fixed",
+        "compliance_search_top_k": 5,
+        "compliance_search_depth_factor": 4,
+        "compliance_snippet_chars": 500,
+        "compliance_fetch_max_tokens": 1500,
+        "compliance_passage_chars": 2000,
+        "compliance_entity": "Commercial Banks",
+        "compliance_entity_filter": true,
+        "compliance_as_of": "2026-11-11",
+        "compliance_max_steps": 8,
+        "compliance_planner_max_tokens": 1024,
+        "compliance_judge_max_tokens": 1200,
+        "compliance_judge_context_tokens": 3000,
+        "compliance_abstain_threshold": 0.0,
+        "compliance_require_verified_quote": true,
+        "anthropic_effort": "low",
+        "chunk_size": 512,
+        "chunk_overlap": 64
+      },
+      "corpus": "corpus-v2",
+      "generated_at": "2026-11-21T09:16:33+00:00",
+      "commit": "8002198cb461d21e8d354e7b4d71a235f8ada2ba",
+      "cache_hits": 0,
+      "cache_misses": 109,
+      "completed": 22,
+      "errors": 4
+    },
+    {
+      "system": "baseline",
+      "split": "dev",
+      "backend": "groq",
+      "model": "openai/gpt-oss-20b",
+      "predictions": "results/compliance/predictions/baseline-dev-groq.jsonl",
+      "item_ids": [
+        "kyc/1.1",
+        "kyc/1.2",
+        "kyc/2.1",
+        "kyc/3.1",
+        "kyc/3.2",
+        "kyc/3.3",
+        "kyc/4.1",
+        "kyc/4.2",
+        "kyc/4.3",
+        "kyc/4.4",
+        "kyc/5.1",
+        "kyc/5.2",
+        "kyc/5.3",
+        "kyc/6.1",
+        "retail/1.1",
+        "retail/1.2",
+        "retail/1.3",
+        "retail/1.4",
+        "retail/1.5",
+        "retail/2.1",
+        "retail/3.1",
+        "retail/3.2",
+        "retail/3.3",
+        "retail/3.4",
+        "retail/3.5",
+        "retail/4.1"
+      ],
+      "settings": {
+        "compliance_search_mode": "bm25",
+        "compliance_chunker": "fixed",
+        "compliance_search_top_k": 5,
+        "compliance_search_depth_factor": 4,
+        "compliance_snippet_chars": 500,
+        "compliance_fetch_max_tokens": 1500,
+        "compliance_passage_chars": 2000,
+        "compliance_entity": "Commercial Banks",
+        "compliance_entity_filter": true,
+        "compliance_as_of": "2026-11-11",
+        "compliance_max_steps": 8,
+        "compliance_planner_max_tokens": 1024,
+        "compliance_judge_max_tokens": 1200,
+        "compliance_judge_context_tokens": 3000,
+        "compliance_abstain_threshold": 0.0,
+        "compliance_require_verified_quote": true,
+        "anthropic_effort": "low",
+        "chunk_size": 512,
+        "chunk_overlap": 64
+      },
+      "corpus": "corpus-v2",
+      "generated_at": "2026-11-21T09:41:48+00:00",
+      "commit": "8002198cb461d21e8d354e7b4d71a235f8ada2ba",
+      "cache_hits": 0,
+      "cache_misses": 26,
+      "completed": 26,
+      "errors": 0
+    }
+  ],
+  "reports": [
+    {
+      "system": "agent (openai/gpt-oss-20b)",
+      "split": "dev",
+      "n": 26,
+      "verdict_accuracy": {
+        "mean": 0.19230769230769232,
+        "low": 0.038461538461538464,
+        "high": 0.34615384615384615,
+        "n": 26
+      },
+      "macro_f1": {
+        "mean": 0.3947826086956522,
+        "low": 0.13887820512820515,
+        "high": 0.5357142857142858,
+        "n": 26
+      },
+      "per_class": {
+        "compliant": {
+          "precision": 1.0,
+          "recall": 0.25,
+          "f1": 0.4,
+          "support": 8.0
+        },
+        "conflict": {
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 10.0
+        },
+        "gap": {
+          "precision": 1.0,
+          "recall": 0.25,
+          "f1": 0.4,
+          "support": 4.0
+        },
+        "not_applicable": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "support": 2.0
+        },
+        "insufficient_evidence": {
+          "precision": 0.09523809523809523,
+          "recall": 1.0,
+          "f1": 0.17391304347826084,
+          "support": 2.0
+        }
+      },
+      "confusion": {
+        "compliant": {
+          "compliant": 2,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 6
+        },
+        "conflict": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 10
+        },
+        "gap": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 1,
+          "not_applicable": 0,
+          "insufficient_evidence": 3
+        },
+        "not_applicable": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 2,
+          "insufficient_evidence": 0
+        },
+        "insufficient_evidence": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 0,
+          "insufficient_evidence": 2
+        }
+      },
+      "citation_precision": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "citation_recall": {
+        "mean": 0.13636363636363635,
+        "low": 0.0,
+        "high": 0.3181818181818182,
+        "n": 22
+      },
+      "tool_argument_validity": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "fetch_grounding": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "tool_selection_accuracy": {
+        "mean": 0.3076923076923077,
+        "low": 0.15384615384615385,
+        "high": 0.5,
+        "n": 26
+      },
+      "task_success": {
+        "mean": 0.19230769230769232,
+        "low": 0.038461538461538464,
+        "high": 0.34615384615384615,
+        "n": 26
+      },
+      "avg_steps": {
+        "mean": 3.0,
+        "low": 2.5375,
+        "high": 3.5384615384615383,
+        "n": 26
+      },
+      "avg_llm_calls": {
+        "mean": 4.038461538461538,
+        "low": 3.5384615384615383,
+        "high": 4.5,
+        "n": 26
+      },
+      "latency_ms_per_clause": {
+        "mean": 176805.2411538461,
+        "low": 133609.07749038463,
+        "high": 226528.46885576923,
+        "n": 26
+      },
+      "cost_usd_per_clause": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 26
+      },
+      "tokens_per_clause": {
+        "mean": 12755.038461538461,
+        "low": 10359.491346153847,
+        "high": 15193.46346153846,
+        "n": 26
+      },
+      "latency_ms_per_document": {
+        "mean": 2298468.135,
+        "low": 1927972.12,
+        "high": 2668964.15,
+        "n": 2
+      },
+      "cost_usd_per_document": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 2
+      },
+      "tokens_per_document": {
+        "mean": 165815.5,
+        "low": 155639.0,
+        "high": 175992.0,
+        "n": 2
+      },
+      "documents": 2,
+      "document_success": 0.0,
+      "ece": null,
+      "aurc": null,
+      "accuracy_at_coverage": {},
+      "by_tag": {
+        "amendment": {
+          "n": 2.0,
+          "accuracy": 0.5,
+          "success": 0.5
+        },
+        "entity_confusion": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "future_effective": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "not_in_corpus": {
+          "n": 2.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "numeric_threshold": {
+          "n": 12.0,
+          "accuracy": 0.08333333333333333,
+          "success": 0.08333333333333333
+        },
+        "out_of_scope": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "outdated_rule": {
+          "n": 2.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "paraphrase": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "partial_compliance": {
+          "n": 4.0,
+          "accuracy": 0.25,
+          "success": 0.25
+        },
+        "prohibition": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "stricter_than_required": {
+          "n": 2.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        }
+      },
+      "failures": {
+        "over_abstention": 17,
+        "run_error": 4
+      },
+      "errors": 4
+    },
+    {
+      "system": "baseline (openai/gpt-oss-20b)",
+      "split": "dev",
+      "n": 26,
+      "verdict_accuracy": {
+        "mean": 0.8461538461538461,
+        "low": 0.6923076923076923,
+        "high": 0.9615384615384616,
+        "n": 26
+      },
+      "macro_f1": {
+        "mean": 0.7996901344269765,
+        "low": 0.5668701298701299,
+        "high": 0.9684848484848484,
+        "n": 26
+      },
+      "per_class": {
+        "compliant": {
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571428571428571,
+          "support": 8.0
+        },
+        "conflict": {
+          "precision": 1.0,
+          "recall": 0.9,
+          "f1": 0.9473684210526316,
+          "support": 10.0
+        },
+        "gap": {
+          "precision": 0.5714285714285714,
+          "recall": 1.0,
+          "f1": 0.7272727272727273,
+          "support": 4.0
+        },
+        "not_applicable": {
+          "precision": 0.6666666666666666,
+          "recall": 1.0,
+          "f1": 0.8,
+          "support": 2.0
+        },
+        "insufficient_evidence": {
+          "precision": 1.0,
+          "recall": 0.5,
+          "f1": 0.6666666666666666,
+          "support": 2.0
+        }
+      },
+      "confusion": {
+        "compliant": {
+          "compliant": 6,
+          "conflict": 0,
+          "gap": 2,
+          "not_applicable": 0,
+          "insufficient_evidence": 0
+        },
+        "conflict": {
+          "compliant": 0,
+          "conflict": 9,
+          "gap": 1,
+          "not_applicable": 0,
+          "insufficient_evidence": 0
+        },
+        "gap": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 4,
+          "not_applicable": 0,
+          "insufficient_evidence": 0
+        },
+        "not_applicable": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 2,
+          "insufficient_evidence": 0
+        },
+        "insufficient_evidence": {
+          "compliant": 0,
+          "conflict": 0,
+          "gap": 0,
+          "not_applicable": 1,
+          "insufficient_evidence": 1
+        }
+      },
+      "citation_precision": {
+        "mean": 0.71875,
+        "low": 0.5609218077474893,
+        "high": 0.896551724137931,
+        "n": 26
+      },
+      "citation_recall": {
+        "mean": 0.9090909090909091,
+        "low": 0.7727272727272727,
+        "high": 1.0,
+        "n": 22
+      },
+      "tool_argument_validity": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "fetch_grounding": {
+        "mean": NaN,
+        "low": NaN,
+        "high": NaN,
+        "n": 26
+      },
+      "tool_selection_accuracy": {
+        "mean": 0.2692307692307692,
+        "low": 0.11538461538461539,
+        "high": 0.46153846153846156,
+        "n": 26
+      },
+      "task_success": {
+        "mean": 0.8076923076923077,
+        "low": 0.6538461538461539,
+        "high": 0.9230769230769231,
+        "n": 26
+      },
+      "avg_steps": {
+        "mean": 2.0,
+        "low": 2.0,
+        "high": 2.0,
+        "n": 26
+      },
+      "avg_llm_calls": {
+        "mean": 1.0,
+        "low": 1.0,
+        "high": 1.0,
+        "n": 26
+      },
+      "latency_ms_per_clause": {
+        "mean": 115351.33115384614,
+        "low": 106212.67336538462,
+        "high": 120049.37329807693,
+        "n": 26
+      },
+      "cost_usd_per_clause": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 26
+      },
+      "tokens_per_clause": {
+        "mean": 3614.153846153846,
+        "low": 3516.6749999999997,
+        "high": 3707.395192307692,
+        "n": 26
+      },
+      "latency_ms_per_document": {
+        "mean": 1499567.305,
+        "low": 1438996.1099999999,
+        "high": 1560138.5,
+        "n": 2
+      },
+      "cost_usd_per_document": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0,
+        "n": 2
+      },
+      "tokens_per_document": {
+        "mean": 46984.0,
+        "low": 43299.0,
+        "high": 50669.0,
+        "n": 2
+      },
+      "documents": 2,
+      "document_success": 1.0,
+      "ece": {
+        "mean": 0.12192307692307684,
+        "low": 0.028817307692307705,
+        "high": 0.26692307692307693,
+        "n": 26
+      },
+      "aurc": 0.045793998405295605,
+      "accuracy_at_coverage": {
+        "50%": 1.0,
+        "80%": 0.8571428571428571,
+        "100%": 0.8461538461538461
+      },
+      "by_tag": {
+        "amendment": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "entity_confusion": {
+          "n": 1.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "future_effective": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "not_in_corpus": {
+          "n": 2.0,
+          "accuracy": 0.5,
+          "success": 0.5
+        },
+        "numeric_threshold": {
+          "n": 12.0,
+          "accuracy": 0.8333333333333334,
+          "success": 0.8333333333333334
+        },
+        "out_of_scope": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "outdated_rule": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "paraphrase": {
+          "n": 1.0,
+          "accuracy": 0.0,
+          "success": 0.0
+        },
+        "partial_compliance": {
+          "n": 4.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "prohibition": {
+          "n": 1.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        },
+        "stricter_than_required": {
+          "n": 2.0,
+          "accuracy": 1.0,
+          "success": 1.0
+        }
+      },
+      "failures": {
+        "false_alarm": 2,
+        "citation_miss": 1,
+        "conflict_gap_confusion": 1,
+        "unsupported_verdict": 1
+      },
+      "errors": 0
+    }
+  ]
+}
