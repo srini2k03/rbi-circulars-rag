@@ -6,7 +6,7 @@ name: Compliance eval (live LLM runs)
 # those responses on every push without calling a provider.
 #
 # Runs resume: a run stopped by a quota limit keeps its predictions and the next dispatch
-# continues from them (and from cached responses).
+# continues from them (and from cached responses). Set `fresh` to start over after changing the agent.
 #
 # Two ways to start a run: workflow_dispatch (once this file is on the default branch),
 # or pushing a change to .github/compliance-eval-request.json on any branch (same fields
@@ -49,6 +49,10 @@ on:
         type: choice
         options: [use, refresh]
         default: use
+      fresh:
+        description: "Start over (ignore earlier predictions) instead of resuming; use after changing the agent"
+        type: boolean
+        default: false
 
 permissions:
   contents: write  # commit predictions and recorded responses back to the branch
@@ -81,11 +85,12 @@ jobs:
           D_LIMIT: ${{ inputs.limit }}
           D_THRESHOLD: ${{ inputs.abstain_threshold }}
           D_CACHE: ${{ inputs.cache_mode }}
+          D_FRESH: ${{ inputs.fresh }}
         run: |
           python3 - <<'PY'
           import json, os
           if os.environ["EVENT"] == "workflow_dispatch":
-              v = {k: os.environ[f"D_{k.upper()}"] for k in ("systems", "split", "backend", "model", "limit", "threshold", "cache")}
+              v = {k: os.environ[f"D_{k.upper()}"] for k in ("systems", "split", "backend", "model", "limit", "threshold", "cache", "fresh")}
           else:
               req = json.load(open(".github/compliance-eval-request.json"))
               v = {
@@ -93,6 +98,7 @@ jobs:
                   "backend": req.get("backend", "anthropic"), "model": req.get("model", ""),
                   "limit": str(req.get("limit", "") or ""), "threshold": str(req.get("abstain_threshold", "0.0")),
                   "cache": req.get("cache_mode", "use"),
+                  "fresh": str(req.get("fresh", False)).lower(),
               }
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               for k, val in v.items():
@@ -164,6 +170,7 @@ jobs:
           BACKEND: ${{ steps.in.outputs.backend }}
           MODEL: ${{ steps.in.outputs.model }}
           LIMIT: ${{ steps.in.outputs.limit }}
+          FRESH: ${{ steps.in.outputs.fresh }}
           RBIRAG_COMPLIANCE_ABSTAIN_THRESHOLD: ${{ steps.in.outputs.threshold }}
           RBIRAG_COMPLIANCE_LLM_CACHE_MODE: ${{ steps.in.outputs.cache }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -176,6 +183,7 @@ jobs:
             args=(comply eval run --system "$system" --split "$SPLIT" --backend "$BACKEND")
             [ -n "$MODEL" ] && args+=(--model "$MODEL")
             [ -n "$LIMIT" ] && args+=(--limit "$LIMIT")
+            [ "$FRESH" = "true" ] && args+=(--fresh)
             rbirag "${args[@]}" | tee -a "$GITHUB_STEP_SUMMARY"
             code=${PIPESTATUS[0]}
             if [ "$code" -ne 0 ]; then status=$code; fi

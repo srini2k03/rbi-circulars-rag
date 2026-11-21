@@ -6,5 +6,6 @@
   "limit": "",
   "abstain_threshold": "0.0",
   "cache_mode": "use",
-  "note": "Dev run on the Groq free tier (no ANTHROPIC_API_KEY secret yet); resumes if the daily quota stops it."
+  "note": "Dev re-run of the agent after the auto-compare / context-budget fixes (fresh: earlier agent predictions are discarded). Set fresh to false to resume after a quota stop.",
+  "fresh": true
 }
