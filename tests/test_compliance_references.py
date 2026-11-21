@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 import pytest
 
@@ -138,3 +139,25 @@ def test_no_self_or_backwards_references(graph: ReferenceGraph) -> None:
     g = ReferenceGraph.build([*ALL, later])
     assert all(r.target != "rbi-300" for r in g.cites("rbi-140"))
     assert len(g) == len(ReferenceGraph.build(ALL))
+
+
+def test_graph_cache_round_trip_and_invalidation(tmp_path: Path, graph: ReferenceGraph) -> None:
+    docs = {d.doc_id: d for d in ALL}
+    path = tmp_path / "graph.json.gz"
+    built = ReferenceGraph.load_or_build(docs, path)
+    assert path.exists() and built.references == graph.references
+    loaded = ReferenceGraph.load_or_build(docs, path)
+    for doc_id in docs:
+        assert loaded.cited_by(doc_id) == graph.cited_by(doc_id)
+        assert loaded.replaced_by(doc_id) == graph.replaced_by(doc_id)
+
+    # a changed corpus invalidates the cache
+    changed = {**docs, "rbi-250": WITHDRAWAL_LIST.model_copy(update={"text": "no list"})}
+    rebuilt = ReferenceGraph.load_or_build(changed, path)
+    assert len(rebuilt) < len(graph)
+    assert ReferenceGraph.fingerprint(changed) != ReferenceGraph.fingerprint(docs)
+
+    # an unreadable cache is rebuilt, never fatal
+    path.write_bytes(b"not gzip")
+    assert len(ReferenceGraph.load_or_build(docs, path)) == len(graph)
+    assert ReferenceGraph.load_or_build(docs, None).references == graph.references

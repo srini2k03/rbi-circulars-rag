@@ -178,3 +178,58 @@ class Health(BaseModel):
     default_backend: str
     backends: dict[str, bool] = Field(description="Backend -> configured (key present / local).")
     version: str
+
+
+class ComplyTextRequest(BaseModel):
+    """A policy as plain text (or Markdown); upload a PDF with the multipart endpoints."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "kyc_policy.md",
+                    "text": "1. Periodic updation\n1.1 KYC of high-risk customers shall be "
+                    "updated at least once every three years.",
+                    "system": "agent",
+                    "max_clauses": 5,
+                }
+            ]
+        }
+    )
+
+    name: str = Field(default="policy.md", max_length=200, description="Shown in the report.")
+    text: str = Field(min_length=10, max_length=500_000)
+    system: Literal["agent", "baseline"] = "agent"
+    backend: Literal["gemini", "groq", "ollama", "fake"] | None = Field(
+        default=None, description="LLM backend (default: the configured free backend)."
+    )
+    max_clauses: int | None = Field(default=None, ge=1, le=500)
+
+
+class ClauseOut(BaseModel):
+    clause_id: str
+    label: str
+    number: str | None
+    heading_path: list[str]
+    text: str
+    kind: str
+
+
+class ClausesResponse(BaseModel):
+    policy_name: str
+    source_type: str
+    pages: int | None
+    clauses: list[ClauseOut]
+    max_clauses_per_check: int
+
+
+class ComplyStatus(BaseModel):
+    loaded: bool
+    error: str | None
+    notifications: int
+    entity: str
+    as_of: str
+    default_backend: str
+    backends: dict[str, bool]
+    max_clauses_per_check: int
+    max_parallel_checks: int

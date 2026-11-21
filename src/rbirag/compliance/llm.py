@@ -330,6 +330,51 @@ class ScriptedChatModel:
         )
 
 
+DEMO_MODEL = "offline-demo"
+
+
+def demo_reply(
+    messages: Sequence[ChatMessage], tools: Sequence[dict[str, Any]] | None
+) -> ChatMessage:
+    """A deterministic stand-in for an LLM (the ``fake`` backend): no network, no key.
+
+    As planner it searches with the clause text, compares the top hit and adopts the
+    comparison; as judge it always answers ``insufficient_evidence``, so it exercises the
+    whole tool path (API smoke tests, a keyless demo) without ever inventing a verdict.
+    """
+    first = messages[0].content or "" if messages else ""
+    if first.startswith("You compare one clause"):  # the compare_clause judge
+        return final(
+            {
+                "verdict": "insufficient_evidence",
+                "citations": [],
+                "evidence": [],
+                "confidence": 0.0,
+                "rationale": "Offline demo model: no LLM judged this clause.",
+            }
+        )
+    results = [m for m in messages if m.role == "tool"]
+    if tools and not results:
+        clause = next((m.content or "" for m in messages if m.role == "user"), "")
+        text = clause.rsplit('"""', 2)[-2] if clause.count('"""') >= 2 else clause
+        return tool_call("search_regulations", {"query": " ".join(text.split())[:300]}, "demo_s")
+    if tools and len(results) == 1:
+        try:
+            hits = json.loads(results[0].content or "{}").get("hits") or []
+        except json.JSONDecodeError:
+            hits = []
+        if hits:
+            return tool_call("compare_clause", {"doc_ids": [hits[0]["doc_id"]]}, "demo_c")
+    return final(
+        {
+            "verdict": "insufficient_evidence",
+            "citations": [],
+            "confidence": 0.0,
+            "rationale": "Offline demo model: configure a free Gemini or Groq key for real checks.",
+        }
+    )
+
+
 def tool_call(name: str, arguments: dict[str, Any], call_id: str = "c1") -> ChatMessage:
     """An assistant message requesting one tool call (test helper)."""
     return ChatMessage(
@@ -374,6 +419,8 @@ def configured_model(settings: Settings, backend: str) -> str:
     """The model id a backend is configured with (before any fallback)."""
     from rbirag.providers import get_preset
 
+    if backend == "fake":
+        return DEMO_MODEL
     if settings.compliance_model:
         return settings.compliance_model
     if backend == "anthropic":
@@ -403,8 +450,8 @@ def build_chat_model(
     name = backend or settings.compliance_llm_backend
     if name not in CHAT_BACKENDS:
         raise ValueError(f"unknown chat backend {name!r}; expected one of {CHAT_BACKENDS}")
-    if name == "fake":
-        raise ValueError("the fake backend is built in tests with ScriptedChatModel")
+    if name == "fake":  # offline and deterministic: smoke tests and keyless demos
+        return ScriptedChatModel(demo_reply, model=DEMO_MODEL)
     mode = cache_mode or settings.compliance_llm_cache_mode
     inner: ChatModel
     if mode == "replay":

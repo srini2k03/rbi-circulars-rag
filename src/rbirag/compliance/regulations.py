@@ -111,6 +111,9 @@ def _as_str(value: object) -> str | None:
     return None if value is None else str(value)
 
 
+GRAPH_CACHE_NAME = "reference_graph.json.gz"  # next to the index it was built with
+
+
 class RegulationStore:
     def __init__(
         self,
@@ -348,6 +351,8 @@ class RegulationStore:
         )
         if documents is None:
             documents = {d.doc_id: d for d in iter_documents_jsonl(settings.documents_path)}
+        if graph is None:
+            graph = ReferenceGraph.load_or_build(documents, index_dir / GRAPH_CACHE_NAME)
         return cls(
             retriever,
             documents,

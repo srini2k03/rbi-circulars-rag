@@ -213,6 +213,10 @@ class Settings(BaseSettings):
     # Substantive verdicts below this confidence become insufficient_evidence (tuned on dev).
     compliance_abstain_threshold: float = Field(default=0.0, ge=0, le=1)
     compliance_require_verified_quote: bool = True
+    # API demo limits (free-tier quotas): clauses per check, checks running at once
+    compliance_api_max_clauses: int = Field(default=20, ge=1, le=500)
+    compliance_api_max_jobs: int = Field(default=1, ge=1, le=8)
+    compliance_api_preload: bool = True  # load the store in the background at API start
 
     # -------------------------------------------------------------------- api
     # JSONL mirror of the API request log (None = in memory only).

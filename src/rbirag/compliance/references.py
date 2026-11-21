@@ -14,15 +14,22 @@ agent sees them as hints ("a later notification repeals this"), never as verdict
 from __future__ import annotations
 
 import bisect
+import gzip
+import hashlib
+import json
+import logging
 import re
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
 
 from rbirag.document import Document
 from rbirag.ingest.metadata import CIRCULAR_NUMBER_RE, REF_NUMBER_RE
+
+logger = logging.getLogger(__name__)
 
 Relation = Literal["repeals", "supersedes", "amends", "mentions"]
 RELATION_STRENGTH: dict[str, int] = {"mentions": 0, "amends": 1, "supersedes": 2, "repeals": 3}
@@ -117,9 +124,10 @@ class ReferenceGraph:
 
     def __init__(self, references: Iterable[Reference], documents: Mapping[str, Document]):
         self._docs = documents
+        self._references = list(references)
         self._incoming: dict[str, list[Reference]] = defaultdict(list)
         self._outgoing: dict[str, list[Reference]] = defaultdict(list)
-        for ref in references:
+        for ref in self._references:
             self._incoming[ref.target].append(ref)
             self._outgoing[ref.source].append(ref)
         for refs in (*self._incoming.values(), *self._outgoing.values()):
@@ -143,6 +151,61 @@ class ReferenceGraph:
     def replaced_by(self, doc_id: str) -> list[str]:
         """Notifications that (per their text) repeal or supersede ``doc_id``."""
         return [r.source for r in self.cited_by(doc_id) if r.relation in REPLACING]
+
+    @property
+    def references(self) -> list[Reference]:
+        return list(self._references)
+
+    # -- cache ---------------------------------------------------------------------------
+    @staticmethod
+    def fingerprint(documents: Mapping[str, Document]) -> str:
+        """Identifies the corpus *and* this module's code: a cached graph is reused only
+        when both are unchanged."""
+        h = hashlib.sha256(Path(__file__).read_bytes())
+        for doc_id in sorted(documents):
+            d = documents[doc_id]
+            for part in (doc_id, d.title, d.circular_number, d.ref_number, d.date, d.text):
+                h.update(str(part or "").encode("utf-8"))
+                h.update(b"\0")
+        return h.hexdigest()
+
+    def save(self, path: Path, fingerprint: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "fingerprint": fingerprint,
+            "references": [r.model_dump() for r in self._references],
+        }
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        with gzip.open(tmp, "wt", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False)
+        tmp.replace(path)
+
+    @classmethod
+    def load_or_build(
+        cls, documents: Mapping[str, Document], cache_path: Path | None
+    ) -> ReferenceGraph:
+        """The graph from ``cache_path`` if it was built from this corpus with this code,
+        else built (~15 s on the full corpus) and cached. Cache problems never fail."""
+        if cache_path is None:
+            return cls.build(documents.values())
+        fingerprint = cls.fingerprint(documents)
+        try:
+            with gzip.open(cache_path, "rt", encoding="utf-8") as fh:
+                payload = json.load(fh)
+            if payload.get("fingerprint") == fingerprint:
+                refs = [Reference.model_validate(r) for r in payload["references"]]
+                return cls(refs, dict(documents))
+            logger.info("reference graph cache is stale; rebuilding")
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, KeyError) as exc:
+            logger.warning("unreadable reference graph cache %s: %s", cache_path, exc)
+        graph = cls.build(documents.values())
+        try:
+            graph.save(cache_path, fingerprint)
+        except OSError as exc:
+            logger.warning("could not cache the reference graph at %s: %s", cache_path, exc)
+        return graph
 
     @classmethod
     def build(cls, documents: Iterable[Document]) -> ReferenceGraph:
