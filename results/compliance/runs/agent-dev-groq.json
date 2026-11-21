@@ -45,6 +45,7 @@
     "compliance_as_of": "2026-11-11",
     "compliance_max_steps": 8,
     "compliance_planner_max_tokens": 1024,
+    "compliance_planner_context_tokens": 4500,
     "compliance_judge_max_tokens": 1200,
     "compliance_judge_context_tokens": 3000,
     "compliance_abstain_threshold": 0.0,
@@ -54,10 +55,10 @@
     "chunk_overlap": 64
   },
   "corpus": "corpus-v2",
-  "generated_at": "2026-11-21T09:16:33+00:00",
-  "commit": "8002198cb461d21e8d354e7b4d71a235f8ada2ba",
+  "generated_at": "2026-11-21T10:00:31+00:00",
+  "commit": "9e1d07452bf99e5f4aacc993c83b87566207bcc7",
   "cache_hits": 0,
-  "cache_misses": 109,
-  "completed": 22,
-  "errors": 4
+  "cache_misses": 16,
+  "completed": 2,
+  "errors": 0
 }
