@@ -14,7 +14,7 @@ RAG pipeline is rebuilt or changed.
 | Framework | A plain, bounded tool-calling loop (no LangGraph) | Per clause the agent takes at most ~6 steps over 3 tools; owning the loop gives full trajectories for tool-call metrics and keeps the existing rate limiter, model fallbacks and response cache (which make free tiers and CI replay workable) |
 | Corpus | `corpus-v2`: `corpus-v1` plus notifications above id 13050 | `corpus-v1` has the November 2025 consolidated Directions for NBFCs, UCBs, RCBs and RRBs but not the Commercial Banks set; `corpus-v1` stays untouched so the RAG results remain reproducible |
 | Ground truth | "As per the corpus snapshot", with the snapshot date stated | The corpus has no withdrawal flags; the reference graph (below) is a heuristic hint, not truth |
-| Headline LLM | Groq free tier for development; a cheap paid model (Claude Haiku 5.5, ~$0.12 per full run) for the reported numbers | A full run is ~0.85M tokens; the Groq free tier allows ~200K tokens per model per day |
+| Headline LLM | Planned: Groq free tier for development, Claude Haiku 5.5 for the reported numbers. Actual (Phase 4): `gemini-3.5-flash-lite` (Gemini free tier) for dev and the locked test run, one model for both systems; Haiku is added if an `ANTHROPIC_API_KEY` secret is configured | The Groq free tier ran out after one dev run (~200K tokens per model per day) and its fallback chain mixed models within a run; no Anthropic key is configured |
 | CI | Every push: deterministic replay of the full evaluation from committed LLM responses, failing on a metric regression or a stale cache. Live runs: manual or nightly, resumable | A live evaluation on every push does not fit any free tier |
 | Labels | AI-authored from real notifications, every quote machine-checked against the corpus, labelled "0 human-verified" until reviewed | Same honesty rules as the RAG test set |
 | Deployment | Hugging Face Spaces (Docker, free CPU tier, 16 GB RAM) | Render's free tier (512 MB) cannot hold torch plus the embedder and reranker |
@@ -27,7 +27,7 @@ RAG pipeline is rebuilt or changed.
 | 1 | Policy loading, clause splitting, reference graph, `search` / `fetch` tools, CLI, tests | done |
 | 2 | Labelled clause set, labelling guide, metrics, review tool, tests | done: 89 clauses in 7 policies (26 dev / 63 test); see `data/eval/compliance/README.md` |
 | 3 | Agent: tool-calling client, `compare_clause`, loop, guardrails, fixed-pipeline baseline | done (offline-tested; first live runs in Phase 4) |
-| 4 | Evaluation runs, results, failure analysis, replay CI + live workflow | |
+| 4 | Evaluation runs, results, failure analysis, replay CI + live workflow | dev iteration done; locked test run in progress (resumes when the provider quota resets) |
 | 5 | FastAPI endpoints, Streamlit page, Docker, Hugging Face Spaces | |
 | 6 | README: architecture, results, limitations | |
 
@@ -257,3 +257,77 @@ flowchart TD
 No live LLM run has happened yet: this environment has no provider key and its network
 blocks the providers. The first live runs (dev split) happen in Phase 4 in GitHub Actions
 using the repository's `GROQ_API_KEY` secret.
+
+## Phase 4: evaluation runs
+
+All live runs happen in GitHub Actions (`compliance-eval.yml`), started by pushing
+`.github/compliance-eval-request.json`. Each run commits its predictions
+(`results/compliance/predictions/`), a run record with the prompt-shaping settings and
+commit (`results/compliance/runs/`), the report (`results/compliance/results-<split>.md`)
+and every LLM response (`data/eval/compliance/llm_cache/`). `compliance-ci.yml` replays
+every recorded run from those responses on each push, with no provider calls, and fails
+if a prediction changes (exit 1) or a recorded request no longer matches (exit 2).
+
+### Retrieval ablation (no LLM, real bge-small embeddings, `compliance-retrieval.yml`)
+
+Recall of the gold notifications when searching with the clause text (fixed-512 chunks):
+
+| config | dev R@5 | dev MRR | test R@5 | test MRR | p50 ms |
+|---|---|---|---|---|---|
+| bm25, no filter | 0.50 | 0.29 | 0.62 | 0.35 | 80 |
+| **bm25 + entity filter** (used) | **1.00** | 0.58 | **0.92** | 0.70 | 80 |
+| hybrid + entity filter | 0.95 | 0.68 | 0.91 | 0.68 | 130 |
+| hybrid + rerank + entity filter | 1.00 | 0.63 | 0.92 | 0.61 | 7,350 |
+| section chunks, bm25 + entity filter | 0.95 | 0.48 | 0.81 | 0.65 | 300 |
+
+The entity filter is what matters: without it, near-identical Directions for NBFCs,
+UCBs and RRBs crowd the commercial-bank Directions out of the top 5. With it, dense
+retrieval and reranking add nothing at rank 5 (hybrid ranks the gold slightly higher on
+dev) and reranking costs ~7 s per query. BM25 + filter was chosen on dev; it is also
+deterministic and needs no torch, which keeps replay exact and CI cheap.
+
+### Dev iteration log (dev split only; test untouched until frozen)
+
+| # | Run | Finding | Change |
+|---|---|---|---|
+| 1 | Groq `gpt-oss-20b` (auto fallbacks) | agent accuracy 0.19 vs baseline 0.85. In 13/26 clauses the planner read the right notification and named the right verdict but never called `compare_clause`, so the guardrail abstained; 4 clauses failed with HTTP 413 as tool results piled up | the agent now runs `compare_clause` itself when the planner skips it and adopts the judge's answer; old tool results are shortened to a token budget (`RBIRAG_COMPLIANCE_PLANNER_CONTEXT_TOKENS`); a request rejected as too large is retried once with the history halved |
+| 2 | Groq re-run | stopped after 2 clauses (both correct): daily quota spent on both free models. The first run's baseline had been answered by the fallback `qwen3.8-27b` on 25/26 clauses while labelled `gpt-oss-20b` | reports list the models that actually answered; `fallbacks: none` pins one model; the Groq runs were retired |
+| 3 | Gemini `gemini-3.5-flash-lite` | baseline fine (0.885); every agent clause failed with HTTP 400: Gemini returns a thought signature with each tool call that must be sent back | provider fields of a tool call are kept and returned unchanged (other providers' requests are byte-identical, so recordings still match); re-run with `cache_mode: refresh` because responses cached before the fix lacked the signature |
+| 4 | Gemini, both systems | agent 0.885 / macro-F1 0.916, baseline 0.885 / 0.905; the abstention sweep never improves macro-F1 (threshold stays 0.0). One agent error cited a 2021 circular withdrawn by the 28 Nov 2025 consolidation; the withdrawal list sits in annexes the corpus does not contain, so the reference graph cannot mark it | a source rule stating the consolidation (cite the 2025 Directions for topics they cover) |
+| 5 | Gemini, both systems (frozen) | see below | none: frozen at commit `e66924e` for the locked test run |
+
+Final dev numbers (n = 26, `gemini-3.5-flash-lite` for both systems, 95% bootstrap CIs):
+
+| metric | agent | fixed pipeline |
+|---|---|---|
+| verdict accuracy | 0.923 [0.808, 1.000] | 0.885 [0.731, 1.000] |
+| macro-F1 | 0.944 [0.840, 1.000] | 0.918 [0.760, 1.000] |
+| citation precision | 0.909 [0.773, 1.000] | 0.875 [0.760, 1.000] |
+| citation recall | 0.864 [0.682, 1.000] | 0.909 [0.773, 1.000] |
+| tool-selection accuracy | 1.000 | 0.269 |
+| task success | 0.808 [0.654, 0.962] | 0.808 [0.654, 0.962] |
+| ECE | 0.067 | 0.150 |
+| LLM calls / clause | 5.6 | 1.0 |
+| tokens / clause (in + out) | 16.5K + 0.4K | 3.4K + 0.1K |
+| est. cost / 13-clause policy at Claude Haiku 5.5 list prices | ~$0.024 | ~$0.005 |
+
+Paired agent minus baseline: accuracy +0.04 [-0.08, +0.19], task success +0.00
+[-0.19, +0.23]. On dev the agent is at least as good, better calibrated and cites
+more precisely, at ~5x the tokens; dev is too small to separate the two.
+
+Remaining dev errors (agent): two judgement errors by the lite model (a stricter clause
+called a conflict although the prompt defines it as compliant; a working-day vs
+calendar-day penalty read as a gap), two right verdicts citing a pre-consolidation
+Master Direction instead of the 2025 Directions, and one citation of the 2026 amendment
+that introduced the rule where the label requires the amended Directions (the amendment
+is listed as acceptable but not as a gold group; the label was not changed after seeing
+the output).
+
+### Locked test run
+
+Agent and baseline, frozen at `e66924e`, `gemini-3.5-flash-lite` without fallbacks,
+abstention threshold 0.0. The first attempt stopped on the Gemini free tier's daily
+quota after 8 agent clauses and 1 baseline clause; it resumes from the recorded
+predictions and responses (`fresh: false`) with no code changes. Results and the failure
+analysis follow when it completes.
+
