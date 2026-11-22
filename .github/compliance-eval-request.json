@@ -7,6 +7,6 @@
   "abstain_threshold": "0.0",
   "cache_mode": "use",
   "fallbacks": "none",
-  "fresh": true,
-  "note": "LOCKED test run: agent and baseline frozen at this commit after dev iteration (abstain threshold 0.0 chosen on dev), one model. If a quota stop interrupts it, set fresh to false and push to resume; do not change code in between."
+  "fresh": false,
+  "note": "LOCKED test run, resumed after the Gemini free-tier quota stop (fresh=false keeps the predictions made so far). Agent prompts, tools and retrieval are unchanged since e66924e; later commits (API, UI, README generator) leave every recorded request byte-identical, as the replay CI checks."
 }
