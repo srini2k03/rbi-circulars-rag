@@ -92,10 +92,10 @@
     "chunk_overlap": 64
   },
   "corpus": "corpus-v2",
-  "generated_at": "2026-11-21T11:03:22+00:00",
-  "commit": "e66924e49becaef8410d42c89c8382ab388154b1",
+  "generated_at": "2026-11-22T08:43:53+00:00",
+  "commit": "e40ecc84a3cc14ad91176c0d7bfb96e95e548c0e",
   "cache_hits": 0,
-  "cache_misses": 2,
+  "cache_misses": 1,
   "completed": 1,
   "errors": 0
 }
