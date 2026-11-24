@@ -93,11 +93,15 @@ class Settings(BaseSettings):
     user_agent: str = DEFAULT_USER_AGENT
 
     # --------------------------------------------------------------- chunking
-    chunker: ChunkerName = "section"
+    # Defaults = the production profile chosen by `rbirag eval bench` (results/benchmark):
+    # fixed 1,024-token chunks, BM25 ranking, and the cross-encoder used only as the
+    # abstention gate (rerank_weight=0), whose top score separated unanswerable test
+    # questions best (AUROC 0.95). Override any of them with RBIRAG_* variables.
+    chunker: ChunkerName = "fixed"
     tokenizer: TokenizerName = "regex"
     tiktoken_encoding: str = "cl100k_base"
-    chunk_size: int = Field(default=512, ge=8)
-    chunk_overlap: int = Field(default=64, ge=0)
+    chunk_size: int = Field(default=1024, ge=8)
+    chunk_overlap: int = Field(default=128, ge=0)
     semantic_breakpoint_percentile: float = Field(default=10.0, gt=0, lt=100)
     semantic_min_tokens: int = Field(default=64, ge=1)
     section_min_tokens: int = Field(default=64, ge=1)
@@ -121,18 +125,18 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------- retrieval
     # See rbirag.retrieval.params.RetrievalParams for what each knob does; the benchmark
     # (`rbirag eval bench`) tunes them on the dev split and reports on test.
-    retrieval_mode: RetrievalMode = "hybrid_rerank"
+    retrieval_mode: RetrievalMode = "bm25_rerank"
     top_k: int = Field(default=5, ge=1)
     candidate_k: int = Field(default=50, ge=1)
     bm25_candidates: int = Field(default=0, ge=0)  # 0 = candidate_k
     dense_candidates: int = Field(default=0, ge=0)  # 0 = candidate_k
-    fusion: Literal["rrf", "weighted"] = "rrf"
+    fusion: Literal["rrf", "weighted"] = "weighted"  # for hybrid modes (dev-selected)
     rerank_k: int = Field(default=20, ge=1)  # rerank depth
-    rerank_weight: float = Field(default=1.0, ge=0, le=1)
+    rerank_weight: float = Field(default=0.0, ge=0, le=1)  # 0 = gate only, BM25 order kept
     rrf_k: int = Field(default=60, ge=1)
-    bm25_weight: float = Field(default=1.0, ge=0)
-    dense_weight: float = Field(default=1.0, ge=0)
-    score_norm: Literal["minmax", "zscore"] = "minmax"
+    bm25_weight: float = Field(default=0.7, ge=0)
+    dense_weight: float = Field(default=0.3, ge=0)
+    score_norm: Literal["minmax", "zscore"] = "zscore"
     rerank_min_score: float | None = None
     dense_min_similarity: float | None = Field(default=None, ge=-1, le=1)
     query_expansion: Literal["none", "acronyms", "rm3", "acronyms+rm3"] = "none"
@@ -142,7 +146,7 @@ class Settings(BaseSettings):
     rm3_orig_weight: float = Field(default=0.6, ge=0, le=1)
     parent_context: Literal["none", "window"] = "none"
     parent_tokens: int = Field(default=1024, ge=16, le=8192)
-    confidence_threshold: float = Field(default=0.5, ge=0, le=1)
+    confidence_threshold: float = Field(default=0.49, ge=0, le=1)
     confidence_temperature: float = Field(default=1.0, gt=0)
 
     # ------------------------------------------------------------- generation

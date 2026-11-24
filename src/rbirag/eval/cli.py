@@ -574,7 +574,7 @@ def generate(
             bundle.store,
             bm25=bundle.bm25,
             dense=bundle.dense,
-            reranker=rr if cfg.mode == "hybrid_rerank" else None,
+            reranker=rr if cfg.mode in ("hybrid_rerank", "bm25_rerank") else None,
             mode=mode,
             confidence_threshold=threshold,
         )

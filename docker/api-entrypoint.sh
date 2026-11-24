@@ -2,7 +2,7 @@
 # Optionally build a tiny index from the bundled HTML fixtures (for smoke tests and
 # first-run demos), then start the API. Otherwise POST /ingest builds the index.
 set -eu
-INDEX_DIR="${RBIRAG_INDEX_DIR:-/data/indexes}/${RBIRAG_CHUNKER:-section}"
+INDEX_DIR="${RBIRAG_INDEX_DIR:-/data/indexes}/${RBIRAG_CHUNKER:-fixed}"
 if [ "${RBIRAG_BOOTSTRAP_FIXTURES:-0}" = "1" ] && [ ! -f "${INDEX_DIR}/chunks.jsonl" ]; then
   echo "bootstrapping a fixture index into ${INDEX_DIR}"
   mkdir -p "${RBIRAG_RAW_DIR:-/data/raw}/html"

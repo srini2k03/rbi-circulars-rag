@@ -18,6 +18,7 @@ from rbirag.config import (
     Settings,
     get_settings,
 )
+from rbirag.retrieval.params import RERANK_MODES
 
 if TYPE_CHECKING:
     from rbirag.retrieval.pipeline import Retriever
@@ -281,7 +282,7 @@ def query(
         reranker=build_reranker(
             reranker or s.reranker, model_name=s.reranker_model, device=s.device
         )
-        if retrieval_mode == "hybrid_rerank"
+        if retrieval_mode in RERANK_MODES
         else None,
         mode=retrieval_mode,
     )

@@ -69,7 +69,7 @@ def test_ask_returns_verified_citations(client: TestClient, log: RequestLog) -> 
     assert {"retrieve", "generate", "verify", "total"} <= set(body["timings_ms"])
     assert body["context"]["distinct_documents"] >= 1
     p = body["passages"][0]
-    assert "rerank" in p["stage_scores"] and "fusion" in p["stage_ranks"]
+    assert "rerank" in p["stage_scores"] and {"bm25", "rerank"} <= set(p["stage_ranks"])
     summary = client.get("/metrics").json()
     assert summary["by_endpoint"]["/v1/ask"] == 1 and summary["verdicts"]
     assert summary["failed_retrieval_rate"] == 0.0

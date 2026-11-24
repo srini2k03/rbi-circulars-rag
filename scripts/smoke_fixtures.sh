@@ -28,7 +28,7 @@ export RBIRAG_SEMANTIC_MIN_TOKENS=24
 rbirag ingest --stats-out "$WORK/stats.json"
 for chunker in fixed semantic section; do
   rbirag index --chunker "$chunker"
-  for mode in bm25 dense hybrid hybrid_rerank; do
+  for mode in bm25 dense hybrid hybrid_rerank bm25_rerank; do
     echo "=== chunker=$chunker mode=$mode"
     rbirag query "How often must KYC be updated for high risk customers?" \
       --chunker "$chunker" --mode "$mode" --top-k 3 --retrieve-only

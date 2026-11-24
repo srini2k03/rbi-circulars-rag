@@ -125,14 +125,17 @@ def test_query_returns_cited_answer(ingested: TestClient) -> None:
 
 
 def test_query_gate_refuses_with_reason(ingested: TestClient) -> None:
-    body = ingested.post("/query", json={"question": "monsoon cricket score in Chennai"}).json()
+    body = ingested.post(
+        "/query", json={"question": "monsoon cricket score in Chennai", "mode": "hybrid_rerank"}
+    ).json()
     assert body["refused"] is True
     assert body["refusal_reason"] == "low_confidence"
     assert body["model"] is None
     assert body["citations"] == []
     # threshold 0 lets it through to the LLM
     body = ingested.post(
-        "/query", json={"question": "monsoon cricket score", "threshold": 0.0}
+        "/query",
+        json={"question": "monsoon cricket score", "threshold": 0.0, "mode": "hybrid_rerank"},
     ).json()
     assert body["refusal_reason"] != "low_confidence"
 
@@ -164,7 +167,9 @@ def test_unconfigured_backend_is_503(ingested: TestClient) -> None:
 
 def test_metrics_aggregate(ingested: TestClient, log: RequestLog) -> None:
     ingested.post("/query", json={"question": Q})
-    ingested.post("/query", json={"question": "monsoon cricket score in Chennai"})
+    ingested.post(
+        "/query", json={"question": "monsoon cricket score in Chennai", "mode": "hybrid_rerank"}
+    )
     ingested.post("/query", json={"question": Q, "backend": "groq"})
     m = ingested.get("/metrics").json()
     assert m["requests"] == 3
