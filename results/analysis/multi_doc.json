@@ -1,0 +1,575 @@
+{
+ "summary": {
+  "label": "template-generated from the relation graph; not human-written or verified",
+  "questions": 40,
+  "both_in_top5": 0.3,
+  "both_in_top10": 0.475,
+  "changed_doc_in_top5": 0.825,
+  "changing_doc_in_top5": 0.35,
+  "both_in_top5_plus_graph": 0.65,
+  "context_passages_plus_graph": 6.575,
+  "retriever": "BM25, fixed-1024"
+ },
+ "rows": [
+  {
+   "question": "Which RBI notification amended the 'Submission of returns under Section 31 (read with section 56) of the Banking Regulation Act, 1949 - Extension of time', and what did it change?",
+   "gold": [
+    "rbi-11953",
+    "rbi-11983"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-12027",
+    "rbi-12267"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Know Your Customer (KYC) Direction, 2016', and what did it change?",
+   "gold": [
+    "rbi-12893",
+    "rbi-11566"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification superseded the 'Basel III Capital Regulations - Perpetual Debt Instruments (PDI) in Additional Tier 1 Capital - Eligible Limit for Instruments Denominated in Foreign Currency/Rupee Denominated Bonds Overseas', and what did it change?",
+   "gold": [
+    "rbi-12905",
+    "rbi-12173"
+   ],
+   "type": "supersedes",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Investment by Foreign Portfolio Investors (FPI) in Debt - Review (Updated up to February 26, 2021)', and what did it change?",
+   "gold": [
+    "rbi-11797",
+    "rbi-11303"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Housing Finance for UCBs', and what did it change?",
+   "gold": [
+    "rbi-12785",
+    "rbi-12826"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11937",
+    "rbi-12225"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Know Your Customer (KYC) Direction, 2016', and what did it change?",
+   "gold": [
+    "rbi-12866",
+    "rbi-11566"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11749",
+    "rbi-12225"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Classification of MSMEs', and what did it change?",
+   "gold": [
+    "rbi-11934",
+    "rbi-12583"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 7
+  },
+  {
+   "question": "Which RBI notification superseded the 'Liberalised Remittance Scheme (LRS) for Resident Individuals- Reporting of monthly return and daily transactions', and what did it change?",
+   "gold": [
+    "rbi-12732",
+    "rbi-12575"
+   ],
+   "type": "supersedes",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Reserve Bank of India (Lending Against Gold and Silver Collateral) Directions, 2025', and what did it change?",
+   "gold": [
+    "rbi-12903",
+    "rbi-12859"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11608",
+    "rbi-12267"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction on Issuance and Operation of Prepaid Payment Instruments', and what did it change?",
+   "gold": [
+    "rbi-11446",
+    "rbi-11142"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Implementation of Section 12A of the Weapons of Mass Destruction and their Delivery Systems (Prohibition of Unlawful Activities) Act, 2005: Designated List (Consolidated)', and what did it change?",
+   "gold": [
+    "rbi-12530",
+    "rbi-12521"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification superseded the 'Recovery of Interest on delayed remittance of Government Receipts into Government Account', and what did it change?",
+   "gold": [
+    "rbi-11906",
+    "rbi-11697"
+   ],
+   "type": "supersedes",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification superseded the 'Basel III Capital Regulations - Perpetual Debt Instruments (PDI) in Additional Tier 1 Capital - Eligible Limit for Instruments Denominated in Foreign Currency/Rupee Denominated Bonds Overseas', and what did it change?",
+   "gold": [
+    "rbi-12906",
+    "rbi-12173"
+   ],
+   "type": "supersedes",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11197",
+    "rbi-12225"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-12378",
+    "rbi-12267"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification superseded the 'Liberalised Remittance Scheme (LRS) for Resident Individuals - daily reporting of transactions', and what did it change?",
+   "gold": [
+    "rbi-12732",
+    "rbi-11255"
+   ],
+   "type": "supersedes",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11177",
+    "rbi-12267"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Know Your Customer (KYC) Direction, 2016', and what did it change?",
+   "gold": [
+    "rbi-12008",
+    "rbi-11566"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Reserve Bank of India (Non-resident Investment in Debt Instruments) Directions, 2025', and what did it change?",
+   "gold": [
+    "rbi-12847",
+    "rbi-12765"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Investment by Foreign Portfolio Investors (FPI) in Debt - Review (Updated up to February 26, 2021)', and what did it change?",
+   "gold": [
+    "rbi-11475",
+    "rbi-11303"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Reserve Bank of India (Non-resident Investment in Debt Instruments) Directions, 2025', and what did it change?",
+   "gold": [
+    "rbi-12909",
+    "rbi-12765"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-12399",
+    "rbi-12267"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Introduction of Half-yearly Review of Accounts of Public Sector Banks', and what did it change?",
+   "gold": [
+    "rbi-12633",
+    "rbi-12630"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11608",
+    "rbi-12484"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification superseded the 'Investment in plant and machinery for the purpose of classification as Micro, Small and Medium Enterprises - documents to be relied upon', and what did it change?",
+   "gold": [
+    "rbi-11951",
+    "rbi-11050"
+   ],
+   "type": "supersedes",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification superseded the 'Constitution of Board of Management (BoM) in Primary (Urban) Co-operative Banks (UCBs)', and what did it change?",
+   "gold": [
+    "rbi-12119",
+    "rbi-11774"
+   ],
+   "type": "supersedes",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Non-Banking Financial Company - Peer to Peer Lending Platform (Reserve Bank) Directions, 2017', and what did it change?",
+   "gold": [
+    "rbi-12378",
+    "rbi-11137"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11580",
+    "rbi-12484"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-11937",
+    "rbi-12484"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Reserve Bank of India (Call, Notice and Term Money Markets) Directions, 2021', and what did it change?",
+   "gold": [
+    "rbi-12511",
+    "rbi-12061"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - External Commercial Borrowings, Trade Credits and Structured Obligations  (Supersedes Master Direction - External Commercial Borrowings, Trade Credit, Borrowing and Lending in Foreign Currency by Authorised Dealers and Persons other than Authorised Dealers )', and what did it change?",
+   "gold": [
+    "rbi-12204",
+    "rbi-11510"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 5
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Know Your Customer (KYC) Direction, 2016', and what did it change?",
+   "gold": [
+    "rbi-12593",
+    "rbi-11566"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Circular - Asset Reconstruction Companies', and what did it change?",
+   "gold": [
+    "rbi-12027",
+    "rbi-12225"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 8
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Money Changing Activities', and what did it change?",
+   "gold": [
+    "rbi-12689",
+    "rbi-11518"
+   ],
+   "type": "amends",
+   "both_in_top5": true,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": true,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification amended the 'Master Direction - Know Your Customer (KYC) Direction, 2016', and what did it change?",
+   "gold": [
+    "rbi-12042",
+    "rbi-11566"
+   ],
+   "type": "amends",
+   "both_in_top5": false,
+   "both_in_top10": false,
+   "changed_doc_in_top5": false,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": false,
+   "context_passages_plus_graph": 6
+  },
+  {
+   "question": "Which RBI notification superseded the 'Liberalised Remittance Scheme for Resident Individuals - Reporting', and what did it change?",
+   "gold": [
+    "rbi-12732",
+    "rbi-12115"
+   ],
+   "type": "supersedes",
+   "both_in_top5": false,
+   "both_in_top10": true,
+   "changed_doc_in_top5": true,
+   "changing_doc_in_top5": false,
+   "both_in_top5_plus_graph": true,
+   "context_passages_plus_graph": 6
+  }
+ ]
+}
