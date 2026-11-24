@@ -428,3 +428,67 @@ def multi_doc(
         log_experiment(s.results_dir, {"experiment": "multi-document-retrieval",
                                        "command": "rbirag eval multi-doc", **summary})  # fmt: skip
     typer.echo(json.dumps(summary, indent=1))
+
+
+@eval_app.command("answer-correctness")
+def answer_correctness(
+    configs: Annotated[str, typer.Option(help="Generation configs.")] = "fixed-1024-bm25",
+    out_dir: Annotated[Path | None, typer.Option(help="Default: results/analysis")] = None,
+    log: Annotated[bool, typer.Option(help="Append to results/experiments.jsonl.")] = True,
+) -> None:
+    """Answer correctness against the reference answers, without an LLM: token F1 (SQuAD
+    style, on BM25-normalised tokens) and figure recall (share of the reference's numbers
+    that the answer states). Answered, answerable test questions only."""
+    import numpy as np
+
+    from rbirag.eval.cli import dev_test, load_qa
+    from rbirag.eval.history import log_experiment
+    from rbirag.eval.records import load_records
+    from rbirag.eval.stats import bootstrap_ci
+    from rbirag.generation.citations import strip_citations
+    from rbirag.generation.verify import numbers_in
+    from rbirag.index.bm25 import bm25_tokenize
+
+    s = get_settings()
+    out = out_dir or s.results_dir / "analysis"
+    out.mkdir(parents=True, exist_ok=True)
+    _, test = dev_test(s, load_qa(s))
+    refs = {p.qa_id: p.answer for p in test if p.answerable and p.answer}
+
+    def f1(answer: str, reference: str) -> float:
+        a, r = bm25_tokenize(answer), bm25_tokenize(reference)
+        common = sum((Counter(a) & Counter(r)).values())
+        if not a or not r or not common:
+            return 0.0
+        p, rc = common / len(a), common / len(r)
+        return 2 * p * rc / (p + rc)
+
+    report: dict[str, Any] = {"metric": "token F1 and figure recall vs the reference answer",
+                              "split": "test"}  # fmt: skip
+    for name in _csv(configs):
+        for path in sorted((s.results_dir / "generation").glob(f"records-*-{name}.jsonl")):
+            recs = [r for r in load_records(path).values()
+                    if r.qa_id in refs and not r.refused and not r.error]  # fmt: skip
+            if not recs:
+                continue
+            f1s = [f1(strip_citations(r.answer), refs[r.qa_id]) for r in recs]
+            fig = []
+            for r in recs:
+                wanted = numbers_in(refs[r.qa_id])
+                if wanted:
+                    fig.append(len(wanted & numbers_in(r.answer)) / len(wanted))
+            key = f"{name}/{recs[0].backend}"
+            report[key] = {
+                "answers": len(recs),
+                "token_f1": bootstrap_ci(f1s, seed=s.seed).model_dump(),
+                "figure_recall": bootstrap_ci(fig, seed=s.seed).model_dump() if fig else None,
+                "with_figures": len(fig),
+                "judge_relevance_mean": float(np.mean([r.judge_relevance for r in recs
+                                                       if r.judge_relevance is not None])),
+            }  # fmt: skip
+    (out / "answer_correctness.json").write_text(json.dumps(report, indent=1), "utf-8")
+    if log:
+        log_experiment(s.results_dir, {"experiment": "answer-correctness",
+                                       "command": "rbirag eval answer-correctness",
+                                       "configs": _csv(configs)})  # fmt: skip
+    typer.echo(json.dumps(report, indent=1))
