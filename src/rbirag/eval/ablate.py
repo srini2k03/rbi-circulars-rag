@@ -593,5 +593,5 @@ def _error_record(pair: QAPair, config: str, backend: str, error: str) -> Genera
 
 def _sources_for(pipeline: RAGPipeline, question: str) -> list[str]:
     """Retrieval is deterministic, so re-retrieving reproduces the sources that were shown."""
-    result = pipeline.retriever.retrieve(question, top_k=pipeline.top_k, mode=pipeline.mode)
+    result, _ = pipeline.retrieve_context(question)
     return [r.chunk.text for r in result.results]

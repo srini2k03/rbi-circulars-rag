@@ -188,6 +188,17 @@ class Settings(BaseSettings):
     # The gate refuses without calling the LLM when retrieval confidence is below the
     # threshold. Only modes with a reranker produce a confidence.
     confidence_gate: bool = True
+    # Citation verification of every generated answer (see rbirag.generation.verify):
+    # lexical (no models) | nli (cross-encoder, needs the ml extra) | none. "annotate" lists
+    # unsupported claims next to the answer; "abstain" replaces an answer with no supported
+    # claim by an explicit "not established by the documents" statement.
+    verifier: Literal["lexical", "nli", "none"] = "lexical"
+    verify_threshold: float = Field(default=0.6, ge=0, le=1)
+    verify_policy: Literal["annotate", "abstain"] = "annotate"
+    # Context assembly: drop passages near-identical (word 5-gram Jaccard) to a better-ranked
+    # one, and keep passages in rank order within a token budget.
+    context_dedup_threshold: float = Field(default=0.9, gt=0, le=1)
+    context_token_budget: int = Field(default=6000, ge=256)
     prices: dict[str, ModelPrice] = Field(default_factory=lambda: dict(DEFAULT_PRICES))
     usd_to_inr: float = Field(default=88.0, gt=0)
 

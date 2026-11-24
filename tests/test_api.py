@@ -118,7 +118,7 @@ def test_query_returns_cited_answer(ingested: TestClient) -> None:
     assert cit["date"] == "2025-06-12"
     assert cit["url"] == "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12655&Mode=0"
     assert cit["cited"] is True
-    assert set(body["timings_ms"]) == {"retrieve", "rerank", "generate", "total"}
+    assert set(body["timings_ms"]) == {"retrieve", "rerank", "generate", "verify", "total"}
     assert body["usage"]["input_tokens"] > 0
     assert body["cost"] == {"usd": 0.0, "inr": 0.0}
     assert 0 <= body["confidence"] <= 1

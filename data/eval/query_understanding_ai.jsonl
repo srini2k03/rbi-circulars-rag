@@ -1,0 +1,66 @@
+{"set": "_about", "note": "AI-authored (LLM-assisted) behavioural test inputs for query understanding, kept separate from the Q/A test set. follow_up: turn 2 is an elliptical rewording of the test question qa_id (gold evidence = that pair's), turn 1 names the topic. Not real user queries; not human-verified."}
+{"set": "follow_up", "qa_id": "q5f417ced5f59", "history": ["What is the Lead Bank Scheme?"], "question": "What involvement is required of RSETIs within it?"}
+{"set": "follow_up", "qa_id": "qd2b129c49f93", "history": ["What are the repo and reverse repo rates under the Liquidity Adjustment Facility?"], "question": "What did the repo rate become after the increase announced on June 6, 2018?"}
+{"set": "follow_up", "qa_id": "q8afc9790a5d2", "history": ["What does RBI's Master Direction say about Peer to Peer Lending Platforms run by NBFCs?"], "question": "Under its outsourcing provisions, who retains ultimate responsibility for an outsourced activity?"}
+{"set": "follow_up", "qa_id": "qf466ab3d0443", "history": ["What are the rules on sets of specimen signatures for RBI inspection of banks?"], "question": "What role do Senior Supervisory Managers play in that communication?"}
+{"set": "follow_up", "qa_id": "q72d29b4a1f22", "history": ["What do the 2025 RBI directions say about treatment of wilful and large defaulters by AIFIs?"], "question": "Which institutions do they designate as All India Financial Institutions?"}
+{"set": "follow_up", "qa_id": "qf391b6abd431", "history": ["What returns must Government-owned NBFCs submit to RBI?"], "question": "What are the filing deadlines for them, and who can submit them online?"}
+{"set": "follow_up", "qa_id": "q6597b92d15e0", "history": ["Is penal interest charged on delayed remittance of Government receipts?"], "question": "What is the monetary threshold below which no further filters are applied?"}
+{"set": "follow_up", "qa_id": "qffd5b46dfee5", "history": ["What are the rules for transfer and distribution of credit risk by All India Financial Institutions?"], "question": "What risk weight applies to NPAs they acquire that are classified as standard on acquisition?"}
+{"set": "follow_up", "qa_id": "q78e38e545381", "history": ["How must AIFIs classify and value their investments?"], "question": "And what conditions must be met for them to recognise income from shares of corporate bodies?"}
+{"set": "follow_up", "qa_id": "q03a96a046ab8", "history": ["Is there penal interest for delayed or wrong reporting of currency chest transactions?"], "question": "Does RBI grant waivers of it for wrong reporting?"}
+{"set": "follow_up", "qa_id": "q1030c15879eb", "history": ["Can co-operative banks change their name after the Banking Regulation (Amendment) Act 2020?"], "question": "What documents must they submit to the Regional Office when applying for it?"}
+{"set": "follow_up", "qa_id": "qb1bb1ad253ea", "history": ["Can Scheduled Commercial Banks set their own borrowing limits in the call and notice money market?"], "question": "Which categories of banks are excluded from that permission?"}
+{"set": "follow_up", "qa_id": "qd37ef1ae6b36", "history": ["What do the 2025 directions on NBFC financial statements presentation and disclosures require?"], "question": "What numeric value do they give for the divergence in Net NPAs?"}
+{"set": "follow_up", "qa_id": "q2bf04dbe0063", "history": ["What is the Regulations Review Authority 2.0?"], "question": "When was the press release on its second tranche of interim recommendations issued?"}
+{"set": "follow_up", "qa_id": "q5b429eeb4a20", "history": ["What do RBI's directions on financial statements of urban co-operative banks say about disclosures?"], "question": "How should derivative transactions be disclosed if there were none in both years?"}
+{"set": "follow_up", "qa_id": "q755492d23cd7", "history": ["What are the RBI directions on resolution of stressed assets for NBFCs?"], "question": "What reference date applies to borrowers with aggregate exposure of 2000 crore or more?"}
+{"set": "follow_up", "qa_id": "q21c20b804552", "history": ["What are the Master Directions on fraud risk management in commercial banks?"], "question": "Which law enforcement agencies must private and foreign banks report frauds of 1 crore or more to?"}
+{"set": "follow_up", "qa_id": "qd6947c5f23b1", "history": ["Can urban co-operative banks voluntarily transition into small finance banks?"], "question": "What information is needed about a person subscribing to 5% or more of the paid-up equity capital?"}
+{"set": "follow_up", "qa_id": "qcb64ef4224fc", "history": ["What did RBI's 1997 notification say about Audit Committees of public sector bank boards?"], "question": "How often must non-official directors be rotated in it?"}
+{"set": "follow_up", "qa_id": "qd927db289b83", "history": ["Did RBI issue responsible business conduct directions for rural co-operative banks on November 28, 2025?"], "question": "What is their short title?"}
+{"set": "out_of_scope", "question": "Who won the 2011 Cricket World Cup?"}
+{"set": "out_of_scope", "question": "What is the capital of Australia?"}
+{"set": "out_of_scope", "question": "How do I bake sourdough bread?"}
+{"set": "out_of_scope", "question": "What is the boiling point of water at sea level?"}
+{"set": "out_of_scope", "question": "Recommend a good laptop under 50000 rupees"}
+{"set": "out_of_scope", "question": "What is the plot of the Mahabharata?"}
+{"set": "out_of_scope", "question": "How many players are on a football team?"}
+{"set": "out_of_scope", "question": "Explain photosynthesis"}
+{"set": "out_of_scope", "question": "What is the tallest mountain in the world?"}
+{"set": "out_of_scope", "question": "Write a poem about the monsoon"}
+{"set": "out_of_scope", "question": "What are the symptoms of dengue fever?"}
+{"set": "out_of_scope", "question": "How do I renew my passport in India?"}
+{"set": "out_of_scope", "question": "What is the speed of light?"}
+{"set": "out_of_scope", "question": "Who is the captain of the Indian cricket team?"}
+{"set": "out_of_scope", "question": "How do I install Python on Windows?"}
+{"set": "out_of_scope", "question": "What is the best time to visit Kerala?"}
+{"set": "out_of_scope", "question": "What are SEBI's rules for IPO lock-in periods?"}
+{"set": "out_of_scope", "question": "What is the income tax rate for income above 15 lakh?"}
+{"set": "out_of_scope", "question": "What is IRDAI's free-look period for health insurance policies?"}
+{"set": "out_of_scope", "question": "What does the Companies Act say about CSR spending?"}
+{"set": "ambiguous", "question": "What is the limit?"}
+{"set": "ambiguous", "question": "When is it effective?"}
+{"set": "ambiguous", "question": "Is this circular still valid?"}
+{"set": "ambiguous", "question": "What are the norms?"}
+{"set": "ambiguous", "question": "KYC?"}
+{"set": "ambiguous", "question": "What about interest?"}
+{"set": "ambiguous", "question": "What is the penalty under that direction?"}
+{"set": "ambiguous", "question": "How much?"}
+{"set": "ambiguous", "question": "What changed?"}
+{"set": "ambiguous", "question": "Explain the rules"}
+{"set": "ambiguous", "question": "What is the rate?"}
+{"set": "ambiguous", "question": "Is it allowed?"}
+{"set": "ambiguous", "question": "What does the above circular require?"}
+{"set": "ambiguous", "question": "Who does this apply to?"}
+{"set": "ambiguous", "question": "What is the deadline?"}
+{"set": "multi_part", "question": "What is the minimum net owned fund for ARCs? When did it take effect?"}
+{"set": "multi_part", "question": "Who can open a Special Rupee Vostro Account? How must banks report it?"}
+{"set": "multi_part", "question": "What is the LRS limit per financial year and also which transactions are prohibited under it?"}
+{"set": "multi_part", "question": "What is the KYC updation period for high risk customers? What is it for low risk customers?"}
+{"set": "multi_part", "question": "What is the CRR? What is the SLR?"}
+{"set": "multi_part", "question": "How are frauds reported to RBI; which agencies must be informed?"}
+{"set": "multi_part", "question": "What is a Key Facts Statement? Which loans need one?"}
+{"set": "multi_part", "question": "What are the PSL targets for small finance banks? Do they include agriculture sub-targets?"}
+{"set": "multi_part", "question": "What is the repo rate under LAF and also what is the marginal standing facility rate?"}
+{"set": "multi_part", "question": "Can NBFCs accept public deposits? What is the interest rate ceiling on them?"}
