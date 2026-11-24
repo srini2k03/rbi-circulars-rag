@@ -271,3 +271,63 @@ def query_understanding(
                                        "command": "rbirag eval query-understanding",
                                        "follow_up": report["follow_up"]})  # fmt: skip
     typer.echo(json.dumps(report, indent=1))
+
+
+@eval_app.command("review-answers")
+def review_answers(
+    docs: Annotated[Path | None, typer.Option(help="documents.jsonl")] = None,
+    n: Annotated[int, typer.Option(help="Answers in the sample.")] = 40,
+    reviewer: Annotated[str, typer.Option(help="Your name or handle (stored).")] = "human",
+    seed: Annotated[int, typer.Option()] = 13,
+) -> None:
+    """Label a stratified sample of generated answers (faithful / partially / unfaithful,
+    correct or not) against the passages they were generated from. Resumable; writes
+    data/eval/answer_reviews.jsonl."""
+    from rbirag.document import read_documents_jsonl
+    from rbirag.eval.human_review import (
+        REVIEW_FILE,
+        load_check_rows,
+        review_loop,
+        sample_for_review,
+    )
+
+    s = get_settings()
+    checks = load_check_rows(s.results_dir)
+    if not checks:
+        raise typer.BadParameter("run `rbirag eval verify-citations` first (it lists the answers)")
+    sample = sample_for_review(list(checks.values()), n, seed=seed)
+    wanted = {(x["qa_id"], x["config"], x["backend"]) for x in sample}
+    documents = read_documents_jsonl(docs or s.documents_path)
+    shown: dict[tuple[str, str, str], tuple[Any, Any]] = {}
+    for rec, sources in committed_answers(s, documents, sorted({x["config"] for x in sample})):
+        key = (rec.qa_id, rec.config, rec.backend)
+        if key in wanted:
+            shown[key] = (rec, sources)
+
+    def show(item: dict[str, Any]) -> str:
+        rec, sources = shown[(item["qa_id"], item["config"], item["backend"])]
+        parts = [f"\n=== {rec.qa_id} ({rec.backend})", f"Q: {rec.question}", ""]
+        parts += [f"[{x.n}] {x.title} ({x.date})\n{x.text[:1500]}\n" for x in sources]
+        parts += [f"ANSWER: {rec.answer}"]
+        return "\n".join(parts)
+
+    items = [x for x in sample if (x["qa_id"], x["config"], x["backend"]) in shown]
+    added = review_loop(items, show, s.eval_dir / REVIEW_FILE, reviewer=reviewer, echo=typer.echo)
+    typer.echo(f"saved {added} reviews to {s.eval_dir / REVIEW_FILE}")
+
+
+@eval_app.command("review-agreement")
+def review_agreement(
+    out: Annotated[
+        Path | None, typer.Option(help="Default: results/analysis/review_agreement.json")
+    ] = None,
+) -> None:
+    """Cohen's kappa of the LLM judge and the citation verifiers against human labels."""
+    from rbirag.eval.human_review import REVIEW_FILE, agreement, load_check_rows, read_reviews
+
+    s = get_settings()
+    report = agreement(read_reviews(s.eval_dir / REVIEW_FILE), load_check_rows(s.results_dir))
+    path = out or s.results_dir / "analysis" / "review_agreement.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, indent=1), encoding="utf-8")
+    typer.echo(json.dumps(report, indent=1))
