@@ -178,7 +178,7 @@ def export_web_index(
     manifest: dict[str, Any] = {
         "format_version": FORMAT_VERSION,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "config": f"{chunker}-{size}-hybrid_rerank",
+        "config": f"{chunker}-{size}-{settings.retrieval_mode}",
         "config_source": config_source,
         "chunker": chunker,
         "chunk_size": size,
@@ -199,9 +199,16 @@ def export_web_index(
             "model": settings.reranker_model,
             "browser_model": "Xenova/ms-marco-MiniLM-L-6-v2",
         },
+        # the served retrieval profile (rbirag.retrieval.params.RetrievalParams.from_settings)
         "retrieval": {
+            "mode": settings.retrieval_mode,
             "candidate_k": settings.candidate_k,
             "rerank_k": settings.rerank_k,
+            "rerank_weight": settings.rerank_weight,
+            "fusion": settings.fusion,
+            "score_norm": settings.score_norm,
+            "bm25_weight": settings.bm25_weight,
+            "dense_weight": settings.dense_weight,
             "rrf_k": settings.rrf_k,
             "top_k": settings.answer_top_k,
             "confidence_threshold": settings.confidence_threshold,

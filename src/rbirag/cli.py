@@ -383,10 +383,15 @@ def export_web(
     """Export the static browser index (chunks, int8 embeddings, BM25 stats)."""
     from rbirag.document import read_documents_jsonl
     from rbirag.index.embedder import build_embedder
-    from rbirag.web_export import best_config, export_web_index
+    from rbirag.web_export import export_web_index
 
     s = get_settings()
-    best_chunker, best_size, source = best_config(s.results_dir)
+    # the served profile (selected on dev by `rbirag eval bench`), unless overridden
+    best_chunker, best_size, source = (
+        s.chunker,
+        s.chunk_size,
+        f"served profile {s.chunker}-{s.chunk_size}-{s.retrieval_mode}",
+    )
     emb = build_embedder(
         embedder or s.embedder,
         model_name=s.embedding_model,

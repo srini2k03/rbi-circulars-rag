@@ -2,7 +2,7 @@
 // Python test-suite can compare them with the Python implementation.
 import { readFileSync } from "node:fs";
 import { makeTokenizer } from "../js/tokenizer.js";
-import { BM25, rrf, sigmoid, denseScores } from "../js/search.js";
+import { BM25, rrf, sigmoid, denseScores, weightedFusion } from "../js/search.js";
 import { buildUserPrompt, citedIds } from "../js/prompt.js";
 
 const spec = JSON.parse(readFileSync(process.argv[2], "utf8"));
@@ -13,6 +13,8 @@ const out = {
   tokens: spec.texts.map((t) => tok(t)),
   scores: spec.queries.map((q) => Array.from(bm25.scores(tok(q)))),
   rrf: rrf(spec.rrf.rankings, spec.rrf.k).map((r) => [r.id, r.score]),
+  weighted: spec.weighted ? weightedFusion(spec.weighted.rankings.map((r) => r.map(([id, score]) => ({ id, score }))),
+    spec.weighted.weights, spec.weighted.method).map((r) => [r.id, r.score]) : null,
   sigmoid: spec.sigmoid.map(sigmoid),
   prompt: buildUserPrompt(spec.prompt.question, spec.prompt.chunks),
   cited: citedIds(spec.cited),

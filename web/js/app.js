@@ -1,6 +1,6 @@
 import { loadIndex } from "./index-loader.js";
 import { makeTokenizer } from "./tokenizer.js";
-import { BM25, denseScores, rrf, sigmoid, topK } from "./search.js";
+import { BM25, denseScores, interpolate, rrf, sigmoid, topK, weightedFusion } from "./search.js";
 import { buildUserPrompt, citedIds } from "./prompt.js";
 import { generate, PROVIDERS } from "./llm.js";
 import { headline, loadResults, renderDashboard } from "./dashboard.js";
@@ -59,8 +59,15 @@ function setStage(name, st, text = "") {
 
 function resetStages() {
   const on = modelsActive();
+  const R = state.index?.manifest.retrieval || {};
+  const mode = R.mode || "hybrid_rerank";
+  const unused = { dense: !(mode === "dense" || mode.startsWith("hybrid")), rrf: !mode.startsWith("hybrid"),
+    rerank: !mode.endsWith("_rerank"), gate: !mode.endsWith("_rerank") };
+  const fusionName = document.querySelector('.stage[data-stage="rrf"] .stage__name');
+  if (fusionName && R.fusion) fusionName.textContent = R.fusion === "weighted" ? "Fusion" : "RRF";
   for (const s of STAGES) {
-    if (s === "bm25" || on) setStage(s, "idle");
+    if (s !== "bm25" && unused[s]) setStage(s, "off", "not used");
+    else if (s === "bm25" || on) setStage(s, "idle");
     else setStage(s, "off", "off");
   }
 }
@@ -115,69 +122,82 @@ class ModelError extends Error {
 
 async function retrieve(question, live) {
   const { manifest: m, chunks, emb, scales, dim } = state.index;
+  const R = m.retrieval;
+  const mode = R.mode || "hybrid_rerank"; // older manifests: the original pipeline
+  const useDense = mode === "dense" || mode.startsWith("hybrid");
+  const useRerank = mode.endsWith("_rerank");
   const stage = (...a) => { if (live()) setStage(...a); };
   const timings = {};
   stage("bm25", "run");
   await paint();
   let t = performance.now();
-  const sparse = state.bm25.search(state.tokenize(question), m.retrieval.candidate_k);
+  const sparse = state.bm25.search(state.tokenize(question), Math.max(R.candidate_k, R.rerank_k || 0));
   timings.bm25 = performance.now() - t;
+  stage("bm25", "done", chipMs(timings.bm25));
   const trace = new Map();
   const tr = (i) => trace.get(i) || trace.set(i, {}).get(i);
   sparse.forEach((r, k) => Object.assign(tr(r.i), { bm25: r.score, bm25Rank: k + 1 }));
-  stage("bm25", "done", chipMs(timings.bm25));
   let ranked = sparse.map((r) => ({ i: r.i, score: r.score }));
   let confidence = null;
   if (modelsActive()) {
-    setStatus("Embedding the question (first run downloads the model) ...", "busy");
-    stage("dense", "run", "loading model");
     let models;
-    const dl1 = progressMeter("embedding model", m.embedding.browser_model);
-    try {
-      models = await import("./models.js");
-      await models.loadEmbedder(m, dl1.onProgress);
-    } catch (err) {
-      stage("dense", "error", "model failed");
-      throw new ModelError(err);
-    } finally {
-      dl1.finish();
+    const loadModels = async () => { models = models || await import("./models.js"); return models; };
+    if (useDense) {
+      setStatus("Embedding the question (first run downloads the model) ...", "busy");
+      stage("dense", "run", "loading model");
+      const dl1 = progressMeter("embedding model", m.embedding.browser_model);
+      try {
+        await (await loadModels()).loadEmbedder(m, dl1.onProgress);
+      } catch (err) {
+        stage("dense", "error", "model failed");
+        throw new ModelError(err);
+      } finally {
+        dl1.finish();
+      }
+      stage("dense", "run");
+      t = performance.now();
+      const q = await models.embedQuery(question, m);
+      const dense = topK(denseScores(q, emb, scales, dim), R.candidate_k);
+      timings.dense = performance.now() - t;
+      stage("dense", "done", chipMs(timings.dense));
+      dense.forEach((r, k) => Object.assign(tr(r.i), { dense: r.score, denseRank: k + 1 }));
+      t = performance.now();
+      const fused = R.fusion === "weighted"
+        ? weightedFusion([sparse.map((r) => ({ id: r.i, score: r.score })), dense.map((r) => ({ id: r.i, score: r.score }))],
+          [R.bm25_weight, R.dense_weight], R.score_norm)
+        : rrf([sparse.map((r) => r.i), dense.map((r) => r.i)], R.rrf_k);
+      fused.forEach((r, k) => Object.assign(tr(r.id), { rrf: r.score, rrfRank: k + 1 }));
+      ranked = mode === "dense" ? dense.map((r) => ({ i: r.i, score: r.score })) : fused.map((r) => ({ i: r.id, score: r.score }));
+      timings.fusion = performance.now() - t;
+      stage("rrf", mode === "dense" ? "off" : "done", mode === "dense" ? "" : chipMs(timings.fusion));
     }
-    stage("dense", "run");
-    t = performance.now();
-    const q = await models.embedQuery(question, m);
-    const dense = topK(denseScores(q, emb, scales, dim), m.retrieval.candidate_k);
-    timings.dense = performance.now() - t;
-    dense.forEach((r, k) => Object.assign(tr(r.i), { dense: r.score, denseRank: k + 1 }));
-    stage("dense", "done", chipMs(timings.dense));
-    t = performance.now();
-    const fused = rrf([sparse.map((r) => r.i), dense.map((r) => r.i)], m.retrieval.rrf_k);
-    fused.forEach((r, k) => Object.assign(tr(r.id), { rrf: r.score, rrfRank: k + 1 }));
-    const pool = fused.slice(0, m.retrieval.rerank_k);
-    timings.rrf = performance.now() - t;
-    stage("rrf", "done", chipMs(timings.rrf));
-    setStatus("Reranking ...", "busy");
-    stage("rerank", "run", "loading model");
-    const dl2 = progressMeter("reranker", m.reranker.browser_model);
-    try {
-      await models.loadReranker(m, dl2.onProgress);
-    } catch (err) {
-      stage("rerank", "error", "model failed");
-      throw new ModelError(err);
-    } finally {
-      dl2.finish();
+    if (useRerank) {
+      const pool = ranked.slice(0, R.rerank_k);
+      setStatus("Scoring with the cross-encoder ...", "busy");
+      stage("rerank", "run", "loading model");
+      const dl2 = progressMeter("reranker", m.reranker.browser_model);
+      try {
+        await (await loadModels()).loadReranker(m, dl2.onProgress);
+      } catch (err) {
+        stage("rerank", "error", "model failed");
+        throw new ModelError(err);
+      } finally {
+        dl2.finish();
+      }
+      stage("rerank", "run");
+      t = performance.now();
+      const scores = await models.rerank(question, pool.map((p) => chunks[p.i].text), m);
+      timings.rerank = performance.now() - t;
+      stage("rerank", "done", chipMs(timings.rerank));
+      [...pool.keys()].sort((a, b) => scores[b] - scores[a] || pool[a].i - pool[b].i)
+        .forEach((j, k) => Object.assign(tr(pool[j].i), { rerank: scores[j], rerankRank: k + 1 }));
+      ranked = interpolate(pool, scores, R.rerank_weight ?? 1);
+      confidence = scores.length ? sigmoid(Math.max(...scores)) : 0;
+      const tau = R.confidence_threshold;
+      stage("gate", confidence < tau ? "low" : "pass", `${confidence.toFixed(2)} ${confidence < tau ? "<" : "≥"} τ`);
     }
-    stage("rerank", "run");
-    t = performance.now();
-    const scores = await models.rerank(question, pool.map((p) => chunks[p.id].text), m);
-    timings.rerank = performance.now() - t;
-    stage("rerank", "done", chipMs(timings.rerank));
-    ranked = pool.map((p, j) => ({ i: p.id, score: scores[j] })).sort((a, b) => b.score - a.score || a.i - b.i);
-    ranked.forEach((r, k) => Object.assign(tr(r.i), { rerank: r.score, rerankRank: k + 1 }));
-    confidence = ranked.length ? sigmoid(ranked[0].score) : 0;
-    const tau = m.retrieval.confidence_threshold;
-    stage("gate", confidence < tau ? "low" : "pass", `${confidence.toFixed(2)} ${confidence < tau ? "<" : "≥"} τ`);
   }
-  return { results: ranked.slice(0, m.retrieval.top_k).map((r) => ({ ...r, trace: trace.get(r.i) })), confidence, timings };
+  return { results: ranked.slice(0, R.top_k).map((r) => ({ ...r, trace: trace.get(r.i) })), confidence, timings };
 }
 
 // ---------- Query-term highlighting ----------
@@ -315,8 +335,8 @@ function renderResults(question, res) {
     li.id = `src-${n}`;
     li.dataset.docId = c.doc_id;
     li.style.setProperty("--i", String(j));
-    const rel = gated ? sigmoid(r.score) : Math.max(0, r.score / top);
-    const scoreLabel = gated ? "relevance" : "BM25";
+    const rel = gated ? sigmoid(r.trace?.rerank ?? r.score) : Math.max(0, r.score / top);
+    const scoreLabel = gated ? "match" : "BM25";
     const scoreVal = gated ? rel.toFixed(2) : r.score.toFixed(1);
     const tags = [
       c.date ? `<span class="sb-tag tag-date"><time datetime="${escapeHtml(c.date)}">${formatDate(c.date)}</time></span>` : "",
@@ -332,7 +352,7 @@ function renderResults(question, res) {
       <p class="snippet">${snippet(c.text, terms)}</p>
       <details class="passage-more"><summary>Full passage</summary><p class="passage">${highlight(c.text, terms)}</p></details>
       <div class="result-foot">
-        <div class="score" title="${gated ? "sigmoid of the cross-encoder score" : "BM25 score (bar relative to the top hit)"}">
+        <div class="score" title="${gated ? "sigmoid of the cross-encoder score: how well the passage matches the question (a retrieval signal, not the probability that an answer is correct)" : "BM25 score (bar relative to the top hit)"}">
           <span>${scoreLabel}</span><span class="sb-meter" aria-hidden="true"><span style="width: ${(Math.min(1, rel) * 100).toFixed(0)}%"></span></span>
           <span class="score__val">${scoreVal}</span></div>
         <span class="result-actions"><button type="button" class="sb-btn sb-btn--sm sb-btn--ghost doc-btn" data-doc="${escapeHtml(c.doc_id)}" aria-haspopup="dialog">Document &amp; relations</button>
@@ -343,7 +363,7 @@ function renderResults(question, res) {
   });
   for (const b of list.querySelectorAll(".doc-btn")) b.addEventListener("click", () => openDoc(b.dataset.doc, b));
   const tau = m.retrieval.confidence_threshold;
-  const conf = res.confidence == null ? "n/a (BM25 only)" : res.confidence.toFixed(3);
+  const conf = res.confidence == null ? "n/a (no cross-encoder in this mode)" : res.confidence.toFixed(3);
   const low = res.confidence != null && res.confidence < tau;
   $("#search-meta").innerHTML =
     `<span${low ? ` class="low"` : ""}>confidence ${escapeHtml(conf)}${low ? " (low: the answer step will say it doesn't know)" : ""}</span> · ` +
@@ -357,7 +377,7 @@ function updateGateNote(confidence, tau) {
   el.hidden = false;
   if (confidence == null) {
     el.dataset.kind = "off";
-    el.textContent = "BM25 only: there is no reranker confidence in this mode, so the gate is not applied.";
+    el.textContent = "No cross-encoder confidence in this mode, so the gate is not applied.";
   } else if (confidence < tau) {
     el.dataset.kind = "low";
     el.textContent = `Retrieval confidence ${confidence.toFixed(2)} is below τ = ${tau}: the answer step will say “I don't know” without calling the provider.`;

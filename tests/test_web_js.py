@@ -43,6 +43,9 @@ def run_node(spec: dict, tmp_path: Path) -> dict:  # type: ignore[type-arg]
     return json.loads(out.stdout)  # type: ignore[no-any-return]
 
 
+WEIGHTED = [[["a", 12.0], ["b", 7.5], ["c", 1.0]], [["b", 0.81], ["d", 0.77], ["a", 0.5]]]
+
+
 def test_js_matches_python(tmp_path: Path) -> None:
     texts = [
         "The Banks' POLICIES are for customers",
@@ -62,6 +65,7 @@ def test_js_matches_python(tmp_path: Path) -> None:
         "texts": texts,
         "queries": QUERIES,
         "rrf": {"rankings": [["a", "b", "c"], ["b", "d", "a"]], "k": 60},
+        "weighted": {"rankings": WEIGHTED, "weights": [0.7, 0.3], "method": "zscore"},
         "sigmoid": [-3.0, 0.0, 2.5],
         "prompt": {
             "question": " What applies? ",
@@ -90,6 +94,11 @@ def test_js_matches_python(tmp_path: Path) -> None:
     for query, js_scores in zip(QUERIES, js["scores"], strict=True):
         py = index._bm25.get_scores(bm25_tokenize(query))
         np.testing.assert_allclose(js_scores, py, rtol=1e-9, atol=1e-12)
+    from rbirag.retrieval.fusion import weighted_fusion
+
+    py_w = weighted_fusion([[tuple(x) for x in r] for r in WEIGHTED], [0.7, 0.3], method="zscore")
+    assert [r[0] for r in js["weighted"]] == [d for d, _ in py_w]
+    np.testing.assert_allclose([r[1] for r in js["weighted"]], [s for _, s in py_w])
     py_rrf = reciprocal_rank_fusion([["a", "b", "c"], ["b", "d", "a"]], k=60)
     assert [r[0] for r in js["rrf"]] == [d for d, _ in py_rrf]
     np.testing.assert_allclose([r[1] for r in js["rrf"]], [s for _, s in py_rrf])

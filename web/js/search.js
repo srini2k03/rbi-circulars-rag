@@ -96,3 +96,36 @@ export function rrf(rankings, k = 60, weights = null) {
 export function sigmoid(x) {
   return x >= 0 ? 1 / (1 + Math.exp(-x)) : Math.exp(x) / (1 + Math.exp(x));
 }
+
+// Per-query normalisation and weighted score fusion, as in rbirag.retrieval.fusion.
+export function normalise(scores, method = "minmax") {
+  if (!scores.length) return [];
+  if (method === "minmax") {
+    const lo = Math.min(...scores), hi = Math.max(...scores);
+    return hi - lo <= 1e-12 ? scores.map(() => 1) : scores.map((s) => (s - lo) / (hi - lo));
+  }
+  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+  const sd = Math.sqrt(scores.reduce((a, s) => a + (s - mean) ** 2, 0) / scores.length);
+  return sd <= 1e-12 ? scores.map(() => 0) : scores.map((s) => (s - mean) / sd);
+}
+
+// rankings: arrays of {id, score}; returns [{id, score}] best first, ties by id
+export function weightedFusion(rankings, weights, method = "minmax") {
+  const normed = rankings.map((r) => {
+    const v = normalise(r.map((x) => x.score), method);
+    return { map: new Map(r.map((x, j) => [x.id, v[j]])), floor: method === "zscore" && v.length ? Math.min(...v) : 0 };
+  });
+  const ids = new Set(rankings.flatMap((r) => r.map((x) => x.id)));
+  return Array.from(ids, (id) => ({
+    id,
+    score: normed.reduce((a, n, j) => a + weights[j] * (n.map.has(id) ? n.map.get(id) : n.floor), 0),
+  })).sort((a, b) => b.score - a.score || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+// final order of reranked candidates: w * minmax(rerank) + (1 - w) * minmax(first stage)
+export function interpolate(pool, rerankScores, w) {
+  if (w >= 1) return pool.map((p, j) => ({ i: p.i, score: rerankScores[j] })).sort((a, b) => b.score - a.score || a.i - b.i);
+  const f = normalise(pool.map((p) => p.score));
+  const r = normalise(rerankScores);
+  return pool.map((p, j) => ({ i: p.i, score: w * r[j] + (1 - w) * f[j] })).sort((a, b) => b.score - a.score || a.i - b.i);
+}

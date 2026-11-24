@@ -162,7 +162,7 @@ export function traceHtml(t, finalRank, contextSize) {
   if (!t) return "";
   const cell = (score, rank, digits) => (score == null ? `<td class="na">-</td>` : `<td>${Number(score).toFixed(digits)}${rank ? ` <span class="rank">#${rank}</span>` : ""}</td>`);
   return `<table class="trace"><caption class="sr-only">Stage scores of this passage</caption>
-    <thead><tr><th scope="col">BM25</th><th scope="col">dense cosine</th><th scope="col">RRF</th><th scope="col">cross-encoder</th><th scope="col">final</th></tr></thead>
+    <thead><tr><th scope="col">BM25</th><th scope="col">dense cosine</th><th scope="col">fusion</th><th scope="col">cross-encoder</th><th scope="col">final</th></tr></thead>
     <tbody><tr>${cell(t.bm25, t.bm25Rank, 2)}${cell(t.dense, t.denseRank, 3)}${cell(t.rrf, t.rrfRank, 4)}${cell(t.rerank, t.rerankRank, 2)}
     <td>#${finalRank}${finalRank <= contextSize ? ` <span class="sb-tag in-context">in context</span>` : ""}</td></tr></tbody></table>`;
 }

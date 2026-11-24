@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>RBI circulars RAG</title>
-  <meta name="description" content="Search Reserve Bank of India notifications in your browser: BM25 + bge-small + RRF + cross-encoder rerank, with optional cited answers.">
+  <meta name="description" content="Search Reserve Bank of India notifications in your browser: BM25 ranking with a cross-encoder confidence gate (the profile chosen by a dev-tuned benchmark), optional dense fusion, cited and checked answers.">
   <meta name="color-scheme" content="dark light">
   <script>(function(){try{var t=localStorage.getItem('theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}document.documentElement.classList.remove('no-js');})();</script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307090c'/%3E%3Ccircle cx='20' cy='40' r='4' fill='%235eeaa8'/%3E%3Ccircle cx='44' cy='22' r='4' fill='%237fa6ff'/%3E%3Ccircle cx='42' cy='44' r='3' fill='%23a996ff'/%3E%3Cpath d='M20 40 44 22M20 40l22 4' stroke='%235eeaa8' stroke-width='2' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E">
@@ -44,9 +44,10 @@
         <div class="hero__copy">
           <p class="sb-kicker"><span class="sb-kicker__index">GenAI · Retrieval</span><span class="sb-kicker__rule"></span>2026<span class="kicker-extra"> · runs in your browser</span></p>
           <h1 id="hero-title" class="sb-h1">Ask the RBI <span class="sb-serif">regulations</span>.</h1>
-          <p class="sb-lead">Hybrid search over Reserve Bank of India notifications, running entirely in your browser:
-            BM25 and BGE embeddings, fused with Reciprocal Rank Fusion and reranked by a cross-encoder.
-            Answers cite their sources and say &ldquo;I don&rsquo;t know&rdquo; when retrieval confidence is low.</p>
+          <p class="sb-lead">Search over Reserve Bank of India notifications, running entirely in your browser:
+            BM25 ranks the passages and a cross-encoder decides whether they answer the question, the
+            configuration a dev-tuned benchmark of 17 retrieval strategies selected. Answers cite their sources,
+            every claim is checked against them, and the system says &ldquo;I don&rsquo;t know&rdquo; when the evidence is weak.</p>
           <div class="sb-hero__meta">
             <span class="sb-pill sb-pill--live">Retrieval live in your browser</span>
             <span class="sb-pill">Answers with your own Groq or Gemini key</span>
@@ -63,8 +64,8 @@
           <p id="funnel-title" class="sb-label">Retrieval funnel of this index</p>
           <ol class="funnel__rows">
             <li style="--w: 1"><p><span class="funnel__n" data-funnel="docs">2,153</span> notifications in the index</p><span class="funnel__bar"></span></li>
-            <li style="--w: .72"><p><span class="funnel__n" data-funnel="cand">50</span> candidates each from BM25 and BGE dense</p><span class="funnel__bar"></span></li>
-            <li style="--w: .48"><p><span class="funnel__n" data-funnel="rerank">20</span> RRF fused, cross-encoder reranked</p><span class="funnel__bar"></span></li>
+            <li style="--w: .72"><p><span class="funnel__n" data-funnel="cand">50</span> BM25 candidates</p><span class="funnel__bar"></span></li>
+            <li style="--w: .48"><p><span class="funnel__n" data-funnel="rerank">20</span> scored by the cross-encoder (the gate)</p><span class="funnel__bar"></span></li>
             <li style="--w: .28"><p><span class="funnel__n">top <span data-funnel="top">5</span></span> shown and passed to the LLM</p><span class="funnel__bar"></span></li>
           </ol>
           <div class="funnel__gate">
@@ -228,7 +229,7 @@
       <div class="footer-copy">
         <p class="footer-name">© 2026 Srinivasan Balasubramanian</p>
         <p class="footer-note">A static site on GitHub Pages: the index is exported by <code>rbirag export-web</code>, and retrieval runs in
-          your browser (BM25 + bge-small-en-v1.5 (int8) + RRF (k=60) + ms-marco-MiniLM-L-6-v2 rerank via transformers.js).
+          your browser (BM25 ranking and an ms-marco-MiniLM-L-6-v2 confidence gate via transformers.js; bge-small-en-v1.5 (int8) and fusion in hybrid modes).
           GitHub Actions renders every deploy in Chromium against the real index first.
           Answers can be wrong; check the cited notification on rbi.org.in.</p>
       </div>
