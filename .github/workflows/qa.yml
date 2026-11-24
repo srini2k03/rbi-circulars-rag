@@ -1,10 +1,8 @@
 name: Generate Q/A candidates
 
 on:
-  # Daily, to use each day's free-tier token slice. 09:41 UTC is offset from the jobpost
-  # repository's 03:23 UTC run so the shared key is never used concurrently.
-  schedule:
-    - cron: "41 9 * * *"
+  # Dispatch only. (A daily schedule used each day's free-tier token slice until the
+  # candidate set reached its targets; after that it was a no-op.)
   workflow_dispatch:
     inputs:
       n_answerable:

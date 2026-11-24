@@ -18,11 +18,8 @@ name: Evaluate
 #    a push is rejected (no textual rebase of derived files).
 
 on:
-  # Fallback every 6 hours (the Q/A workflow runs daily at 09:41): resumes whatever a
-  # dispatched run left (e.g. API answers past the daily quota); a no-op (preflight only)
-  # once every planned answer has a verdict from the configured judge.
-  schedule:
-    - cron: "41 */6 * * *"
+  # Dispatch only. (A 6-hourly schedule used to resume runs that stopped at the free-tier
+  # quota; every planned answer now has a verdict, so it only ran a no-op preflight.)
   workflow_dispatch:
     inputs:
       provider:
@@ -579,5 +576,5 @@ jobs:
             [ -f results/README.md ] && cat results/README.md
           } >> "$GITHUB_STEP_SUMMARY"
           if ! rbirag eval progress | python -c "import json,sys; sys.exit(0 if json.load(sys.stdin)['done'] else 1)"; then
-            echo "::warning::Some planned answers or verdicts are still pending (API quota or time budget); the 6-hourly schedule resumes them."
+            echo "::warning::Some planned answers or verdicts are still pending (API quota or time budget); dispatch the workflow again to resume them."
           fi
