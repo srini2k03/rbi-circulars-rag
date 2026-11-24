@@ -1,0 +1,55 @@
+name: Analysis
+
+# Model-dependent analyses of the committed evaluation records (the models need Hugging
+# Face, which only the runners can reach). Results are committed to results/analysis.
+#   nli-study: why the LLM judge (~0.95) and sentence-level NLI (~0.21) disagree on
+#              faithfulness - several NLI protocols on the same answers.
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Analysis to run"
+        type: choice
+        options: [nli-study]
+        default: nli-study
+
+permissions:
+  contents: write  # commits results/analysis
+
+concurrency:
+  group: analysis-${{ inputs.task }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  HF_HOME: ${{ github.workspace }}/.hf
+  RBIRAG_EXPERIMENT_LOG: /tmp/run/experiments.jsonl
+
+jobs:
+  nli-study:
+    if: inputs.task == 'nli-study'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: ./.github/actions/eval-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          extras: "ingest,retrieval,ml,eval"
+      - name: NLI protocols vs the judge on the committed answers
+        run: |
+          mkdir -p /tmp/run/analysis
+          rbirag eval nli-study --out-dir /tmp/run/analysis | tee /tmp/run/nli.log
+          python -c "import json; d=json.load(open('/tmp/run/analysis/nli_study.json')); print(json.dumps({k: d[k] for k in ('answers','whole_chunk_reproduces_committed','premises_truncated_share','uncited_sentence_share','sentences_rescued_by_windows','rescued_beyond_512_cutoff','non_answers')}, indent=1))" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: analysis-${{ github.run_id }}
+          path: /tmp/run
+      - name: Commit results
+        run: |
+          scripts/commit_outputs.sh "Update NLI-vs-judge analysis (run ${{ github.run_id }})" \
+            /tmp/run/analysis:results/analysis --log /tmp/run/experiments.jsonl

@@ -1063,3 +1063,6 @@ def progress(
 from rbirag.eval import bench_cli as _bench_cli  # noqa: E402
 
 __all__ = ["_bench_cli", "eval_app"]
+from rbirag.eval import analysis_cli as _analysis_cli  # noqa: E402
+
+__all__ += ["_analysis_cli"]

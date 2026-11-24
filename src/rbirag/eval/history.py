@@ -25,7 +25,10 @@ def log_experiment(results_dir: Path, entry: dict[str, Any]) -> dict[str, Any]:
         "runner": os.environ.get("RUNNER_NAME") or os.uname().nodename,
         **entry,
     }
-    path = results_dir / EXPERIMENTS_FILE
+    # CI jobs write their new lines to a separate file (RBIRAG_EXPERIMENT_LOG) and append it
+    # to the committed log only when they publish (scripts/commit_outputs.sh --log).
+    override = os.environ.get("RBIRAG_EXPERIMENT_LOG")
+    path = Path(override) if override else results_dir / EXPERIMENTS_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False, default=str, sort_keys=True) + "\n")

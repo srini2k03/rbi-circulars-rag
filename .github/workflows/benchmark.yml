@@ -36,6 +36,7 @@ env:
   RBIRAG_EMBEDDER: sentence-transformers
   RBIRAG_RERANKER: cross-encoder
   RBIRAG_EMBEDDING_CACHE_DIR: ${{ github.workspace }}/.cache/emb
+  RBIRAG_EXPERIMENT_LOG: /tmp/run/experiments.jsonl
 
 jobs:
   bench:
@@ -60,7 +61,6 @@ jobs:
           PRIMARY: ${{ inputs.primary }}
           CHILD: ${{ inputs.child }}
           FAMILIES: ${{ inputs.families }}
-          RBIRAG_RESULTS_DIR: /tmp/run
         run: |
           mkdir -p /tmp/run/benchmark
           # reuse committed model scores; only cache misses run the models
@@ -70,7 +70,6 @@ jobs:
           cat /tmp/run/benchmark/strategies.md >> "$GITHUB_STEP_SUMMARY"
       - name: Verify the replay (no models) reproduces the run
         env:
-          RBIRAG_RESULTS_DIR: /tmp/replay
           PRIMARY: ${{ inputs.primary }}
           CHILD: ${{ inputs.child }}
           FAMILIES: ${{ inputs.families }}

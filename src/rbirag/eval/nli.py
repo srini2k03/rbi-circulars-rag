@@ -57,6 +57,10 @@ class CrossEncoderNLI:
                 self._entail_idx = 1  # documented order: contradiction, entailment, neutral
         return self._model
 
+    def count_pieces(self, text: str) -> int:
+        """Word pieces the model's tokenizer produces for ``text`` (no special tokens)."""
+        return len(self.model.tokenizer(text, add_special_tokens=False)["input_ids"])
+
     def entailment(self, pairs: Sequence[tuple[str, str]]) -> list[float]:
         if not pairs:
             return []
@@ -73,6 +77,9 @@ class FakeNLI:
     """Entailment = share of hypothesis content tokens present in the premise."""
 
     name = "fake-overlap-nli"
+
+    def count_pieces(self, text: str) -> int:
+        return len(text.split())
 
     def entailment(self, pairs: Sequence[tuple[str, str]]) -> list[float]:
         out: list[float] = []
