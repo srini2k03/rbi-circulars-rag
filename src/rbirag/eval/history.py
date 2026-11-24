@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,8 @@ def log_experiment(results_dir: Path, entry: dict[str, Any]) -> dict[str, Any]:
     """Append ``entry`` (plus timestamp, CI run id and runner info) and return it."""
     record = {
         "logged_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "commit": _git("rev-parse", "HEAD"),
+        "uncommitted_changes": bool(_git("status", "--porcelain", "--untracked-files=no")),
         "ci_run_id": os.environ.get("GITHUB_RUN_ID"),
         "ci_workflow": os.environ.get("GITHUB_WORKFLOW"),
         "runner": os.environ.get("RUNNER_NAME") or os.uname().nodename,
@@ -33,6 +36,14 @@ def log_experiment(results_dir: Path, entry: dict[str, Any]) -> dict[str, Any]:
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, ensure_ascii=False, default=str, sort_keys=True) + "\n")
     return record
+
+
+def _git(*args: str) -> str | None:
+    try:
+        out = subprocess.run(["git", *args], capture_output=True, text=True, check=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return out.stdout.strip() or None
 
 
 def read_experiments(results_dir: Path) -> list[dict[str, Any]]:
