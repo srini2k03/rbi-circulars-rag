@@ -26,6 +26,7 @@ from rbirag.generation.verify import (
     verify_answer,
 )
 from rbirag.retrieval.confidence import Confidence
+from rbirag.retrieval.params import RetrievalFilter
 from rbirag.retrieval.pipeline import RetrievalResult, Retriever, ScoredChunk
 
 logger = logging.getLogger(__name__)
@@ -159,6 +160,7 @@ class RAGPipeline:
         self.verifier = verifier
         self.verify_threshold = verify_threshold
         self.verify_policy: VerifyPolicy = verify_policy
+        self.filters: RetrievalFilter | None = None  # metadata filter for every retrieval
         self.dedup_threshold = dedup_threshold
         self.context_token_budget = context_token_budget
         self.relation = relation
@@ -183,7 +185,9 @@ class RAGPipeline:
     # -- helpers -----------------------------------------------------------------------
     def retrieve_context(self, question: str) -> tuple[RetrievalResult, ContextReport]:
         """Retrieval plus context assembly: exactly the passages the generator sees."""
-        result = self.retriever.retrieve(question, top_k=self.top_k, mode=self.mode)
+        result = self.retriever.retrieve(
+            question, top_k=self.top_k, mode=self.mode, filters=self.filters
+        )
         kept, report = assemble_context(
             result.results,
             dedup_threshold=self.dedup_threshold,

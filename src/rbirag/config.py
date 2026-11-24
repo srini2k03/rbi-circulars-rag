@@ -207,6 +207,16 @@ class Settings(BaseSettings):
     request_log_path: Path | None = None
     api_host: str = "0.0.0.0"
     api_port: int = Field(default=8000, ge=1, le=65535)
+    # /v1 protections: requests per minute per client (0 = off), request body size, a
+    # wall-clock budget per answer, and the token that enables POST /v1/eval/run (unset =
+    # the endpoint is disabled). The token is read from the environment, never logged.
+    api_rate_limit_per_minute: int = Field(default=30, ge=0)
+    api_max_body_bytes: int = Field(default=65_536, ge=1024)
+    api_timeout_seconds: float = Field(default=180.0, gt=0)
+    api_eval_token: str | None = None
+    retrieval_cache_size: int = Field(default=256, ge=0)
+    # The relation graph built by `rbirag intel build` (document metadata / relations API).
+    intel_graph_path: Path | None = None
 
     # ------------------------------------------------------------- evaluation
     eval_dir: Path = Path("data/eval")

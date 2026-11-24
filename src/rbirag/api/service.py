@@ -6,6 +6,7 @@ import logging
 import os
 import threading
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
@@ -29,7 +30,8 @@ from rbirag.generation.rag import RAGAnswer, RAGPipeline, StreamEvent, build_llm
 from rbirag.index.build import IndexBundle, build_index, chunk_documents, load_bundle, save_bundle
 from rbirag.index.embedder import Embedder, build_embedder
 from rbirag.providers import get_preset
-from rbirag.retrieval.pipeline import make_retriever
+from rbirag.retrieval.params import RERANK_MODES, RetrievalFilter, RetrievalParams
+from rbirag.retrieval.pipeline import RetrievalResult, Retriever, make_retriever
 from rbirag.retrieval.rerank import Reranker, build_reranker
 
 logger = logging.getLogger(__name__)
@@ -189,6 +191,9 @@ class RAGService:
         self._llms: dict[str, LLM] = {}
         self._llm_lock = threading.Lock()
         self._gate = ReadWriteGate()
+        self._graph: Any = None
+        self._cache: OrderedDict[tuple[str, str, int, str], RetrievalResult] = OrderedDict()
+        self._cache_lock = threading.Lock()
 
     # -- index lifecycle ---------------------------------------------------------------
     @property
@@ -224,6 +229,7 @@ class RAGService:
             )
         finally:
             self._gate.release_write()
+        self._cache.clear()
         logger.info("loaded index from %s (%d chunks)", self.index_dir, len(self.bundle.store))
         return True
 
@@ -244,6 +250,7 @@ class RAGService:
                 batch_size=self.settings.qdrant_upsert_batch_size,
             )
             self.bundle = bundle
+            self._cache.clear()
             self.documents = {d.doc_id: d for d in documents}
             if self.persist:
                 save_bundle(
@@ -324,7 +331,7 @@ class RAGService:
             bundle.store,
             bm25=bundle.bm25,
             dense=bundle.dense,
-            reranker=self.reranker if mode == "hybrid_rerank" else None,
+            reranker=self.reranker if mode in RERANK_MODES else None,
             mode=mode,
             confidence_threshold=req.threshold,
         )
@@ -359,6 +366,86 @@ class RAGService:
                 self._gate.release_read()
 
         return events(), backend
+
+    # -- v1 helpers ---------------------------------------------------------------------
+    def params_with(self, overrides: dict[str, Any] | None) -> RetrievalParams:
+        """The served retrieval configuration with request overrides (re-validated)."""
+        base = RetrievalParams.from_settings(self.settings)
+        if not overrides:
+            return base
+        return RetrievalParams.model_validate({**base.model_dump(), **overrides})
+
+    def retriever_for(self, params: RetrievalParams) -> Retriever:
+        bundle = self.bundle
+        if bundle is None:
+            raise ServiceUnavailableError("no index loaded; POST /ingest first")
+        if params.uses_dense and bundle.dense is None:
+            raise ServiceUnavailableError("dense index unavailable; use a BM25 mode")
+        if params.uses_reranker and self.reranker is None:
+            raise ServiceUnavailableError("no reranker configured; use a mode without reranking")
+        return Retriever(
+            bundle.store, bm25=bundle.bm25, dense=bundle.dense, reranker=self.reranker,
+            params=params,
+        )  # fmt: skip
+
+    def vocabulary(self, token: str) -> bool:
+        return self.bundle is not None and self.bundle.bm25.idf(token) != 0.0
+
+    @property
+    def graph(self) -> Any:
+        """The relation graph (``rbirag intel build``), loaded on first use; None if absent."""
+        if self._graph is None:
+            path = self.settings.intel_graph_path or self.settings.processed_dir / "graph.json.gz"
+            if path.exists():
+                from rbirag.intel.cli import load_graph
+
+                self._graph = load_graph(path)
+                logger.info("loaded relation graph from %s", path)
+        return self._graph
+
+    def relation(self, a: str, b: str) -> str | None:
+        """A known relation between two documents, for conflict reports."""
+        graph = self.graph
+        if graph is None or a not in graph.intel or b not in graph.intel:
+            return None
+        if b in graph.versions(a) and a != b and len(graph.versions(a)) > 1:
+            return "versions of one direction"
+        for x, y in ((a, b), (b, a)):
+            for e in graph.changed_by(y):
+                if e.actor == x:
+                    return f"{e.type.replace('_', ' ')} (newer document changes the older one)"
+        return None
+
+    def cached_retrieve(
+        self, retriever: Retriever, query: str, *, top_k: int, filters: RetrievalFilter | None
+    ) -> RetrievalResult:
+        key = (query, retriever.params.config_hash(), top_k,
+               filters.model_dump_json() if filters else "")  # fmt: skip
+        with self._cache_lock:
+            hit = self._cache.get(key)
+            if hit is not None:
+                self._cache.move_to_end(key)
+                return hit
+        result = retriever.retrieve(query, top_k=top_k, filters=filters)
+        if self.settings.retrieval_cache_size:
+            with self._cache_lock:
+                self._cache[key] = result
+                while len(self._cache) > self.settings.retrieval_cache_size:
+                    self._cache.popitem(last=False)
+        return result
+
+    def read(self) -> Any:
+        """Context manager holding the read side of the index gate."""
+        gate = self._gate
+
+        class _Read:
+            def __enter__(self) -> None:
+                gate.acquire_read()
+
+            def __exit__(self, *exc: object) -> None:
+                gate.release_read()
+
+        return _Read()
 
     # -- health ------------------------------------------------------------------------
     def health(self) -> Health:

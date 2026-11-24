@@ -13,7 +13,8 @@ from typing import Any
 import numpy as np
 from pydantic import BaseModel, Field
 
-STAGES = ("retrieve", "rerank", "generate", "total")
+STAGES = ("retrieve", "rerank", "generate", "verify", "total")
+ANSWER_ENDPOINTS = ("/query", "/v1/ask")
 
 
 class RequestLogEntry(BaseModel):
@@ -32,6 +33,13 @@ class RequestLogEntry(BaseModel):
     cost_usd: float = 0.0
     cached: bool = False
     error: str | None = None
+    # error component: retrieval | generation | verification | index | request
+    component: str | None = None
+    passages: int | None = None
+    distinct_documents: int | None = None
+    citations_accepted: int | None = None  # cited sources the verifier found relevant
+    verdict: str | None = None  # citation verification verdict
+    retrieval_failed: bool | None = None  # no passage reached the context
 
 
 class StageStats(BaseModel):
@@ -55,6 +63,13 @@ class MetricsSummary(BaseModel):
     cost_usd: float
     cached: int = 0
     since: str | None
+    abstention_rate: float | None = None
+    failed_retrieval_rate: float | None = None
+    verdicts: dict[str, int] = Field(default_factory=dict)
+    citations_accepted_mean: float | None = None
+    passages_mean: float | None = None
+    errors_by_component: dict[str, int] = Field(default_factory=dict)
+    by_endpoint: dict[str, int] = Field(default_factory=dict)
 
 
 def _stats(values: Sequence[float]) -> StageStats:
@@ -87,7 +102,7 @@ class RequestLog:
 
     def summary(self) -> MetricsSummary:
         entries = self.entries()
-        queries = [e for e in entries if e.endpoint.startswith("/query")]
+        queries = [e for e in entries if e.endpoint.startswith(ANSWER_ENDPOINTS)]
         ok = [e for e in queries if e.error is None]
         fresh = [e for e in ok if not e.cached]  # cache hits skew latency and add no tokens
         latency: dict[str, StageStats] = {}
@@ -112,7 +127,28 @@ class RequestLog:
             cost_usd=round(sum(e.cost_usd for e in fresh), 8),
             cached=sum(1 for e in ok if e.cached),
             since=entries[0].ts if entries else None,
+            abstention_rate=_share(sum(1 for e in ok if e.refused), len(ok)),
+            failed_retrieval_rate=_share(
+                sum(1 for e in ok if e.retrieval_failed),
+                sum(1 for e in ok if e.retrieval_failed is not None),
+            ),
+            verdicts=dict(Counter(e.verdict for e in ok if e.verdict)),
+            citations_accepted_mean=_mean([e.citations_accepted for e in ok]),
+            passages_mean=_mean([e.passages for e in ok]),
+            errors_by_component=dict(
+                Counter(e.component or "unknown" for e in entries if e.error is not None)
+            ),
+            by_endpoint=dict(Counter(e.endpoint for e in entries)),
         )
+
+
+def _share(k: int, n: int) -> float | None:
+    return round(k / n, 4) if n else None
+
+
+def _mean(values: Sequence[int | None]) -> float | None:
+    vals = [v for v in values if v is not None]
+    return round(sum(vals) / len(vals), 3) if vals else None
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:

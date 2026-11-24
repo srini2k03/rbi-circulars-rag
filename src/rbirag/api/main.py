@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from rbirag import __version__
 from rbirag.api.logging import request_id_var
@@ -24,6 +24,7 @@ from rbirag.api.service import (
     response_log_fields,
     to_response,
 )
+from rbirag.api.v1 import build_v1_router
 from rbirag.config import Settings, get_settings
 
 logger = logging.getLogger("rbirag.api")
@@ -108,8 +109,18 @@ def create_app(
         version=__version__,
         description=(
             "Hybrid-retrieval RAG over Reserve Bank of India notifications. Answers cite "
-            'numbered sources and say "I don\'t know" when retrieval confidence is low.'
+            'numbered sources and say "I don\'t know" when retrieval confidence is low.\n\n'
+            "**/v1** is the current API: verified citations, query analysis, retrieval "
+            "inspection and comparison, document metadata and relations. The unversioned "
+            "/query, /query/stream, /ingest, /health and /metrics endpoints are kept for "
+            "compatibility."
         ),
+        openapi_tags=[
+            {"name": "query", "description": "Answers, retrieval inspection, verification."},
+            {"name": "documents", "description": "Metadata and the relation graph."},
+            {"name": "evaluation", "description": "Guarded evaluation runs."},
+            {"name": "ops", "description": "Health, readiness and metrics."},
+        ],
         lifespan=lifespan,
     )
     log = request_log or RequestLog(settings.request_log_path)
@@ -141,6 +152,17 @@ def create_app(
             },
         )
         return response
+
+    @app.middleware("http")
+    async def body_limit(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        length = request.headers.get("content-length")
+        if length and length.isdigit() and int(length) > settings.api_max_body_bytes:
+            return JSONResponse(status_code=413, content={"detail": "request body too large"})
+        return await call_next(request)
+
+    app.include_router(build_v1_router(svc, log, settings))
 
     def _rid(request: Request) -> str:
         return request.headers.get("x-request-id") or request_id_var.get() or uuid.uuid4().hex[:16]
