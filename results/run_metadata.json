@@ -2,7 +2,7 @@
   "test_set_file": "data/eval/qa_candidates.jsonl",
   "test_set": "model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed (LLM-assisted), 0 human-verified); 7 AI-rejected pairs excluded",
   "generated_at": "2026-11-05T18:46:17+00:00",
-  "commit": "050f1ee86d90556a20a689c90790de388920c0f2",
+  "commit": "873bed9b6fd2b9111ab46d7d5a7ae113ea57cdbc",
   "questions": 216,
   "answerable": 186,
   "unanswerable": 30,

@@ -8,7 +8,7 @@ precedence over the AI one.
 - Reviewer: `ai-assistant (LLM)`. Review date: 2026-11-03.
 - Records: [`data/eval/qa_ai_reviewed.jsonl`](../data/eval/qa_ai_reviewed.jsonl), one
   line per reviewed pair.
-- Candidates reviewed: `data/eval/qa_candidates.jsonl` as of commit `9e0c1db`. At that
+- Candidates reviewed: `data/eval/qa_candidates.jsonl` as of commit `46d6c42`. At that
   commit there were 123 pairs, all answerable: 119 written by `openai/gpt-oss-120b` and
   4 by `gemini-3.5-flash`. 88 of them passed the automatic checks.
 

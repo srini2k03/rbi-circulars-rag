@@ -1,4 +1,4 @@
-Retrieval strategies on the **test** split (130 answerable questions; 56 dev questions used for every choice). Index: fixed-1024 (5618 chunks). Generated 2026-11-24T09:20:13+00:00 at commit `b601732`.
+Retrieval strategies on the **test** split (130 answerable questions; 56 dev questions used for every choice). Index: fixed-1024 (5618 chunks). Generated 2026-11-24T09:20:13+00:00 at commit `1c16491`.
 
 | strategy (dev-selected) | dev nDCG@10 | test chunk nDCG@10 [95% CI] | chunk R@5 | P@5 | context prec. | coverage@5 | doc R@5 | Δ nDCG vs BM25 [95% CI] | p (Holm) | ctx tokens |
 |---|---|---|---|---|---|---|---|---|---|---|

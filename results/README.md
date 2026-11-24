@@ -2,7 +2,7 @@
 
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed (LLM-assisted), 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-05T18:46:17+00:00 at commit `050f1ee86d90556a20a689c90790de388920c0f2`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed, LLM-assisted (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-05T18:46:17+00:00 at commit `873bed9b6fd2b9111ab46d7d5a7ae113ea57cdbc`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed, LLM-assisted (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 

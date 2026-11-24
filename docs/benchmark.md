@@ -4,7 +4,7 @@ Every retrieval strategy in `rbirag.retrieval`, compared on the same held-out qu
 Source of every number below: [`results/benchmark/strategies.json`](../results/benchmark/strategies.json),
 produced by the `Retrieval benchmark` workflow, run
 [45364004807](https://github.com/srini2k03/rbi-circulars-rag/actions/runs/45364004807)
-at commit `b601732` on 2026-11-24 (logged in [`results/experiments.jsonl`](../results/experiments.jsonl)).
+at commit `1c16491` on 2026-11-24 (logged in [`results/experiments.jsonl`](../results/experiments.jsonl)).
 
 ## Protocol
 
