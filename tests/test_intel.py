@@ -167,3 +167,20 @@ def test_intel_cli(tmp_path: Path) -> None:
     assert res.exit_code == 0 and json.loads(res.output)["added"]
     res = runner.invoke(app, ["intel", "show", "zzz", "--graph", str(tmp_path / "graph.json.gz")])
     assert res.exit_code != 0
+
+
+def test_multi_doc_cli(tmp_path: Path) -> None:
+    from rbirag.cli import app
+
+    docs = tmp_path / "docs.jsonl"
+    write_documents_jsonl(DOCS, docs)
+    intel, relations = build_intel(DOCS)
+    save_graph(intel, relations, tmp_path / "graph.json.gz")
+    res = CliRunner().invoke(app, ["eval", "multi-doc", "--docs", str(docs), "--graph",
+                                   str(tmp_path / "graph.json.gz"), "--out-dir", str(tmp_path),
+                                   "--no-log"])  # fmt: skip
+    assert res.exit_code == 0, res.output
+    out = json.loads((tmp_path / "multi_doc.json").read_text())
+    assert out["summary"]["questions"] >= 1
+    assert out["summary"]["both_in_top5_plus_graph"] >= out["summary"]["both_in_top5"]
+    assert all(len(r["gold"]) == 2 for r in out["rows"])

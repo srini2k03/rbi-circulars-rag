@@ -331,3 +331,100 @@ def review_agreement(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, indent=1), encoding="utf-8")
     typer.echo(json.dumps(report, indent=1))
+
+
+@eval_app.command("multi-doc")
+def multi_doc(
+    docs: Annotated[Path | None, typer.Option(help="documents.jsonl")] = None,
+    graph_file: Annotated[Path | None, typer.Option("--graph", help="graph.json.gz")] = None,
+    n: Annotated[int, typer.Option(help="Questions to generate.")] = 40,
+    seed: Annotated[int, typer.Option()] = 13,
+    out_dir: Annotated[Path | None, typer.Option(help="Default: results/analysis")] = None,
+    log: Annotated[bool, typer.Option(help="Append to results/experiments.jsonl.")] = True,
+) -> None:
+    """Multi-document questions generated from high-confidence "amends" / "supersedes"
+    relations ("Which notification amended <title>, and what did it change?"; gold = both
+    documents) and how often BM25 puts both documents in the context. Template-generated,
+    not human-written: a stress test of multi-document retrieval, not a benchmark."""
+    import random
+
+    from rbirag.chunking import build_chunker
+    from rbirag.document import read_documents_jsonl
+    from rbirag.eval.ablate import settings_for
+    from rbirag.eval.history import log_experiment
+    from rbirag.index.build import build_index
+    from rbirag.intel.cli import _graph_path, load_graph
+    from rbirag.retrieval.params import RetrievalParams
+    from rbirag.retrieval.pipeline import Retriever
+
+    s = get_settings()
+    out = out_dir or s.results_dir / "analysis"
+    out.mkdir(parents=True, exist_ok=True)
+    graph = load_graph(graph_file or _graph_path(None))
+    edges = sorted(
+        (e for e in graph.edges if e.type in {"amends", "supersedes"} and e.confidence == "high"),
+        key=lambda e: (e.actor, e.affected),
+    )
+    rng = random.Random(seed)
+    picked = rng.sample(edges, min(n, len(edges)))
+    verb = {"amends": "amended", "supersedes": "superseded"}
+    questions = [
+        {
+            "question": f"Which RBI notification {verb[e.type]} the "
+            f"'{graph.intel[e.affected].subject}', and what did it change?",
+            "gold": [e.actor, e.affected],
+            "type": e.type,
+        }
+        for e in picked
+    ]
+    documents = read_documents_jsonl(docs or s.documents_path)
+    chunker = build_chunker("fixed", settings_for(s, 1024))
+    bundle = build_index([c for d in documents for c in chunker.chunk(d)], embedder=None)
+    retriever = Retriever(bundle.store, bm25=bundle.bm25, params=RetrievalParams(mode="bm25"))
+    from rbirag.retrieval.params import RetrievalFilter
+
+    def graph_expanded(question: str, top: list[str], extra: int = 3) -> list[str]:
+        """The top passages' documents plus documents the graph says change them (or
+        that they change): the best passage of each linked document is added."""
+        linked: list[str] = []
+        for d in dict.fromkeys(top):
+            linked += [e.actor for e in graph.changed_by(d)] + [
+                e.affected for e in graph.changes(d)
+            ]
+        linked = [d for d in dict.fromkeys(linked) if d not in top][:extra]
+        if not linked:
+            return top
+        res = retriever.retrieve(question, top_k=len(linked) * 3,
+                                 filters=RetrievalFilter(doc_ids=tuple(linked)))  # fmt: skip
+        return top + list(dict.fromkeys(r.chunk.doc_id for r in res.results))[:extra]
+
+    rows = []
+    for q in questions:
+        docs5 = [r.chunk.doc_id for r in retriever.retrieve(q["question"], top_k=5).results]
+        docs10 = [r.chunk.doc_id for r in retriever.retrieve(q["question"], top_k=10).results]
+        expanded = graph_expanded(q["question"], docs5)
+        rows.append({
+            **q,
+            "both_in_top5": all(g in docs5 for g in q["gold"]),
+            "both_in_top10": all(g in docs10 for g in q["gold"]),
+            "changed_doc_in_top5": q["gold"][1] in docs5,
+            "changing_doc_in_top5": q["gold"][0] in docs5,
+            "both_in_top5_plus_graph": all(g in expanded for g in q["gold"]),
+            "context_passages_plus_graph": len(expanded),
+        })  # fmt: skip
+    summary = {
+        "label": "template-generated from the relation graph; not human-written or verified",
+        "questions": len(rows),
+        **{
+            k: sum(r[k] for r in rows) / len(rows) if rows else None
+            for k in ("both_in_top5", "both_in_top10", "changed_doc_in_top5",
+                      "changing_doc_in_top5", "both_in_top5_plus_graph",
+                      "context_passages_plus_graph")
+        },
+        "retriever": "BM25, fixed-1024",
+    }  # fmt: skip
+    (out / "multi_doc.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=1))
+    if log:
+        log_experiment(s.results_dir, {"experiment": "multi-document-retrieval",
+                                       "command": "rbirag eval multi-doc", **summary})  # fmt: skip
+    typer.echo(json.dumps(summary, indent=1))
