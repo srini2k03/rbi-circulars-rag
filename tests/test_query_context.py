@@ -16,7 +16,7 @@ def test_classify_and_normalize() -> None:
     assert classify("How to report a fraud to RBI?") == "procedural"
     assert classify("What is a Key Facts Statement?") == "definition"
     assert classify("Can NBFCs accept demand deposits?") == "yes_no"
-    assert normalize("  KYC’s   rules ") == "KYC's rules"
+    assert normalize("  KYC\u2019s   rules ") == "KYC's rules"
 
 
 def test_ambiguity_parts_and_scope() -> None:
@@ -71,6 +71,6 @@ def test_context_dedup_budget_and_conflicts() -> None:
     assert rep.dropped_for_budget == ["d"] and rep.distinct_documents == 2
     assert rep.conflicts and rep.conflicts[0].kind == "different figures"
     assert "2016-02-25" in rep.conflicts[0].detail and "three years" in rep.conflicts[0].detail
-    kept2, rep2 = assemble_context(results[:1] + results[2:3],
+    _, rep2 = assemble_context(results[:1] + results[2:3],
                                    relation=lambda a, b: "versions of one direction")  # fmt: skip
     assert rep2.conflicts[0].kind == "versions of one direction"
