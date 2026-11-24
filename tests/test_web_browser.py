@@ -74,6 +74,10 @@ def test_search_and_mocked_answer(browser: Any, site: str) -> None:
     first = page.locator("#results li.result").first
     assert first.get_attribute("data-doc-id") == "rbi-12655"
     assert "NotificationUser.aspx?Id=12655" in first.locator("a").first.get_attribute("href")
+    # query terms are highlighted; BM25 ran and the model stages are marked off
+    assert first.locator("mark").count() > 0
+    assert page.get_attribute(".stage[data-stage='bm25']", "data-state") == "done"
+    assert page.get_attribute(".stage[data-stage='rerank']", "data-state") == "off"
 
     # without a key: no request, a hint instead
     page.click("#answer-btn")
@@ -107,6 +111,10 @@ def test_dashboard_renders_results(browser: Any, site: str) -> None:
     assert "model-generated test set" in text
     assert "section-512-hybrid_rerank" in text
     assert "incomplete (3/10)" in text
+    # the ablation heatmap has one cell per config; the hero reads its numbers from results/
+    assert page.locator("#tab-evaluation table.heatmap td.heat:not(.heat--na)").count() == 2
+    assert page.inner_text("[data-stat='ndcg']") == "0.70"
+    assert page.inner_text("[data-stat='faith']") == "0.90"
     page.close()
 
 
@@ -118,4 +126,5 @@ def test_dashboard_in_progress(browser: Any, tmp_path: Path, fixture_docs: list[
         page.goto(f"{base}/index.html?models=off#evaluation")
         page.wait_for_selector("#tab-evaluation h2")
         assert "Evaluation in progress" in page.inner_text("#tab-evaluation")
+        assert page.inner_text("[data-stat='ndcg-ctx']") == "evaluation in progress"
         page.close()

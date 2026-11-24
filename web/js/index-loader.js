@@ -13,7 +13,9 @@ async function buffer(url) {
 }
 
 export async function loadIndex(base) {
-  const manifest = await (await fetch(`${base}/manifest.json`)).json();
+  const resp = await fetch(`${base}/manifest.json`);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${resp.url}`);
+  const manifest = await resp.json();
   const [chunkData, emb, scales] = await Promise.all([
     gunzipJSON(await fetch(`${base}/chunks.json.gz`)),
     buffer(`${base}/embeddings.i8`),
