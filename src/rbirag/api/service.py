@@ -230,6 +230,7 @@ class RAGService:
         finally:
             self._gate.release_write()
         self._cache.clear()
+        self.bundle.bm25.warm()
         logger.info("loaded index from %s (%d chunks)", self.index_dir, len(self.bundle.store))
         return True
 
@@ -251,6 +252,7 @@ class RAGService:
             )
             self.bundle = bundle
             self._cache.clear()
+            bundle.bm25.warm()
             self.documents = {d.doc_id: d for d in documents}
             if self.persist:
                 save_bundle(

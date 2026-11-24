@@ -158,6 +158,11 @@ class BM25Index:
             self._doc_len = np.asarray(self._bm25.doc_len, dtype=np.float64)
         return self._post
 
+    def warm(self) -> None:
+        """Build the postings now (otherwise the first query pays for it)."""
+        if self._bm25 is not None:
+            self._postings()
+
     # -- statistics used by query expansion ----------------------------------------------
     def tokens_of(self, chunk_id: str) -> list[str]:
         """The indexed tokens of one chunk (for pseudo-relevance feedback)."""
