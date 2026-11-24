@@ -447,6 +447,10 @@ from rbirag.eval.cli import eval_app  # noqa: E402
 
 app.add_typer(eval_app, name="eval")
 
+from rbirag.intel.cli import intel_app  # noqa: E402
+
+app.add_typer(intel_app, name="intel")
+
 
 if __name__ == "__main__":  # pragma: no cover
     app()

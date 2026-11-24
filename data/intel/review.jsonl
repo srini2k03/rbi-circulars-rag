@@ -1,0 +1,72 @@
+{"id": "rel:rbi-11566:213253", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11566:222080", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11566:223418", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11566:222416", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11566:224439", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11566:211861", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12484:81413", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11566:224947", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12630:4040", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12267:81391", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12612:196", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12134:1017", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12237:4794", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": false, "notes": "row of a list of withdrawn circulars (RRA document); the row title 'Amendment to ...' set the type, the relation is a withdrawal, not an amendment"}
+{"id": "rel:rbi-12151:1171", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12530:2286", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12143:985", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12772:1174", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12690:189", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12746:1356", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12068:1594", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": false, "type_correct": true, "notes": "resolved to the 2025 version of the PSL master direction; the 2021 citing circular modifies the 2020 version (resolution should only consider versions dated on or before the citing document)"}
+{"id": "rel:rbi-12806:42891", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12281:143112", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12064:63138", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11060:25033", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12828:38369", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11645:18929", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11959:64369", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12821:82182", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12478:62834", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11321:60163", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12371:347", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12911:318", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11959:20790", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12280:798", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12293:14383", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12650:17226", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12376:205", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12658:71498", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11587:331", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12719:3863", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12773:329", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11622:59704", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": false, "type_correct": true, "notes": "resolved to the 2025 PSL master direction; the 2019 citing master circular means the 2018 version"}
+{"id": "rel:rbi-12905:2162", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12906:1995", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12683:1184", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11991:2943", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-11906:1887", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12904:2080", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12732:1424", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12473:97383", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12473:97647", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "rel:rbi-12581:1434", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "target_correct": true, "type_correct": true, "notes": ""}
+{"id": "eff:rbi-11604", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": false, "notes": "states when the underlying guidelines became operational (history), not when this master direction takes effect"}
+{"id": "eff:rbi-11843", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-12395", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-12939", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": false, "notes": "footnote about a later substitution of one paragraph, not the document's effective date"}
+{"id": "eff:rbi-11678", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-12516", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11870", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": false, "notes": "background sentence ('At present ...'), not this circular's effective date"}
+{"id": "eff:rbi-12564", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11790", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11274", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11337", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11216", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": false, "notes": "footnote about the NBFC 90-day norm (background)"}
+{"id": "eff:rbi-11854", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11861", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11335", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-10923", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11461", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-12253", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-11302", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": true, "notes": ""}
+{"id": "eff:rbi-13039", "reviewer": "ai-assistant (LLM)", "reviewed_at": "2026-11-24", "date_correct": false, "notes": "historical statement (Saka calendar, 1957); fallback to a non-subject sentence"}

@@ -1,0 +1,14 @@
+{
+ "seed": 14,
+ "per_type": 10,
+ "effective": 20,
+ "resolved_relations_by_type": {
+  "amended_by": 267,
+  "amends": 12,
+  "consolidates": 679,
+  "partially_modifies": 2,
+  "refers_to": 1691,
+  "supersedes": 20
+ },
+ "effective_explicit_documents": 355
+}
