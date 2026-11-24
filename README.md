@@ -1,16 +1,35 @@
 # rbi-circulars-rag
 
-Hybrid-retrieval RAG over 2,000+ Reserve Bank of India notifications. It answers with
-numbered citations to the source notifications and says "I don't know" when retrieval
-confidence is low. The evaluation (retrieval and generation metrics, ablations,
-bootstrap confidence intervals) is the centrepiece.
+Retrieval-augmented question answering over 2,153 Reserve Bank of India notifications
+(1997-2025), built and measured as a retrieval and evaluation project rather than "an LLM
+on top of a vector database". Answers cite numbered passages; every citation is checked
+against the passage it points to; questions the corpus cannot answer are refused; and every
+number in this README comes from a committed run (file, date, commit, CI run id) logged in
+[`results/experiments.jsonl`](results/experiments.jsonl).
 
-- **Live demo (browser-only search, optional answers with your own key):**
-  https://srini2k03.github.io/rbi-circulars-rag/ (published by `pages.yml`)
-- **API + chat UI:** `docker compose up` (see [Run it](#run-it))
+- **Live demo (search runs in your browser):** https://srini2k03.github.io/rbi-circulars-rag/ :
+  the served retrieval profile runs in the browser (BM25 ranking, cross-encoder gate; dense
+  retrieval and fusion in hybrid modes), with an advanced view of every stage score, a document and relations panel, claim-level citation checks of the answers, and the
+  evaluation dashboard. Answers need your own Groq or Gemini key (sent only to that provider).
+- **API:** FastAPI, versioned under `/v1` ([docs/api.md](docs/api.md)); `docker compose up`.
+- **Retrieval benchmark:** [docs/benchmark.md](docs/benchmark.md).
 
-Every number in this README comes from a real run recorded in `results/run_metadata.json`
-(date, commit, judge model, test-set label). Nothing is filled in by hand.
+Highlights (test split; the questions are model-generated and AI-reviewed, not human-verified):
+
+- 17 retrieval strategy families (108 configurations) tuned on dev and compared on the same
+  130 held-out answerable questions with paired tests: **no deployable strategy beats plain BM25 significantly**
+  (chunk nDCG@10 0.697; the best on dev, z-score weighted fusion, 0.704, Δ +0.006, CI
+  [-0.023, +0.035]); the original equal-weight RRF hybrid was **0.116 worse** than BM25 and
+  RRF + cross-encoder **0.172 worse** (Holm p = 0.002), which weighted fusion fixes.
+- The cross-encoder is a poor reranker here but the **best abstention signal: AUROC 0.952** on
+  the 25 unanswerable test questions (BM25 score 0.804), so the served default ranks with BM25
+  and uses the cross-encoder only as the "I don't know" gate.
+- The judge-vs-NLI faithfulness gap (0.95 vs 0.21) is mostly a protocol artefact: 86% of the
+  passages exceed the NLI model's 512-token input, and checking claims against 3-sentence windows
+  raises NLI faithfulness to **0.70-0.73** on the same 195 answers.
+- Regulatory relation graph from the corpus text: 9,183 references, 2,671 resolved to an
+  indexed notification, the rest left **unknown**; precision on a stratified sample
+  **49/52** (AI-checked, not human-verified).
 
 ## Architecture
 
@@ -18,33 +37,41 @@ Every number in this README comes from a real run recorded in `results/run_metad
 flowchart LR
   subgraph Ingest
     A[RBI notification pages] -->|polite crawler, manifest| B[parse HTML/PDF]
-    B --> C[clean + metadata<br/>date, circular no., dept, sections]
-    C --> D{chunk}
-    D -->|fixed| E[(chunks)]
-    D -->|semantic| E
-    D -->|section-aware| E
+    B --> C[clean + metadata]
+    C --> D{chunk: fixed / semantic / section}
+    C --> I[document intelligence<br/>category, effective date,<br/>references -> relation graph]
   end
-  subgraph Index
-    E --> F[BM25<br/>rank_bm25]
-    E --> G[bge-small-en-v1.5<br/>-> Qdrant]
-  end
-  subgraph Query
-    Q[question] --> F & G
-    F --> H[Reciprocal Rank Fusion k=60]
+  subgraph Retrieve
+    Q[question] --> U[query understanding<br/>type, ambiguity, follow-up rewrite,<br/>scope, suggested filters]
+    U --> F[BM25 postings scorer<br/>+ acronym / RM3 expansion]
+    U --> G[bge-small dense, Qdrant]
+    F --> H[fusion: weighted z-score or RRF]
     G --> H
-    H --> I[cross-encoder rerank<br/>ms-marco-MiniLM-L-6-v2]
-    I --> J{confidence gate<br/>sigmoid top score < tau?}
-    J -->|yes| K[I don't know]
-    J -->|no| L[prompt with numbered sources]
-    L --> M[LLM: Groq / Ollama / Gemini / Anthropic]
-    M --> N[citation validation]
+    H --> R[cross-encoder:<br/>gate and/or rerank]
+    D --> F & G
   end
-  N --> O[FastAPI /query, /query/stream SSE]
-  O --> P[Streamlit chat]
-  E -.->|export-web: int8 embeddings + BM25 stats| W[GitHub Pages:<br/>BM25 + transformers.js + RRF + rerank in the browser]
+  subgraph Answer
+    R --> X[context checks<br/>dedup, budget, conflicts]
+    X --> L[LLM with numbered sources]
+    L --> V[citation verification<br/>claims vs passage windows]
+  end
+  I --> API
+  V --> API[FastAPI /v1: ask, retrieve, compare,<br/>verify, documents, eval, metrics]
+  D -.->|export-web| W[GitHub Pages: the same retrieval in the browser]
+  E[rbirag eval bench / nli-study / verify-citations<br/>dev-tuned, test-reported, CIs] -.-> RES[(results/ + experiments.jsonl)]
 ```
 
+The served defaults are the profile the benchmark supports: fixed 1,024-token passages, BM25
+ranking, the cross-encoder over the BM25 top 20 as the abstention gate (threshold 0.49, chosen
+on dev), lexical citation verification. Every knob is a `RetrievalParams` field settable with an
+`RBIRAG_*` variable or per request.
+
 ## Results
+
+The generation numbers below come from `evaluate.yml` (generated block, unchanged since run
+42083001224). They were measured with the pipeline as it was then: the `fixed-1024-bm25` rows
+have **no confidence gate** (the gate needs a cross-encoder), so their refusal precision and
+recall are the model's own refusals, not the gate's.
 
 <!-- RESULTS:START (generated by `rbirag eval report --update-readme`) -->
 **Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed (LLM-assisted), 0 human-verified); 7 AI-rejected pairs excluded.** Generated 2026-11-05T18:46:17+00:00 at commit `050f1ee`.
@@ -81,56 +108,282 @@ Limitations:
 Full tables, charts and run metadata: [results/](results/README.md).
 <!-- RESULTS:END -->
 
-## What is in the box
+**Answer correctness without an LLM** (`results/analysis/answer_correctness.json`, run at
+`2eb49e1`): against the reference answers of the answered test questions, token F1 is
+0.577 [0.543, 0.612] for the local qwen2.5:3b answers (n = 128) and 0.531 [0.475, 0.585] for
+the API model (n = 70); of the reference answers' figures (amounts, dates, percentages), the
+answers state 84.7% (n = 76) and 92.8% (n = 38).
 
-- **Ingestion** (`rbirag fetch`, `rbirag ingest`):
-  - a polite, resumable crawler (at least 1 s between requests, retries with backoff, a
-    SHA-256 manifest, a `--probe` mode);
-  - HTML/PDF parsing with defensive selector strategies;
-  - cleaning and metadata: date, circular and reference numbers, department, addressee,
-    sections.
-- **Chunking:** fixed-size token windows, semantic (split on embedding-similarity drops)
-  and section-aware (headings and numbered paragraphs).
-- **Retrieval:** BM25 + dense (`BAAI/bge-small-en-v1.5` on Qdrant), RRF (k=60), a
-  cross-encoder reranker, and a confidence score from the reranker.
-- **Generation:**
-  - numbered-source prompt with `[n]` citations;
-  - citation validation (unknown ids, uncited sentences);
-  - confidence gate;
-  - streaming;
-  - token and cost accounting.
-- **API** (`rbirag serve`, FastAPI):
-  - `/health`: index and model readiness;
-  - `/ingest`: background job, polled at `/ingest/{job_id}`;
-  - `/query`: answer, citations with title/date/circular no./RBI link, refusal reason,
-    per-stage timings, tokens, cost;
-  - `/query/stream`: server-sent events;
-  - `/metrics`: per-stage latency, tokens and cost.
+### Retrieval strategies (dev-tuned, reported on test)
 
-  Requests are logged as JSON with a request id, and Swagger is pre-filled with
-  examples.
-- **UI:** a Streamlit chat with streamed answers and clickable `[n]` citations that open
-  the passage, its metadata and the RBI link. The sidebar sets mode, top-k, LLM backend
-  and gate threshold.
-- **Browser demo** (`web/`, `rbirag export-web`):
-  - the same retrieval pipeline runs client-side over an int8-quantised index of the
-    best configuration;
-  - optional answers with a visitor-supplied Groq or Gemini key, which is sent only to
-    that provider;
-  - an evaluation dashboard.
-- **Evaluation** (`rbirag eval ...`):
-  - stratified Q/A generation plus unanswerable questions;
-  - a terminal review tool;
-  - Recall@k, MRR, nDCG at document and chunk level;
-  - LLM-judge faithfulness (claim decomposition) and relevance;
-  - DeBERTa NLI faithfulness and citation accuracy;
-  - refusal precision and recall;
-  - bootstrap CIs;
-  - an ablation over 4 modes × 3 chunkers × 3 sizes;
-  - gate calibration on a dev split;
-  - CSV/Markdown/charts.
+Full report: [docs/benchmark.md](docs/benchmark.md). Run 45364004807, commit `b601732`, index
+`fixed-1024` (5,618 passages), 130 answerable test questions, 56 dev questions.
 
-### Which models produce the numbers
+| strategy (dev-selected) | test chunk nDCG@10 [95% CI] | Δ vs BM25 [95% CI] | Holm p | doc R@5 | live p50 ms |
+|---|---|---|---|---|---|
+| BM25 filtered to the gold document's year (oracle upper bound) | 0.836 [0.790, 0.886] | +0.139 [+0.103, +0.176] | 0.002 | 0.962 | 1.3 |
+| parent-child (256-token children, 1,024-token windows) | 0.715 [0.654, 0.776] | +0.017 [-0.032, +0.067] | 1.000 | 0.831 | 13.2 |
+| weighted fusion, z-score, BM25 0.7 / dense 0.3 (best on dev) | 0.704 [0.644, 0.766] | +0.006 [-0.023, +0.035] | 1.000 | 0.838 | 78.0 |
+| BM25 + RM3 | 0.704 [0.645, 0.766] | +0.006 [-0.012, +0.024] | 1.000 | 0.846 | 8.8 |
+| **BM25** | **0.697 [0.638, 0.763]** | - | - | 0.846 | 4.0 |
+| BM25 + cross-encoder rerank | 0.663 [0.603, 0.723] | -0.035 [-0.072, +0.002] | 0.527 | 0.831 | 1,221 |
+| filters detected in the question | 0.660 [0.594, 0.729] | -0.037 [-0.074, -0.006] | 0.285 | 0.808 | 3.9 |
+| hybrid RRF k=60, equal weights (original) | 0.582 [0.520, 0.645] | -0.116 [-0.173, -0.060] | 0.002 | 0.800 | 81.0 |
+| hybrid RRF + cross-encoder (original default) | 0.525 [0.462, 0.594] | -0.172 [-0.240, -0.105] | 0.002 | 0.738 | 1,352 |
+| dense (bge-small) | 0.481 [0.414, 0.550] | -0.216 [-0.293, -0.142] | 0.002 | 0.738 | 73.2 |
+
+Latency is from the live pass with the real models on a 4-vCPU CI runner. Most misses are
+ranking, not recall: for BM25, 26 of 28 misses are passages a first-stage retriever finds but
+ranks below the 5-passage context.
+
+![The benchmark card on the site's Evaluation tab](docs/images/benchmark-card.png)
+
+
+### Faithfulness: why the LLM judge and NLI disagree
+
+The results table shows judge faithfulness 0.95 next to NLI faithfulness 0.21 for the same
+answers. `rbirag eval nli-study` re-scored the 195 judged, non-refused answers of
+`fixed-1024-bm25` (both generators) with the same NLI model (DeBERTa-v3-base) under four
+protocols (CI run 45364819218, `results/analysis/nli_study.json`). The original protocol
+reproduces the committed scores for 195/195 answers.
+
+| NLI protocol | mean faithfulness [95% CI] | answers fully supported |
+|---|---|---|
+| each sentence vs the whole cited passage (original) | 0.190 [0.144, 0.247] | 16.4% |
+| each sentence vs 3-sentence windows of the cited passages | 0.626 [0.567, 0.690] | 52.3% |
+| each sentence vs windows of any retrieved passage | 0.728 [0.670, 0.786] | 63.1% |
+| clause-level claims vs windows of any passage | 0.705 [0.649, 0.761] | 58.5% |
+| LLM judge (qwen2.5:7b), for reference | 0.966 [0.941, 0.988] | - |
+
+What the evidence says:
+
+- **Truncation, mostly.** 86% of the passages (1,024-token chunks) exceed the NLI model's
+  512-piece input. 215 of the 345 answer sentences are entailed by some window but not by the
+  whole passage; for 135 of them (63%) the supporting window lies beyond the truncation point,
+  so the original protocol never saw the evidence. The other 80 are dilution: the evidence was
+  inside the input, but a long premise of mostly unrelated text kept the entailment probability
+  below 0.5.
+- **Citation errors.** 60% of answer sentences carry no valid citation (e.g. "[6.2.4]", a
+  section number, instead of a source number). Allowing any retrieved passage instead of only the
+  cited ones adds 0.10.
+- **What remains is a real disagreement.** After fixing the protocol, NLI still rates 27-30% of
+  claims unsupported where the judge rates almost everything faithful; the judge sits at the
+  ceiling (so its per-answer correlation with any NLI protocol is near zero, r = 0.13). Only 1
+  answer was a "the documents do not specify" non-answer, so that pattern does not explain the gap.
+  Which side is right on those claims needs human labels (`rbirag eval review-answers`); neither
+  score is ground truth.
+
+The citation verifier therefore checks claims against windows, not whole passages.
+
+### Citation verification
+
+Every generated answer is checked claim by claim (`rbirag.generation.verify`): each `[n]`
+must exist, each passage must belong to the document it is shown as, circular numbers the
+answer mentions must appear in a source, each cited passage must support a claim that cites
+it, and each claim (sentences split into clauses) must be supported by a short window of its
+cited passages. Invalid citations are removed from the displayed answer (the evaluation still
+records them); claims without support are listed; an answer with no supported claim says the
+documents do not establish it (or is withheld, `verify_policy=abstain`). The default scorer is
+lexical (every figure in the claim must appear in the window, most content words must match);
+an NLI cross-encoder can be used instead.
+
+On the 196 committed answers of the `fixed-1024-bm25` configuration (both generators), the
+lexical verifier (run `9103f98`, `results/analysis/citation_verification-lexical.json`) finds
+141 answers fully supported, 22 partially and 32 not supported; 16.6% of claims unsupported;
+7 answers citing a passage that does not exist; and 34.6% of cited passages supporting none of
+the claims that cite them. Of the 187 answers the LLM judge rated fully faithful, 135 pass. These
+are checks of the answers, not ground truth. With the NLI cross-encoder (DeBERTa-v3, claims vs
+windows, threshold 0.5; CI run 45371390490, `citation_verification-nli.json`): 114 supported,
+42 partially, 39 not supported; 28.1% of claims unsupported; mean share of supported claims per
+answer 0.705, where the original whole-passage NLI protocol reported 0.212 (local model) and
+0.131 (API model) in the results table above.
+`rbirag eval review-answers` collects human labels
+and `rbirag eval review-agreement` reports each check's Cohen's kappa against them (no human
+labels yet).
+
+### Document intelligence
+
+`rbirag intel build` extracts, per notification, the category (master direction, master
+circular, directions, regulations, A.P. (DIR Series) circular, circular), circular / reference /
+notification numbers, publication and effective date (with the sentence it came from), and
+every reference in the body (circular numbers, reference numbers, A.P. (DIR Series) numbers,
+Master Direction titles). The citing sentence types the relation: supersedes, partially
+modifies, amends, "amended vide" footnotes of consolidated directions (reversed: the cited
+circular changed this one), consolidates (rows of a master circular's list), refers to.
+
+- 9,183 references in 2,153 documents; 2,671 resolve to exactly one indexed document; 6,230 point
+  outside the corpus and 282 are ambiguous: both are kept as **unknown**, never guessed.
+- 2,223 distinct relations (1,493 refers to, 620 consolidates, 89 amends, 19 supersedes,
+  2 partially modifies); 59 version families of directions / master circulars.
+- Precision on a seeded sample stratified by type (`results/intel/precision.json`), checked by an
+  AI assistant against the sentences (LLM-assisted, **not human-verified**): relations 49/52
+  correct in both target and type (Wilson 95% CI 0.84-0.98; population-weighted 0.94); effective
+  dates 15/20. A first sample was used to fix error patterns before this one was drawn. Recall is
+  not measured.
+- Questions it answers: which documents amend or supersede a notification, its versions and the
+  original, the **latest document in the indexed corpus** (always with a disclaimer that this is
+  not the verified current regulatory position and implies no legal effect), related documents,
+  and a sentence-level diff of two documents (`rbirag intel show|diff`, `GET /v1/documents/{id}`).
+
+- Multi-document questions (`results/analysis/multi_doc.json`): 40 questions generated from
+  high-confidence amends / supersedes relations ("Which notification amended X, and what did it
+  change?", gold = both documents; template-generated, not human-written). BM25 puts both
+  documents in the 5-passage context for 30% of them; adding the best passage of documents the
+  graph links to the retrieved ones (6.6 passages on average) raises that to 65%. The questions
+  come from the same graph, so this shows the benefit when a relation is known, not the graph's
+  accuracy.
+
+![Document and relations panel](docs/images/document-panel.png)
+
+### Query understanding
+
+`rbirag.query.understanding` normalises the question, classifies it (definition, numeric,
+procedural, temporal, comparison, relation lookup, yes/no, factual), detects ambiguity and
+multi-part questions, rewrites follow-ups against the previous question (the rewrite is
+returned, never silent), flags questions about other regulators or unrelated topics, and
+suggests metadata filters. Measured (`results/analysis/query_understanding.json`, run at
+`d7404d3`):
+
+- 12 of the 25 unanswerable test questions are refused as out of scope (they ask about SEBI,
+  IRDAI, PFRDA, tax or company law); 1 of 130 answerable questions is wrongly flagged. The list of
+  other regulators was written from domain knowledge, but after seeing a few unanswerable
+  questions, so this gain may be optimistic.
+- Follow-up rewriting, on 20 AI-authored two-turn conversations whose second turn is an
+  elliptical version of a test question: BM25 doc R@5 0.60 as asked, **0.95 rewritten**, 0.85 for
+  the full original question; chunk nDCG@10 0.42 / 0.68 / 0.78.
+- AI-authored behavioural inputs: 14/20 out-of-scope, 15/15 ambiguous and 10/10 multi-part
+  questions flagged. These are synthetic checks, not real-world validation.
+
+### Reliability
+
+Context assembly drops near-duplicate passages (consolidated directions repeat whole
+paragraphs), keeps passages within a token budget, reports source diversity, and reports
+conflicting evidence (the same sentence with different figures in two documents, or two
+versions of one direction) instead of silently picking one. LLM calls retry with backoff and
+fall back across models; the gate refuses on weak retrieval; out-of-scope and unanswerably
+vague questions are refused before any LLM call.
+
+## API
+
+Versioned under `/v1`, documented in [docs/api.md](docs/api.md) and at `/docs`:
+`POST /v1/ask`, `/v1/retrieve`, `/v1/retrieval/compare`, `/v1/citations/verify`,
+`/v1/eval/run` (disabled unless `RBIRAG_API_EVAL_TOKEN` is set), `GET /v1/documents/{id}`,
+`/v1/documents/{id}/relations`, `/v1/health`, `/v1/ready`, and `/metrics` (stage latency
+percentiles, abstention and failed-retrieval rates, verification verdicts, errors by component).
+Pydantic validation, per-client rate limiting, body-size limits, a per-answer time budget,
+request ids in JSON logs (no question or answer text), and an LRU retrieval cache.
+
+## The site
+
+The static demo runs the same retrieval in the browser (int8 embeddings, transformers.js) and
+adds: an **advanced** view with the BM25 score, dense cosine, RRF score and cross-encoder score
+and rank of every passage, and which passages form the generator's context; a claim-level
+citation check of browser-generated answers; the document and relations panel; recent questions
+and answer ratings stored only in the browser (ratings export as JSONL); and the evaluation tab
+with every result above, read from `results/` at page load.
+
+![Advanced view: stage scores of a passage](docs/images/result-advanced-trace.png)
+
+## Run it
+
+### pip
+
+```bash
+pip install -e ".[ingest,retrieval,llm,eval,api,ui,dev]"  # light: no torch
+make check                                               # ruff, mypy, pytest (offline)
+make smoke                                               # offline end-to-end run on fixtures
+
+pip install -e ".[ml]"                                   # real embedder, reranker, NLI model
+export GROQ_API_KEY=...                                  # free key from console.groq.com
+gh release download corpus-v1 -p 'documents.jsonl.gz' && mkdir -p data/processed \
+  && gunzip -c documents.jsonl.gz > data/processed/documents.jsonl   # or: rbirag fetch && rbirag ingest
+rbirag index                                             # fixed 1,024-token passages (default)
+rbirag intel build                                       # relation graph for /v1/documents
+rbirag query "What is the KYC updation period for high risk customers?"
+rbirag serve                                             # API on :8000 (Swagger at /docs)
+streamlit run ui/streamlit_app.py                        # chat UI on :8501
+```
+
+Configuration is environment-driven (`RBIRAG_*`, see `.env.example` and
+`src/rbirag/config.py`); secrets are read from the environment variable named in the settings
+and never logged.
+
+### Docker Compose
+
+```bash
+cp .env.example .env            # add GROQ_API_KEY
+docker compose up -d --build    # api :8000, ui :8501, qdrant :6333
+curl -X POST localhost:8000/ingest -H 'content-type: application/json' \
+  -d '{"documents_path": "/data/processed/documents.jsonl"}'   # or {"urls": [...]}
+docker compose --profile ollama up -d   # adds Ollama and pulls qwen2.5:3b-instruct once
+```
+
+To try the stack without any key or corpus (what CI runs: fake LLM, fake models, fixture index):
+
+```bash
+docker compose -f docker-compose.yml -f docker/compose.smoke.yml up -d --build
+```
+
+### Static site locally
+
+```bash
+rbirag export-web --out web/data/index      # needs the [ml] extra for real embeddings
+python -m http.server -d web 8080           # open http://localhost:8080
+```
+
+## Reproduce the experiments
+
+| experiment | command (locally) | workflow (with the models) | output |
+|---|---|---|---|
+| retrieval ablation, 36 configs | `rbirag eval retrieval` | `evaluate.yml` | `results/retrieval_ablation*.csv` |
+| retrieval strategy benchmark | `rbirag eval bench --no-models` (replays the committed score cache) | `benchmark.yml` | `results/benchmark/` |
+| generation + judge | `rbirag eval generate`, `rbirag eval report` | `evaluate.yml` | `results/generation/`, the block above |
+| judge vs NLI study | `rbirag eval nli-study --nli fake` (smoke) | `analysis.yml` (`nli-study`) | `results/analysis/nli_study.json` |
+| citation verification | `rbirag eval verify-citations` (lexical) | `analysis.yml` (`verify-citations`, NLI) | `results/analysis/citation_verification-*.json` |
+| query understanding | `rbirag eval query-understanding` | - | `results/analysis/query_understanding.json` |
+| relation extraction precision | `rbirag intel build`, `rbirag intel sample`, `rbirag intel precision` | - | `results/intel/` |
+| human review of answers | `rbirag eval review-answers`, `rbirag eval review-agreement` | - | `data/eval/answer_reviews.jsonl` |
+
+Every run appends a line to `results/experiments.jsonl` with the command, commit, whether the
+tree had uncommitted changes, corpus and test-set hashes, configuration hashes and headline
+numbers; CI runs add their run id. Seeds are fixed (`RBIRAG_SEED`, default 13).
+
+## Tests
+
+`make check` runs ruff, ruff format, mypy (strict) and pytest; 369 tests pass offline (no
+network, no torch) with fake embedder / reranker / LLM, plus 4 Playwright tests of the static
+site (run in CI's web job): retrieval (BM25 bit-identity with `rank_bm25`, fusion, expansion,
+filters, parent windows, the benchmark and its replay), citation verification, query
+understanding, context checks, relation extraction and the graph, the `/v1` API (validation,
+rate limits, guarded evaluation, refusals), metrics, the JS/Python parity of the browser
+retrieval, and the site (advanced view, document panel, citation check, feedback export).
+CI also runs the fixture smoke run and a Docker Compose smoke test.
+
+## Design decisions and trade-offs
+
+- **BM25 as the ranker, the cross-encoder as the gate.** Chosen by the benchmark, not by taste:
+  dense retrieval with a small CPU embedder (bge-small, 512-token input, so 1,024-token passages
+  are truncated) is far weaker than BM25 on this corpus of formulaic regulatory text, and the
+  MS MARCO cross-encoder reorders worse than BM25 - but its top score is the best signal of
+  whether the corpus answers the question.
+- **Weighted fusion next to RRF.** RRF is robust when both rankers are comparable; here they are
+  not, and equal votes cost 0.116 nDCG@10. Per-query z-scores with a dev-tuned weight recover
+  BM25-level quality; RRF stays available (`fusion=rrf`).
+- **Expansion only where shown.** The acronym dictionary is mined from the corpus's own
+  definitions ("Know Your Customer (KYC)"); RM3 follows Anserini. Neither helps significantly, so
+  neither is on by default; both report the added terms with every result.
+- **Filters are explicit.** Oracle filters show how much a known year or department helps
+  (+0.139 / +0.054); filters guessed from the question text hurt (-0.037), so they are suggested,
+  not applied.
+- **Unknown over guessed.** A reference that does not resolve to exactly one document is kept as
+  unknown with its candidates; "latest" always means latest in the indexed corpus.
+- **Free-tier and local models.** The judge is a local 7B model, generators are small; see the
+  models table. The judge-agreement table, NLI and the citation verifier exist because a small
+  judge can be lenient.
+- **Qdrant rather than Chroma.** One client API for embedded mode (tests, CI) and a server
+  (Docker), with payload filtering, which the metadata filters now use.
+
+## Which models produce the numbers
 
 Groq free tier (GPT-OSS 20B generator), local Ollama Qwen2.5-3B generator, and a local
 Ollama Qwen2.5-7B judge for every answer of both generators.
@@ -159,112 +412,12 @@ Ollama Qwen2.5-7B judge for every answer of both generators.
   next to the judge's scores, because a free-tier judge can be lenient.
 - **Cost:** reported as **$0** (free tier); token counts are still recorded.
 
-## Run it
-
-### pip
-
-```bash
-pip install -e ".[ingest,retrieval,llm,eval,api,ui,dev]"  # light: no torch
-make check                                               # ruff, mypy, pytest (offline)
-make smoke                                               # offline end-to-end run on fixtures
-
-pip install -e ".[ml]"                                   # real embedder, reranker, NLI model
-export GROQ_API_KEY=...                                  # free key from console.groq.com
-rbirag fetch --max-docs 2200 && rbirag ingest            # or download the corpus-v1 release
-rbirag index --chunker section
-rbirag query "What is the KYC updation period for high risk customers?"
-rbirag serve                                             # API on :8000 (Swagger at /docs)
-streamlit run ui/streamlit_app.py                        # chat UI on :8501
-```
-
-### Docker Compose
-
-```bash
-cp .env.example .env            # add GROQ_API_KEY
-docker compose up -d --build    # api :8000, ui :8501, qdrant :6333
-curl -X POST localhost:8000/ingest -H 'content-type: application/json' \
-  -d '{"documents_path": "/data/processed/documents.jsonl"}'   # or {"urls": [...]}
-docker compose --profile ollama up -d   # adds Ollama and pulls qwen2.5:3b-instruct once
-```
-
-To try the stack without any key or corpus:
-
-```bash
-docker compose -f docker-compose.yml -f docker/compose.smoke.yml up -d --build
-```
-
-This is what CI runs: the fake LLM, fake models and a fixture index.
-
-### Static site locally
-
-```bash
-rbirag export-web --out web/data/index      # needs the [ml] extra for real embeddings
-python -m http.server -d web 8080           # open http://localhost:8080
-```
-
-## Design decisions and trade-offs
-
-- **RRF instead of score fusion.**
-  - BM25 scores are unbounded and corpus-dependent; cosine scores live in a narrow band
-    that shifts with the embedder.
-  - Adding them needs per-query normalisation and a tuned weight that drifts as the
-    corpus grows.
-  - Reciprocal Rank Fusion uses ranks only, has one robust constant (k=60) and is
-    trivially reproducible in the browser.
-  - The ablation reports both arms alone, so the gain (or the lack of it) is measured.
-- **Three chunkers.**
-  - Fixed windows are the baseline.
-  - Semantic chunking follows topic shifts but costs an embedding pass per sentence.
-  - Section-aware chunking follows RBI's numbered paragraphs and headings, which is how
-    circulars are cited ("para 2.1").
-  - Gold evidence is stored as character spans, so all three are scored fairly at chunk
-    level as well as document level.
-- **Confidence gate.**
-  - The probability is the sigmoid of the top cross-encoder logit.
-  - The threshold τ is chosen on a dev split by maximising F0.5 of refusals: refusing an
-    answerable question is treated as worse than letting the LLM see weak context
-    (it may still refuse).
-  - The split is by document (seeded): all questions about one notification are in the
-    same split. The generation configuration and τ are chosen on dev only; every
-    reported number is on test, and the results state both split sizes.
-  - The calibration curve is in `results/charts/calibration.png`.
-- **A small embedder everywhere.**
-  - `bge-small-en-v1.5` (384-d) and `ms-marco-MiniLM-L-6-v2` run on CPU in CI and have
-    ONNX ports for transformers.js.
-  - The browser demo therefore uses the same models as the API.
-  - The cost is some recall versus larger embedders; the ablation shows how much BM25
-    and the reranker recover.
-- **Qdrant rather than Chroma.**
-  - One client API covers embedded in-memory/on-disk mode (tests, CI) and a server
-    (Docker), with payload filtering for later metadata filters (year, department).
-  - Chroma would have worked; Qdrant's embedded mode made the no-network test suite and
-    the compose stack share code paths.
-- **Free-tier LLMs, as actually experienced.**
-  - **Gemini:**
-    - `gemini-2.5-flash` returned 404 for a new key.
-    - `gemini-3.8-flash` and `3.7-flash` hit the daily quota after a few requests.
-    - `gemini-3.5-flash` returned 503 "overloaded" on almost every call. One run
-      produced 4 Q/A pairs.
-  - **Groq:**
-    - Llama 3.3 70B and Llama 3.1 8B were not available to the key (404).
-    - `openai/gpt-oss-120b` wrote 119 pairs in one run.
-    - JSON mode occasionally rejects a generation (`json_validate_failed`), so those
-      items are retried without JSON mode and then skipped.
-    - Two repositories sharing one key hit 429s together.
-  - **How the code copes:** model fallback chains, per-model RPM/RPD/TPM budgets, a
-    cache of successful calls only, resumable daily workflows, and guards that never
-    present a mostly-failed configuration as a result.
-- **Honest test-set labelling.**
-  - Every result states whether the questions are model-generated, AI-reviewed or
-    human-verified, with counts.
-  - See [Test set status](#test-set-status).
-
 ## Test set status
 
 **Test set: model-generated pairs, 50 of them AI-reviewed (LLM-assisted), 0 human-verified.**
 
-- `data/eval/qa_candidates.jsonl`: the model-generated pairs. A daily workflow adds pairs
-  until there are 220 answerable and 30 unanswerable ones.
+- `data/eval/qa_candidates.jsonl`: the model-generated pairs. The `qa.yml` workflow added pairs
+  until there were 220 answerable and 30 unanswerable ones.
 - `data/eval/qa_ai_reviewed.jsonl`: an **AI review, not a human verification**. An AI
   assistant (an LLM) checked 50 answerable pairs, a seeded sample stratified by year,
   department and question type, against the full source documents:
@@ -325,92 +478,62 @@ as model-generated.
 | Workflow | What it does |
 |---|---|
 | `ci.yml` | ruff, mypy, pytest (Python 3.11/3.12, no network, no torch), the fixture smoke run, the static site (Node parity + Playwright with a mocked LLM), and a Docker Compose smoke test (fake LLM, fixture index) |
-| `corpus.yml` | Crawls RBI and publishes the processed corpus as release `corpus-v1` |
+| `pages.yml` | Exports the browser index and the relation graph from the real corpus, renders the site in Chromium against them (search, document panel, evaluation tab), then publishes `web/` + `results/` to GitHub Pages |
+| `benchmark.yml` | The retrieval strategy benchmark with the real embedder and cross-encoder; verifies that the score-cache replay reproduces the run, then commits `results/benchmark` |
+| `analysis.yml` | Model-dependent analyses of committed answers: the judge-vs-NLI study and NLI citation verification |
+| `evaluate.yml` | Retrieval ablation, gate calibration, generation (API provider and Ollama), sharded local judging and the report; commits `results/` and refreshes the generated block above |
 | `qa.yml` | Generates Q/A candidates with the API provider (Groq by default) and commits `data/eval/qa_candidates.jsonl` |
-| `evaluate.yml` | Runs the retrieval ablation, gate calibration, generation (API provider and Ollama), judging and the report, then commits `results/` and refreshes the results section above |
-| `pages.yml` | Exports the browser index from the real corpus, renders the site in Chromium against it, then publishes `web/` + `results/` to GitHub Pages |
+| `corpus.yml` | Crawls RBI and publishes the processed corpus as release `corpus-v1` |
 
-`qa.yml` and `evaluate.yml` take a `provider` input (`groq` or `gemini`). They need the matching repository
-secret (`GROQ_API_KEY` or `GEMINI_API_KEY`), fail early (without printing it) if it is
-missing, and list the models the key can use. Each provider has its own concurrency
-group, so runs on the same provider never compete for its quota.
+All are dispatch-only except CI and Pages (push). Results come back as bot commits that rebase
+onto the latest `main` and retry (`scripts/commit_outputs.sh`, `scripts/publish_results.sh`);
+nothing is merged as text. LLM workflows that share a free-tier key must run one at a time.
 
-Both also run on a daily schedule, to use each day's free-tier token allowance (scheduled
-runs use the input defaults):
-- `qa.yml` at 09:41 UTC. It stops early, successfully and without a commit, once the
-  candidate set has reached its targets (220 answerable + 30 unanswerable, allowing a 5%
-  shortfall for items the model keeps failing).
-- `evaluate.yml` every 6 hours at :41, as a fallback: one dispatch runs the whole
-  evaluation, and the schedule only resumes what a run left (e.g. API answers past the
-  daily quota). It is a no-op once every planned answer has a verdict from the
-  configured judge. Every job checks out the latest `main`, so a queued run continues
-  from what earlier runs committed, and committed retrieval results are reused
-  (`force_retrieval` re-runs them).
+## Project structure
 
-How one `evaluate.yml` run is laid out (each stage's jobs run in parallel):
-1. `select` plans the generation (the API backend: best config on the fixed subset).
-2. `embed` embeds the corpus once for the dense configs (cached; other jobs download the
-   vectors); `generate-api` and the `generate-ollama` shards answer what is missing.
-3. `judge-ollama` (`judge_shards`, default 16) and `judge-api` (`api_judge_shards`,
-   default 4) judge every answer without a verdict from the local judge, split by a
-   stable hash of the question id. Each job logs its seconds per verdict.
-4. `report` merges everything onto the latest `main` and publishes.
+```text
+src/rbirag/
+  ingest/        crawler, HTML/PDF parsing, cleaning, metadata
+  chunking/      fixed, semantic and section-aware chunkers
+  index/         BM25 (postings scorer), Qdrant dense index, embedders, chunk store
+  retrieval/     RetrievalParams, Retriever, fusion, expansion (acronyms.json, RM3), parents, rerank, gate
+  query/         query understanding and filter detection
+  generation/    prompts, LLM backends (Groq/Gemini/Ollama/Anthropic), RAG pipeline,
+                 context checks, citation parsing and verification
+  intel/         document metadata, reference extraction, relation graph, review
+  eval/          test set, metrics, ablation, benchmark, score cache, NLI study, human review,
+                 judge, statistics, experiment log, reports
+  api/           FastAPI app, /v1 router, schemas, service, rate limiter, metrics
+web/             static site (browser retrieval, advanced view, document panel, dashboard)
+ui/              Streamlit chat
+data/eval/       Q/A candidates, AI review, AI-authored behavioural inputs
+data/intel/      verdicts of the relation-extraction check
+results/         every reported number (+ experiments.jsonl)
+docs/            benchmark report, API, test-set review notes, images
+```
 
-How `evaluate.yml` avoids losing work:
-- generate and judge jobs stop cleanly before `budget_minutes` (default 300, job timeout
-  330), flush their records and upload them even when a step fails; the next run
-  resumes from them;
-- every record keeps each judge's verdict, so changing the judge re-judges answers
-  without losing the earlier verdicts;
-- `scripts/publish_results.sh` fetches the latest `main`, union-merges this run's records
-  into the committed ones (per question, a judged answer beats an unjudged one, which
-  beats an error; otherwise the newer wins), regenerates the tables, charts and README
-  section from the merged records, and repeats the whole loop if the push is rejected.
-  Derived files are never rebased as text.
+## Limitations
 
-Until you have reviewed pairs with `rbirag eval verify`, evaluation runs on the
-model-generated candidates, and the results README says so in its first line
-("model-generated test set ...: N model-generated pairs (K AI-reviewed (LLM-assisted),
-0 human-verified)"). Once `data/eval/qa_v1.jsonl` exists it is used instead, and the line
-names it with its human-verified count. In both cases the AI review in
-`data/eval/qa_ai_reviewed.jsonl` is applied on top.
-
-Run LLM workflows that use the same API key one at a time, including workflows in
-*other* repositories that share the key: free-tier limits are per key (or per
-organisation), so concurrent runs hit 429s together and slow each other down.
-
-Both stop cleanly when the daily free-tier quota runs out: rerun them later and they continue from the committed records and the cached
-LLM responses. `evaluate.yml` prints the planned number of LLM calls before generating.
-
-Guards against misleading output:
-- an unknown model or rejected key (404/401/403 on every model in the chain) aborts the
-  run with a clear message, and nothing from that run is committed;
-- a run that produced no successful items commits nothing;
-- a configuration whose generation or judge calls mostly failed (fewer than 90% of the
-  planned questions succeeded) is shown as "incomplete (k/N)" and kept out of the
-  headline tables.
-
-## Limitations and future work
-
-- **Model-generated questions.** The questions are written by an LLM from sampled
-  passages, which favours questions that are easy to retrieve lexically. Human review,
-  plus questions written from real compliance queries, would make the set harder and
-  fairer.
-- **Small models.** The judge is a local 7B model and the generators are small
-  free-tier or local models; a stronger judge (or a paid tier) would tighten the
-  faithfulness numbers. The NLI cross-check and the judge-agreement table are there
-  because of this. The API generator is measured on a 60-question subset only (free-tier
-  quota), so its confidence intervals are wider.
-- **Browser demo coverage.** The demo index is capped at about 25 MB; if the corpus does
-  not fit, it covers recent years only and says so on the page.
-- **Text-only ingestion.** No OCR for scanned PDFs, and tables are flattened to text.
-- **Static corpus.** The corpus is a snapshot (release `corpus-v1`). Incremental crawling
-  plus `/ingest` would keep it current, and superseded circulars could be marked from
-  RBI's "withdrawn" notices.
-- **Future work:**
-  - metadata filters (year, department) in retrieval and in the UI;
-  - query rewriting for very short questions;
-  - per-question cost and latency budgets in the API.
+- **Model-generated, AI-reviewed questions.** 216 pairs written by LLMs from sampled passages
+  (favouring lexically retrievable questions), 43 accepted or edited by an AI review, none
+  human-verified. Results may not transfer to real compliance questions. Dev has only 56
+  answerable and 5 unanswerable questions, so dev-tuned thresholds (notably the gate) are fragile.
+- **No strategy significantly better than BM25.** The benchmark's differences among the top
+  strategies are within noise at n = 130.
+- **Generation numbers predate the new pipeline.** The judged answers were generated with the
+  old configuration (no gate on the BM25 config, no verification or context checks); the
+  verifier and the NLI study re-score those answers rather than new ones.
+- **Small models.** A local 7B judge, small generators, a 384-d embedder; a stronger judge would
+  tighten the faithfulness numbers.
+- **Pattern-based document intelligence.** Relation types come from cue words in the citing
+  sentence; recall is not measured; effective dates are right in 15 of 20 checked documents
+  (master circulars are not assigned one); categories come from titles, so an amendment
+  circular titled "Amendment to Master Direction ..." is categorised as a master direction;
+  "latest in corpus" is only as current as the crawl.
+- **Static corpus.** A snapshot (release `corpus-v1`, newest notification 2025-11-28); no OCR
+  for scanned PDFs; tables are flattened to text.
+- **Browser demo.** The demo index is capped at about 25 MB; the site's citation check is the
+  lexical one.
 
 ## License
 
