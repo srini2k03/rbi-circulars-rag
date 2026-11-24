@@ -1,0 +1,38 @@
+{
+ "metric": "token F1 and figure recall vs the reference answer",
+ "split": "test",
+ "fixed-1024-bm25/ollama": {
+  "answers": 128,
+  "token_f1": {
+   "mean": 0.5766877840218612,
+   "low": 0.5425349751832108,
+   "high": 0.6121391575705967,
+   "n": 128
+  },
+  "figure_recall": {
+   "mean": 0.8465225563909775,
+   "low": 0.7741376879699248,
+   "high": 0.911658834586466,
+   "n": 76
+  },
+  "with_figures": 76,
+  "judge_relevance_mean": 0.94140625
+ },
+ "fixed-1024-bm25/openai_compatible": {
+  "answers": 70,
+  "token_f1": {
+   "mean": 0.5313042785885205,
+   "low": 0.474555531505259,
+   "high": 0.5849712721961723,
+   "n": 70
+  },
+  "figure_recall": {
+   "mean": 0.9276315789473685,
+   "low": 0.8552631578947368,
+   "high": 0.9868421052631579,
+   "n": 38
+  },
+  "with_figures": 38,
+  "judge_relevance_mean": 0.9637681159420289
+ }
+}
