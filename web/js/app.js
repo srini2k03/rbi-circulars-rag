@@ -4,7 +4,7 @@ import { BM25, denseScores, rrf, sigmoid, topK } from "./search.js";
 import { buildUserPrompt, citedIds } from "./prompt.js";
 import { generate, PROVIDERS } from "./llm.js";
 import { headline, loadResults, renderDashboard } from "./dashboard.js";
-import { advanced, docHtml, feedback, history, loadGraph, traceHtml, verificationHtml, verifyAnswer } from "./insight.js";
+import { advanced, docHtml, feedback, queryHistory, loadGraph, traceHtml, verificationHtml, verifyAnswer } from "./insight.js";
 
 const params = new URLSearchParams(location.search);
 const MODELS_ON = params.get("models") !== "off"; // ?models=off: BM25 only (tests, slow devices)
@@ -383,7 +383,7 @@ async function onSearch(ev) {
     if (!live()) return;
     state.last = { question, ...res };
     renderResults(question, res);
-    renderHistory(history.add(question));
+    renderHistory(queryHistory.add(question));
     setStatus(`Done: ${res.results.length} passage${res.results.length === 1 ? "" : "s"}.`, "ok");
   } catch (err) {
     if (!live()) return;
@@ -685,7 +685,7 @@ window.addEventListener("hashchange", () => {
 });
 
 // ---------- History, feedback, advanced mode and the document panel ----------
-function renderHistory(items = history.list()) {
+function renderHistory(items = queryHistory.list()) {
   const box = $("#history");
   if (!box) return;
   box.hidden = !items.length;
@@ -740,7 +740,7 @@ function initInsight() {
       for (const el of document.querySelectorAll("[data-advanced]")) el.hidden = !toggle.checked;
     });
   }
-  $("#history-clear")?.addEventListener("click", () => { history.clear(); renderHistory([]); });
+  $("#history-clear")?.addEventListener("click", () => { queryHistory.clear(); renderHistory([]); });
   $("#feedback-export")?.addEventListener("click", () => feedback.download());
   const dlg = $("#doc-dialog");
   dlg?.addEventListener("close", () => dlg._opener?.focus());

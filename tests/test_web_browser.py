@@ -141,6 +141,8 @@ def test_advanced_mode_verification_feedback_and_documents(browser: Any, site: s
                 "The penalty is Rs. 987654 crore [7]."}}],
         }))  # fmt: skip
 
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
     page.route("https://api.groq.com/**", groq)
     page.goto(f"{site}/index.html?models=off")
     page.wait_for_selector("#search-btn:not([disabled])")
@@ -181,4 +183,7 @@ def test_advanced_mode_verification_feedback_and_documents(browser: Any, site: s
     record = json.loads(Path(dl.value.path()).read_text().splitlines()[0])
     assert record["rating"] == "down" and record["verdict"] == "partially supported"
     assert SECRET not in json.dumps(record)
+    page.click("#tab-btn-evaluation")  # tab switching uses window.history
+    page.wait_for_selector("#tab-evaluation h2")
+    assert not errors, errors
     page.close()

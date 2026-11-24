@@ -18,9 +18,9 @@ async function json(url) {
 
 const CATS = [
   ["top1", "gold passage ranked 1st", "var(--live)"],
-  ["in_context", "in ranks 2-5", "var(--series-1)"],
+  ["in_context", "in ranks 2-5", "color-mix(in srgb, var(--live) 45%, transparent)"],
   ["ranked_low", "retrieved, ranked below 5", "var(--pending)"],
-  ["right_doc_wrong_passage", "right document, other passage", "var(--series-2)"],
+  ["right_doc_wrong_passage", "right document, other passage", "var(--violet)"],
   ["related_doc", "related document only", "var(--faint)"],
   ["not_retrieved", "not retrieved", "var(--danger)"],
 ];
@@ -40,7 +40,7 @@ function benchmarkCard(b) {
       <td class="num">${f(r["dev_chunk_ndcg@10"])}</td>
       <td class="num">${f(r["chunk_ndcg@10"])}<span class="ci">[${f(r["chunk_ndcg@10_ci"]?.[0])}, ${f(r["chunk_ndcg@10_ci"]?.[1])}]</span></td>
       <td class="num">${c ? `${signed(c.diff)}<span class="ci">[${signed(c.low)}, ${signed(c.high)}] p=${f(c.p_holm, 3)}</span>` : "baseline"}</td>
-      <td class="num">${f(r["chunk_recall@5"])}</td><td class="num">${f(r["doc_recall@5"])}</td>
+      <td class="num">${f(r["doc_recall@5"])}</td>
       <td class="num">${f(r.coverage)}</td>
       <td><span class="catbar" role="img" aria-label="${esc(CATS.map(([k, l]) => `${l}: ${r.categories?.[k] || 0}`).join(", "))}">${bar}</span></td></tr>`;
   }).join("");
@@ -53,11 +53,11 @@ function benchmarkCard(b) {
       <p class="sb-card__sub">${esc(b.n_test_answerable)} answerable test questions; every weight, depth and threshold was chosen on ${esc(b.n_dev_answerable)} dev questions (${esc(b.tuning?.length)} configurations tried).
       Δ is the paired difference in chunk nDCG@10 against plain BM25 with its bootstrap CI and Holm-adjusted randomisation-test p. Index: ${esc(b.primary)}.</p></figcaption>
     <div class="sb-table-wrap"><table class="sb-table rank-table bench-table">
-      <thead><tr><th>strategy (dev-selected)</th><th class="num">dev nDCG@10</th><th class="num">test nDCG@10</th><th class="num">Δ vs BM25</th><th class="num">chunk R@5</th><th class="num">doc R@5</th><th class="num">coverage@5</th><th>where the gold passage ended up</th></tr></thead>
+      <thead><tr><th>strategy (dev-selected)</th><th class="num">dev nDCG@10</th><th class="num">test nDCG@10</th><th class="num">Δ vs BM25</th><th class="num">doc R@5</th><th class="num">coverage@5</th><th>gold passage</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <p class="legend">${legend}</p>
     ${abst ? `<p class="sb-card__sub">Can retrieval tell unanswerable questions apart (${esc(b.abstention.n_test_unanswerable)} on test, only ${esc(b.abstention.n_dev_unanswerable)} on dev to set thresholds)?</p><ul class="ev-list">${abst}</ul>` : ""}
-    ${live ? `<div class="sb-table-wrap"><table class="sb-table"><thead><tr><th>live run (runner CPU)</th><th class="num">p50 ms</th><th class="num">p95 ms</th><th class="num">top-10 = cached run</th></tr></thead><tbody>${live}</tbody></table></div>` : ""}
+    ${live ? `<details class="ev-details"><summary>Live latency on the CI runner (${esc(b.live_timing.length)} strategies, real models)</summary><div class="sb-table-wrap"><table class="sb-table"><thead><tr><th>live run (runner CPU)</th><th class="num">p50 ms</th><th class="num">p95 ms</th><th class="num">top-10 = cached run</th></tr></thead><tbody>${live}</tbody></table></div></details>` : ""}
     <p class="sb-card__foot">Source: results/benchmark/strategies.json (generated ${esc(b.generated_at)}, commit <code>${esc((b.commit || "").slice(0, 7))}</code>)</p>
   </figure>`;
 }

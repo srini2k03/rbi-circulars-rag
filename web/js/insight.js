@@ -25,7 +25,7 @@ export const advanced = {
 };
 
 // ---------- query history ----------
-export const history = {
+export const queryHistory = {
   list: () => readJson(HISTORY_KEY, []),
   add(q) {
     const items = [q, ...this.list().filter((x) => x !== q)].slice(0, 15);
