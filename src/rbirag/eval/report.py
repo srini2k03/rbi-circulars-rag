@@ -361,7 +361,8 @@ def describe_test_set(source: str | None, qa: Sequence[QAPair], ai_rejected: int
     kind = "reviewed test set" if is_reviewed_set(source) else "model-generated test set"
     text = (
         f"{kind} (`{source or 'qa_candidates.jsonl'}`): {len(qa)} model-generated pairs "
-        f"({ai_reviewed(qa)} AI-reviewed (LLM-assisted), {human_verified(source, qa)} human-verified)"
+        f"({ai_reviewed(qa)} AI-reviewed (LLM-assisted), "
+        f"{human_verified(source, qa)} human-verified)"
     )
     if ai_rejected:
         text += f"; {ai_rejected} AI-rejected pairs excluded"
