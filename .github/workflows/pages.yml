@@ -11,6 +11,7 @@ on:
       - "web/**"
       - "results/**"
       - "src/rbirag/web_export.py"
+      - "src/rbirag/intel/**"
       - "scripts/check_site.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -69,6 +70,12 @@ jobs:
           rbirag export-web --out _site/data/index --cap-mb 25 | tee /tmp/export.json
           du -sh _site/data/index
           { echo "## Browser index"; echo '```json'; cat /tmp/export.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build the relation graph for the document panel
+        run: |
+          rbirag intel build --docs data/processed/documents.jsonl --out /tmp/intel \
+            --export _site/data/intel/graph.json --summary /tmp/intel/summary.json
+          du -sh _site/data/intel
 
       - name: Render the site against the real index (no LLM)
         run: |

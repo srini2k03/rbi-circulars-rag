@@ -25,6 +25,14 @@ def build_site(site: Path, docs: Sequence[Document], *, results: bool = True) ->
         docs, site / "data" / "index", settings=Settings(), embedder=FakeEmbedder(64),
         chunker="section", size=128,
     )  # fmt: skip
+    from rbirag.intel.extract import build_intel
+    from rbirag.intel.graph import RelationGraph
+
+    intel, relations = build_intel(list(docs))
+    (site / "data" / "intel").mkdir(parents=True, exist_ok=True)
+    (site / "data" / "intel" / "graph.json").write_text(
+        json.dumps(RelationGraph(intel, relations).export()), encoding="utf-8"
+    )
     if results:
         res = site / "results"
         (res / "charts").mkdir(parents=True)

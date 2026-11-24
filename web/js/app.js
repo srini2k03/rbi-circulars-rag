@@ -4,11 +4,13 @@ import { BM25, denseScores, rrf, sigmoid, topK } from "./search.js";
 import { buildUserPrompt, citedIds } from "./prompt.js";
 import { generate, PROVIDERS } from "./llm.js";
 import { headline, loadResults, renderDashboard } from "./dashboard.js";
+import { advanced, docHtml, feedback, history, loadGraph, traceHtml, verificationHtml, verifyAnswer } from "./insight.js";
 
 const params = new URLSearchParams(location.search);
 const MODELS_ON = params.get("models") !== "off"; // ?models=off: BM25 only (tests, slow devices)
 const INDEX_BASE = params.get("index") || "data/index";
 const RESULTS_BASE = params.get("results") || "results";
+const GRAPH_URL = params.get("graph") || "data/intel/graph.json";
 const KEY_STORE = "rbirag.llmKey";
 const STAGES = ["bm25", "dense", "rrf", "rerank", "gate"];
 
@@ -120,6 +122,9 @@ async function retrieve(question, live) {
   let t = performance.now();
   const sparse = state.bm25.search(state.tokenize(question), m.retrieval.candidate_k);
   timings.bm25 = performance.now() - t;
+  const trace = new Map();
+  const tr = (i) => trace.get(i) || trace.set(i, {}).get(i);
+  sparse.forEach((r, k) => Object.assign(tr(r.i), { bm25: r.score, bm25Rank: k + 1 }));
   stage("bm25", "done", chipMs(timings.bm25));
   let ranked = sparse.map((r) => ({ i: r.i, score: r.score }));
   let confidence = null;
@@ -142,9 +147,11 @@ async function retrieve(question, live) {
     const q = await models.embedQuery(question, m);
     const dense = topK(denseScores(q, emb, scales, dim), m.retrieval.candidate_k);
     timings.dense = performance.now() - t;
+    dense.forEach((r, k) => Object.assign(tr(r.i), { dense: r.score, denseRank: k + 1 }));
     stage("dense", "done", chipMs(timings.dense));
     t = performance.now();
     const fused = rrf([sparse.map((r) => r.i), dense.map((r) => r.i)], m.retrieval.rrf_k);
+    fused.forEach((r, k) => Object.assign(tr(r.id), { rrf: r.score, rrfRank: k + 1 }));
     const pool = fused.slice(0, m.retrieval.rerank_k);
     timings.rrf = performance.now() - t;
     stage("rrf", "done", chipMs(timings.rrf));
@@ -165,11 +172,12 @@ async function retrieve(question, live) {
     timings.rerank = performance.now() - t;
     stage("rerank", "done", chipMs(timings.rerank));
     ranked = pool.map((p, j) => ({ i: p.id, score: scores[j] })).sort((a, b) => b.score - a.score || a.i - b.i);
+    ranked.forEach((r, k) => Object.assign(tr(r.i), { rerank: r.score, rerankRank: k + 1 }));
     confidence = ranked.length ? sigmoid(ranked[0].score) : 0;
     const tau = m.retrieval.confidence_threshold;
     stage("gate", confidence < tau ? "low" : "pass", `${confidence.toFixed(2)} ${confidence < tau ? "<" : "≥"} τ`);
   }
-  return { results: ranked.slice(0, m.retrieval.top_k), confidence, timings };
+  return { results: ranked.slice(0, m.retrieval.top_k).map((r) => ({ ...r, trace: trace.get(r.i) })), confidence, timings };
 }
 
 // ---------- Query-term highlighting ----------
@@ -327,10 +335,13 @@ function renderResults(question, res) {
         <div class="score" title="${gated ? "sigmoid of the cross-encoder score" : "BM25 score (bar relative to the top hit)"}">
           <span>${scoreLabel}</span><span class="sb-meter" aria-hidden="true"><span style="width: ${(Math.min(1, rel) * 100).toFixed(0)}%"></span></span>
           <span class="score__val">${scoreVal}</span></div>
-        <a class="sb-btn sb-btn--sm result-link" href="${escapeHtml(c.url)}" target="_blank" rel="noopener">rbi.org.in ${ICON.out}</a>
-      </div>`;
+        <span class="result-actions"><button type="button" class="sb-btn sb-btn--sm sb-btn--ghost doc-btn" data-doc="${escapeHtml(c.doc_id)}" aria-haspopup="dialog">Document &amp; relations</button>
+        <a class="sb-btn sb-btn--sm result-link" href="${escapeHtml(c.url)}" target="_blank" rel="noopener">rbi.org.in ${ICON.out}</a></span>
+      </div>
+      <div class="trace-wrap" data-advanced${advanced.get() ? "" : " hidden"}>${traceHtml(r.trace, n, m.retrieval.top_k)}</div>`;
     list.appendChild(li);
   });
+  for (const b of list.querySelectorAll(".doc-btn")) b.addEventListener("click", () => openDoc(b.dataset.doc, b));
   const tau = m.retrieval.confidence_threshold;
   const conf = res.confidence == null ? "n/a (BM25 only)" : res.confidence.toFixed(3);
   const low = res.confidence != null && res.confidence < tau;
@@ -372,6 +383,7 @@ async function onSearch(ev) {
     if (!live()) return;
     state.last = { question, ...res };
     renderResults(question, res);
+    renderHistory(history.add(question));
     setStatus(`Done: ${res.results.length} passage${res.results.length === 1 ? "" : "s"}.`, "ok");
   } catch (err) {
     if (!live()) return;
@@ -455,15 +467,33 @@ async function onAnswer() {
       user: buildUserPrompt(last.question, passages),
     });
     if (seq !== state.seq) return;
-    const ids = citedIds(out.text).filter((i) => i >= 1 && i <= passages.length);
+    const check = verifyAnswer(out.text, passages, state.tokenize);
+    const shown = check.invalid.length
+      ? out.text.replace(/\[\s*(\d{1,3}(?:\s*,\s*\d{1,3})*)\s*\]/g, (all, g) => {
+        const keep = g.split(",").map((x) => x.trim()).filter((x) => !check.invalid.includes(Number(x)));
+        return keep.length ? `[${keep.join(", ")}]` : "";
+      })
+      : out.text;
+    const ids = citedIds(shown).filter((i) => i >= 1 && i <= passages.length);
     const refused = /^i don['’]t know/i.test(out.text.trim());
+    state.lastAnswer = { question: last.question, answer: out.text, model: out.model, verdict: check.verdict,
+      sources: passages.map((p) => p.doc_id) };
     $("#answer").innerHTML =
       `<article class="answer-card sb-card${refused ? " answer-card--refusal" : ""}">
         <div class="answer-card__head"><span class="sb-label">${refused ? "The model declined" : "Answer"}</span>
           <span class="sb-tag">${escapeHtml(out.model)}</span></div>
-        <div class="answer-text">${linkify(out.text, passages.length)}</div>
+        <div class="answer-text">${linkify(shown, passages.length)}</div>
+        ${refused ? "" : verificationHtml(check)}
         <p class="meta answer-card__foot">${escapeHtml(out.model)} | cites ${ids.length ? ids.map((i) => `[${i}]`).join(" ") : "nothing"} · answers can be wrong; check the cited notification on rbi.org.in</p>
+        <div class="feedback" role="group" aria-label="Rate this answer">
+          <span class="sb-label">Was this useful?</span>
+          <button type="button" class="sb-btn sb-btn--sm sb-btn--ghost" data-rate="up" aria-label="Useful">Yes</button>
+          <button type="button" class="sb-btn sb-btn--sm sb-btn--ghost" data-rate="down" aria-label="Not useful">No</button>
+          <input class="sb-input feedback__note" type="text" maxlength="300" placeholder="Optional note (stays in this browser)" aria-label="Feedback note">
+          <span class="feedback__state meta" role="status"></span>
+        </div>
       </article>`;
+    bindFeedback();
     bindCitations();
     markCited(ids);
     setStatus("Done.", "ok");
@@ -654,6 +684,71 @@ window.addEventListener("hashchange", () => {
   if (t) showTab(t);
 });
 
+// ---------- History, feedback, advanced mode and the document panel ----------
+function renderHistory(items = history.list()) {
+  const box = $("#history");
+  if (!box) return;
+  box.hidden = !items.length;
+  $("#history-list").innerHTML = items.map((q) => `<li><button type="button" class="chip chip--history">${escapeHtml(q)}</button></li>`).join("");
+  for (const b of document.querySelectorAll(".chip--history")) {
+    b.addEventListener("click", () => { $("#question").value = b.textContent; onSearch(); });
+  }
+}
+
+function updateFeedbackCount() {
+  const n = feedback.list().length;
+  const el = $("#feedback-count");
+  if (el) el.textContent = n ? `${n} rating${n === 1 ? "" : "s"} saved in this browser` : "No ratings yet";
+  const btn = $("#feedback-export");
+  if (btn) btn.disabled = !n;
+}
+
+function bindFeedback() {
+  for (const b of document.querySelectorAll("#answer [data-rate]")) {
+    b.addEventListener("click", () => {
+      const note = $("#answer .feedback__note")?.value.trim() || "";
+      feedback.add({ ...state.lastAnswer, rating: b.dataset.rate, note });
+      for (const x of document.querySelectorAll("#answer [data-rate]")) x.setAttribute("aria-pressed", String(x === b));
+      $("#answer .feedback__state").textContent = "Saved locally. Export it from the box above the results.";
+      updateFeedbackCount();
+    });
+  }
+}
+
+async function openDoc(docId, opener) {
+  const dlg = $("#doc-dialog");
+  const body = $("#doc-body");
+  $("#doc-title").textContent = state.index?.chunks.find((c) => c.doc_id === docId)?.title || docId;
+  body.innerHTML = `<p class="meta"><span class="sb-spinner" aria-hidden="true"></span> Loading the relation graph ...</p>`;
+  dlg.showModal?.() ?? dlg.setAttribute("open", "");
+  dlg.dataset.opener = opener ? "1" : "";
+  dlg._opener = opener;
+  try {
+    const g = await loadGraph(GRAPH_URL);
+    body.innerHTML = docHtml(g, docId);
+  } catch (err) {
+    body.innerHTML = `<div class="sb-callout sb-callout--error" role="alert"><p>${escapeHtml(err.message)}</p></div>`;
+  }
+}
+
+function initInsight() {
+  const toggle = $("#advanced-toggle");
+  if (toggle) {
+    toggle.checked = advanced.get();
+    toggle.addEventListener("change", () => {
+      advanced.set(toggle.checked);
+      for (const el of document.querySelectorAll("[data-advanced]")) el.hidden = !toggle.checked;
+    });
+  }
+  $("#history-clear")?.addEventListener("click", () => { history.clear(); renderHistory([]); });
+  $("#feedback-export")?.addEventListener("click", () => feedback.download());
+  const dlg = $("#doc-dialog");
+  dlg?.addEventListener("close", () => dlg._opener?.focus());
+  $("#doc-close")?.addEventListener("click", () => (dlg.close ? dlg.close() : dlg.removeAttribute("open")));
+  renderHistory();
+  updateFeedbackCount();
+}
+
 async function init() {
   setStatus("Loading the index ...", "busy");
   showPlaceholder("loading");
@@ -690,4 +785,5 @@ async function init() {
 
 updateProviderUI();
 fillResultNumbers();
+initInsight();
 init();

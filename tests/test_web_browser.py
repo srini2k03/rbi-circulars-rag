@@ -128,3 +128,57 @@ def test_dashboard_in_progress(browser: Any, tmp_path: Path, fixture_docs: list[
         assert "Evaluation in progress" in page.inner_text("#tab-evaluation")
         assert page.inner_text("[data-stat='ndcg-ctx']") == "evaluation in progress"
         page.close()
+
+
+def test_advanced_mode_verification_feedback_and_documents(browser: Any, site: str) -> None:
+    page = browser.new_page()
+
+    def groq(route: Any) -> None:
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({
+            "model": "openai/gpt-oss-20b",
+            "choices": [{"message": {"content":
+                "Periodic updation is carried out at least once every two years [1]. "
+                "The penalty is Rs. 987654 crore [7]."}}],
+        }))  # fmt: skip
+
+    page.route("https://api.groq.com/**", groq)
+    page.goto(f"{site}/index.html?models=off")
+    page.wait_for_selector("#search-btn:not([disabled])")
+    page.check("#advanced-toggle")
+    page.fill("#question", QUESTION)
+    page.click("#search-btn")
+    page.wait_for_selector("#results li.result")
+    first = page.locator("#results li.result").first
+    assert first.locator("table.trace").is_visible()
+    assert "in context" in first.locator("table.trace").inner_text()
+    assert page.locator("#history-list li").count() == 1
+    page.uncheck("#advanced-toggle")
+    assert not first.locator("table.trace").is_visible()
+    # document panel: metadata, the corpus-scoped "latest" with its disclaimer
+    first.locator(".doc-btn").click()
+    page.wait_for_selector("#doc-dialog .docmeta")
+    panel = page.inner_text("#doc-dialog")
+    assert "Category" in panel and "not a verified statement" in panel
+    page.click("#doc-close")
+    assert not page.locator("#doc-dialog").is_visible()
+    # a mocked answer with an unsupported figure and a citation that does not exist
+    page.evaluate("document.querySelector('#llm-settings').open = true")
+    page.select_option("#provider", "groq")
+    page.fill("#api-key", SECRET)
+    page.click("#answer-btn")
+    page.wait_for_selector("#answer .verify")
+    answer = page.inner_text("#answer .answer-text")
+    assert "[7]" not in answer and "[1]" in answer
+    assert page.locator("#answer .claim--unsupported").count() == 1
+    assert page.locator("#answer .claim--supported").count() == 1
+    assert "removed" in page.inner_text("#answer .verify")
+    # feedback stays local and can be exported
+    assert page.locator("#feedback-export").is_disabled()
+    page.click("#answer [data-rate='down']")
+    assert page.locator("#feedback-export").is_enabled()
+    with page.expect_download() as dl:
+        page.click("#feedback-export")
+    record = json.loads(Path(dl.value.path()).read_text().splitlines()[0])
+    assert record["rating"] == "down" and record["verdict"] == "partially supported"
+    assert SECRET not in json.dumps(record)
+    page.close()

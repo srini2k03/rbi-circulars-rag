@@ -127,6 +127,15 @@
               <button id="search-btn" class="sb-btn sb-btn--primary" type="submit" disabled>Search</button>
             </div>
           </form>
+          <div class="search-tools">
+            <label class="check" for="advanced-toggle" title="Show the BM25, dense, RRF and cross-encoder score of every passage and which passages form the generator's context">
+              <input id="advanced-toggle" type="checkbox"> Advanced: stage scores</label>
+            <div id="history" class="history" hidden>
+              <span class="sb-label">Recent</span>
+              <ul id="history-list" class="history__list"></ul>
+              <button id="history-clear" type="button" class="linklike">Clear</button>
+            </div>
+          </div>
           <div class="examples">
             <span class="sb-label">Try</span>
             <button type="button" class="chip" data-example>How often must banks update KYC for high-risk customers?</button>
@@ -193,6 +202,8 @@
 
           <div class="search-main">
             <div id="answer" aria-live="polite"></div>
+            <div class="feedback-box meta"><span id="feedback-count">No ratings yet</span>
+              <button id="feedback-export" type="button" class="sb-btn sb-btn--sm sb-btn--ghost" disabled>Export feedback (JSONL)</button></div>
             <div class="results-head" id="results-head" hidden>
               <h2 class="results-title">Cited passages <span id="results-count" class="results-count"></span></h2>
               <p id="search-meta" class="search-meta"></p>
@@ -205,6 +216,11 @@
 
       <section id="tab-evaluation" role="tabpanel" aria-labelledby="tab-btn-evaluation" hidden></section>
     </div>
+    <dialog id="doc-dialog" class="doc-dialog sb-card" aria-labelledby="doc-title">
+      <div class="doc-dialog__head"><h2 id="doc-title" class="doc-dialog__title">Document</h2>
+        <button id="doc-close" type="button" class="sb-btn sb-btn--sm sb-btn--ghost" aria-label="Close">Close</button></div>
+      <div id="doc-body"></div>
+    </dialog>
   </main>
 
   <footer class="sb-footer">

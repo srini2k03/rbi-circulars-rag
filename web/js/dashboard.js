@@ -1,3 +1,4 @@
+import { analysisCards } from "./analysis.js";
 // Evaluation dashboard: renders results/ (heatmap, tables and charts) when present.
 // Every number shown here is read from the committed results files at page load.
 
@@ -283,6 +284,7 @@ export async function renderDashboard(root, base) {
   if (retrieval) parts.push(heatmapCard(retrieval), rankedCard(retrieval));
   if (generation) parts.push(generationCard(generation, meta, headline(data).gen));
   parts.push(contextCards(meta));
+  parts.push(await analysisCards(base));
   parts.push(await chartsGrid(base));
   root.removeAttribute("aria-busy");
   root.innerHTML = `<div class="eval">${parts.filter(Boolean).join("\n")}</div>`;
