@@ -1,8 +1,8 @@
 # Evaluation results
 
-**Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded.**
+**Test set: model-generated test set (`data/eval/qa_candidates.jsonl`): 216 model-generated pairs (43 AI-reviewed (LLM-assisted), 0 human-verified); 7 AI-rejected pairs excluded.**
 
-Generated 2026-11-05T18:46:17+00:00 at commit `050f1ee86d90556a20a689c90790de388920c0f2`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed by Claude (not human verification): 43, with 7 AI-rejected pairs excluded.
+Generated 2026-11-05T18:46:17+00:00 at commit `050f1ee86d90556a20a689c90790de388920c0f2`. Questions: 216 (186 answerable, 30 unanswerable); human-verified: 0; AI-reviewed, LLM-assisted (not human verification): 43, with 7 AI-rejected pairs excluded.
 
 **Split by document:** 155 test questions (130 documents) for every reported number; 61 dev questions (56 documents) used only to choose configurations and calibrate the gate. No document contributes questions to both.
 
@@ -119,13 +119,13 @@ Agreement of earlier API judges with the reported judge (qwen2.5:7b-instruct) on
 
 ## Limitations
 
-- The test set is model-generated and AI-reviewed (by Claude); no pair is human-verified yet.
+- The test set is model-generated and AI-reviewed (LLM-assisted); no pair is human-verified yet.
 - The judge is a small local model (qwen2.5:7b-instruct), less reliable than a frontier judge. It was chosen because the free API tier's daily token limit allows only about 30 judge calls a day for these ~6K-token prompts; its agreement with the larger API judges on the answers both judged is reported.
 - The openai_compatible backend was evaluated with the best configuration only, on a fixed 60-question subset (seeded, stratified by answerability), because the free tier's daily token quota allows only about 30 answers a day; its confidence intervals are wider than the full-test-set rows.
 
 ## AI-reviewed subset (43 pairs)
 
-The same runs restricted to the 43 pairs an AI assistant (Claude) accepted or edited after checking them against the source documents (see `docs/qa_review.md`). This is an AI review, not human verification; edited pairs use the edited wording.
+The same runs restricted to the 43 pairs an AI assistant (an LLM) accepted or edited after checking them against the source documents (see `docs/qa_review.md`). This is an AI review, not human verification; edited pairs use the edited wording.
 
 ### Retrieval
 

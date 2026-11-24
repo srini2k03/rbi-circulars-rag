@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 QuestionType = Literal["factual", "numeric", "procedural", "multi_chunk", "unanswerable"]
 ReviewStatus = Literal["pending", "accepted", "edited", "rejected"]
 AIDecision = Literal["accept", "edit", "reject"]
-AI_REVIEWER = "ai-assistant (Claude)"
+AI_REVIEWER = "ai-assistant (LLM)"
 
 
 class GoldSpan(BaseModel):

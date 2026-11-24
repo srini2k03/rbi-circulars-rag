@@ -106,7 +106,7 @@ def test_eval_pipeline_cli(workspace: Path) -> None:
     assert "human-verified: 1" in md
     assert (
         "**Test set: reviewed test set (`data/eval/qa_v1.jsonl`): 6 model-generated pairs "
-        "(0 AI-reviewed by Claude, 1 human-verified).**" in md
+        "(0 AI-reviewed (LLM-assisted), 1 human-verified).**" in md
     )
     assert "## AI-reviewed subset" not in md  # no AI review file in this workspace
     meta = json.loads((workspace / "results/run_metadata.json").read_text())
@@ -182,7 +182,7 @@ def test_candidates_are_used_and_labelled_until_reviewed_set_exists(workspace: P
     invoke("eval", "report")
     md = (workspace / "results/README.md").read_text()
     assert "model-generated test set (`data/eval/qa_candidates.jsonl`)" in md
-    assert "6 model-generated pairs (0 AI-reviewed by Claude, 0 human-verified)" in md
+    assert "6 model-generated pairs (0 AI-reviewed (LLM-assisted), 0 human-verified)" in md
     meta = json.loads((workspace / "results/run_metadata.json").read_text())
     assert meta["test_set"].startswith("model-generated test set")
 
@@ -222,7 +222,7 @@ def _ai_review(pair: QAPair, decision: str, question: str | None = None) -> AIRe
 
 def test_ai_review_filters_edits_and_labels_the_report(workspace: Path) -> None:
     """AI-rejected pairs leave the test set, AI edits are used, results are re-filtered,
-    and every label says 'AI-reviewed by Claude', never human-verified."""
+    and every label says 'AI-reviewed (LLM-assisted)', never human-verified."""
     path = workspace / "data/eval/qa_v1.jsonl"
     pairs = {p.qa_id: p for p in read_qa_jsonl(path)}
     invoke("eval", "retrieval", "--chunkers", "section", "--sizes", "64", "--modes", "bm25",
@@ -245,7 +245,7 @@ def test_ai_review_filters_edits_and_labels_the_report(workspace: Path) -> None:
     assert meta["ai_review"]["rejected_excluded"] == 1
     assert meta["test_set"] == (
         "reviewed test set (`data/eval/qa_v1.jsonl`): 5 model-generated pairs "
-        "(2 AI-reviewed by Claude, 1 human-verified); 1 AI-rejected pairs excluded"
+        "(2 AI-reviewed (LLM-assisted), 1 human-verified); 1 AI-rejected pairs excluded"
     )
     md = (workspace / "results/README.md").read_text()
     assert "## AI-reviewed subset (2 pairs)" in md

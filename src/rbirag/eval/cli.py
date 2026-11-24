@@ -922,7 +922,7 @@ def _limitations(
     out: list[str] = []
     if pairs and not any(getattr(p, "verified", False) for p in pairs):
         out.append(
-            "The test set is model-generated and AI-reviewed (by Claude); no pair is "
+            "The test set is model-generated and AI-reviewed (LLM-assisted); no pair is "
             "human-verified yet."
         )
     if s.judge_backend == "ollama":

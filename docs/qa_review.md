@@ -1,11 +1,11 @@
 # AI review of the generated Q/A pairs
 
-**This was a review by an AI assistant (Claude), not a human verification.** No pair
+**This was a review by an AI assistant (an LLM), not a human verification.** No pair
 reviewed here has `verified: true`, and `human_verified` stays 0 everywhere. A person can
 still review the same pairs with `rbirag eval verify`. A human decision always takes
 precedence over the AI one.
 
-- Reviewer: `ai-assistant (Claude)`. Review date: 2026-11-03.
+- Reviewer: `ai-assistant (LLM)`. Review date: 2026-11-03.
 - Records: [`data/eval/qa_ai_reviewed.jsonl`](../data/eval/qa_ai_reviewed.jsonl), one
   line per reviewed pair.
 - Candidates reviewed: `data/eval/qa_candidates.jsonl` as of commit `9e0c1db`. At that
@@ -181,8 +181,8 @@ the automatic location check.
   pending.
 - The results README and `run_metadata.json`:
   - label the test set, for example "model-generated test set
-    (`data/eval/qa_candidates.jsonl`): 81 model-generated pairs (43 AI-reviewed by
-    Claude, 0 human-verified); 7 AI-rejected pairs excluded";
+    (`data/eval/qa_candidates.jsonl`): 81 model-generated pairs (43 AI-reviewed
+    (LLM-assisted), 0 human-verified); 7 AI-rejected pairs excluded";
   - give the headline tables on the full set;
   - give an "AI-reviewed subset" section with the same metrics on the accepted and
     edited pairs.

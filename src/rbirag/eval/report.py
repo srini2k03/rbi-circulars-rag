@@ -357,11 +357,11 @@ def ai_reviewed(qa: Sequence[QAPair]) -> int:
 def describe_test_set(source: str | None, qa: Sequence[QAPair], ai_rejected: int = 0) -> str:
     """How the results README describes the test set that was used, e.g.
     ``model-generated test set (`qa_candidates.jsonl`): 116 model-generated pairs
-    (43 AI-reviewed by Claude, 0 human-verified); 7 AI-rejected pairs excluded``."""
+    (43 AI-reviewed (LLM-assisted), 0 human-verified); 7 AI-rejected pairs excluded``."""
     kind = "reviewed test set" if is_reviewed_set(source) else "model-generated test set"
     text = (
         f"{kind} (`{source or 'qa_candidates.jsonl'}`): {len(qa)} model-generated pairs "
-        f"({ai_reviewed(qa)} AI-reviewed by Claude, {human_verified(source, qa)} human-verified)"
+        f"({ai_reviewed(qa)} AI-reviewed (LLM-assisted), {human_verified(source, qa)} human-verified)"
     )
     if ai_rejected:
         text += f"; {ai_rejected} AI-rejected pairs excluded"
@@ -383,7 +383,7 @@ def run_metadata(
         "unanswerable": sum(not p.answerable for p in qa),
         "human_verified": verified,
         "ai_review": {
-            "reviewer": "ai-assistant (Claude); an AI review, not human verification",
+            "reviewer": "ai-assistant (LLM-assisted); an AI review, not human verification",
             "reviewed_in_test_set": ai_reviewed(qa),
             "accepted": reviews["accept"],
             "edited": reviews["edit"],
@@ -468,7 +468,7 @@ def build_report(
         f"Generated {metadata.get('generated_at')} at commit `{metadata.get('commit')}`. "
         f"Questions: {metadata.get('questions')} ({metadata.get('answerable')} answerable, "
         f"{metadata.get('unanswerable')} unanswerable); human-verified: "
-        f"{metadata.get('human_verified')}; AI-reviewed by Claude (not human verification): "
+        f"{metadata.get('human_verified')}; AI-reviewed, LLM-assisted (not human verification): "
         f"{(metadata.get('ai_review') or {}).get('reviewed_in_test_set', 0)}, with "
         f"{(metadata.get('ai_review') or {}).get('rejected_excluded', 0)} AI-rejected pairs "
         "excluded.\n",
@@ -537,7 +537,7 @@ def build_report(
     if n_ai:
         md_parts += [
             f"## AI-reviewed subset ({n_ai} pairs)\n",
-            f"The same runs restricted to the {n_ai} pairs an AI assistant (Claude) accepted "
+            f"The same runs restricted to the {n_ai} pairs an AI assistant (an LLM) accepted "
             "or edited after checking them against the source documents (see "
             "`docs/qa_review.md`). This is an AI review, not human verification; edited "
             "pairs use the edited wording.\n",

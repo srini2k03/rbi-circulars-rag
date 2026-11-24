@@ -66,7 +66,7 @@ def test_apply_edits_rejects_and_keeps_verified_human_only() -> None:
     assert (by_id["q001"].question, by_id["q001"].answer) == ("better question?", "better answer")
     assert by_id["q000"].question == "question 0?"
     assert by_id["q001"].ai_review is not None
-    assert by_id["q001"].ai_review.reviewer == AI_REVIEWER == "ai-assistant (Claude)"
+    assert by_id["q001"].ai_review.reviewer == AI_REVIEWER == "ai-assistant (LLM)"
     assert by_id["q003"].ai_review is None
     assert not any(p.verified for p in out)
     assert all(p.review_status == "pending" for p in out)
@@ -146,7 +146,7 @@ def test_labels_say_ai_reviewed_never_human_verified(source: str, kind: str) -> 
     text = describe_test_set(source, out, len(rejected))
     assert text == (
         f"{kind} test set (`{source}`): 4 model-generated pairs "
-        "(1 AI-reviewed by Claude, 0 human-verified); 1 AI-rejected pairs excluded"
+        "(1 AI-reviewed (LLM-assisted), 0 human-verified); 1 AI-rejected pairs excluded"
     )
     meta = run_metadata(out, test_set=source, ai_rejected=len(rejected))
     assert meta["human_verified"] == 0
