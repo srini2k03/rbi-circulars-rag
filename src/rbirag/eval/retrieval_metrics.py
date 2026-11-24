@@ -1,4 +1,5 @@
-"""Retrieval metrics (Recall@k, MRR@k, nDCG@k) at document and chunk level.
+"""Retrieval metrics (Recall@k, Precision@k, MRR@k, nDCG@k, context precision and
+character-level context coverage) at document and chunk level.
 
 Gold evidence is stored as character spans in the source document, so it is independent of
 the chunker: a retrieved chunk is *relevant* at chunk level if it overlaps a gold span by at
@@ -86,12 +87,60 @@ def ndcg_at_k(ranks: Sequence[int | None], k: int) -> float:
     return dcg / ideal if ideal else 0.0
 
 
+def is_relevant(chunk: Chunk, qa: QAPair, level: Level, min_overlap: float = 0.5) -> bool:
+    """Binary relevance of one retrieved chunk (gold document / covers a gold span)."""
+    if level == "doc":
+        return chunk.doc_id in qa.gold_doc_ids
+    return any(covers(chunk, g, min_overlap) for g in qa.gold)
+
+
+def precision_at_k(relevant: Sequence[bool], k: int) -> float:
+    """Share of the top-``k`` results that are relevant (missing results count as not)."""
+    return sum(1 for r in relevant[:k] if r) / k if k else 0.0
+
+
+def average_precision_at_k(relevant: Sequence[bool], k: int) -> float:
+    """Rank-aware context precision: mean of P@i over the relevant ranks i <= k
+    (RAGAS-style "context precision"); 0 when nothing relevant is retrieved."""
+    hits = 0
+    total = 0.0
+    for i, rel in enumerate(relevant[:k], start=1):
+        if rel:
+            hits += 1
+            total += hits / i
+    return total / hits if hits else 0.0
+
+
+def context_coverage(retrieved: Sequence[Chunk], qa: QAPair) -> float:
+    """Share of gold-evidence characters contained in the retrieved text (character
+    level, so it is fair to contexts of any size, e.g. parent windows)."""
+    total = sum(max(0, g.end - g.start) for g in qa.gold)
+    if not total:
+        return 0.0
+    covered = 0
+    for g in qa.gold:
+        spans = sorted(
+            (max(c.start, g.start), min(c.end, g.end))
+            for c in retrieved
+            if c.doc_id == g.doc_id and min(c.end, g.end) > max(c.start, g.start)
+        )
+        end = g.start
+        for a, b in spans:
+            a = max(a, end)
+            if b > a:
+                covered += b - a
+                end = b
+    return covered / total
+
+
 class QueryMetrics(BaseModel):
     qa_id: str
     level: Level
     recall: dict[int, float]
     mrr: float
     ndcg: float
+    precision: dict[int, float] = {}
+    context_precision: float | None = None  # average precision over the context (top 5)
 
 
 def query_metrics(
@@ -103,12 +152,16 @@ def query_metrics(
     mrr_k: int = 10,
     ndcg_k: int = 10,
     min_overlap: float = 0.5,
+    context_k: int = 5,
 ) -> QueryMetrics:
     ranks = first_hits(retrieved, qa, level, min_overlap)
+    relevant = [is_relevant(c, qa, level, min_overlap) for c in retrieved]
     return QueryMetrics(
         qa_id=qa.qa_id,
         level=level,
         recall={k: recall_at_k(ranks, k) for k in ks},
         mrr=mrr_at_k(ranks, mrr_k),
         ndcg=ndcg_at_k(ranks, ndcg_k),
+        precision={k: precision_at_k(relevant, k) for k in ks},
+        context_precision=average_precision_at_k(relevant, context_k),
     )

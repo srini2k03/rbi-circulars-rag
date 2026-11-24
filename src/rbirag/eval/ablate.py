@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from rbirag.chunking import build_chunker
 from rbirag.chunking.base import Chunk
-from rbirag.config import ChunkerName, RetrievalMode, Settings
+from rbirag.config import ChunkerName, Settings
 from rbirag.document import Document
 from rbirag.eval.dataset import QAPair
 from rbirag.eval.gen_metrics import GenerationRecord
@@ -51,7 +51,8 @@ from rbirag.retrieval.rerank import Reranker
 
 logger = logging.getLogger(__name__)
 
-MODES: tuple[str, ...] = get_args(RetrievalMode)
+# The original ablation grid (bm25_rerank and the newer strategies live in eval.benchmark).
+MODES: tuple[str, ...] = ("bm25", "dense", "hybrid", "hybrid_rerank")
 CHUNKERS: tuple[str, ...] = get_args(ChunkerName)
 SIZES: tuple[int, ...] = (256, 512, 1024)
 

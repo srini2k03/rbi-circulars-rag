@@ -1,0 +1,39 @@
+"""Append-only experiment log (``results/experiments.jsonl``).
+
+One line per evaluation run: what ran (command, configuration hashes), on what (commit,
+corpus and test-set hashes, split sizes), where (CI run id), when, and its headline
+numbers. Lines are never rewritten, so the file is the history of every reported result.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+EXPERIMENTS_FILE = "experiments.jsonl"
+
+
+def log_experiment(results_dir: Path, entry: dict[str, Any]) -> dict[str, Any]:
+    """Append ``entry`` (plus timestamp, CI run id and runner info) and return it."""
+    record = {
+        "logged_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "ci_run_id": os.environ.get("GITHUB_RUN_ID"),
+        "ci_workflow": os.environ.get("GITHUB_WORKFLOW"),
+        "runner": os.environ.get("RUNNER_NAME") or os.uname().nodename,
+        **entry,
+    }
+    path = results_dir / EXPERIMENTS_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record, ensure_ascii=False, default=str, sort_keys=True) + "\n")
+    return record
+
+
+def read_experiments(results_dir: Path) -> list[dict[str, Any]]:
+    path = results_dir / EXPERIMENTS_FILE
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text("utf-8").splitlines() if line.strip()]

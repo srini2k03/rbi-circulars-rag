@@ -1,0 +1,100 @@
+name: Retrieval benchmark
+
+# Compares retrieval strategies (BM25, expansion, dense, RRF and weighted fusion,
+# cross-encoder reranking, metadata filters, parent-child, document-first) on the same
+# held-out questions: every tunable is chosen on the dev split, the chosen configuration of
+# each family is evaluated once on test. The embedder and the cross-encoder run here (they
+# need Hugging Face); every score they produce is saved to a cache that is committed with
+# the results, so `rbirag eval bench --no-models` replays the comparison anywhere.
+
+on:
+  workflow_dispatch:
+    inputs:
+      primary:
+        description: "Chunk config of the main index (dev-selected by the original ablation)"
+        type: string
+        default: "fixed-1024"
+      child:
+        description: "Chunk config for parent-child ('' to skip)"
+        type: string
+        default: "fixed-256"
+      families:
+        description: "Comma-separated families to run (blank = all)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write  # commits results/benchmark
+
+concurrency:
+  group: benchmark
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: "1"
+  HF_HOME: ${{ github.workspace }}/.hf
+  RBIRAG_EMBEDDER: sentence-transformers
+  RBIRAG_RERANKER: cross-encoder
+  RBIRAG_EMBEDDING_CACHE_DIR: ${{ github.workspace }}/.cache/emb
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: ./.github/actions/eval-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          extras: "ingest,retrieval,ml,eval"
+      - name: Cache corpus embeddings
+        uses: actions/cache@v4
+        with:
+          path: .cache/emb
+          key: emb-bench-v1-${{ inputs.primary }}-${{ inputs.child }}-${{ github.run_id }}
+          restore-keys: emb-bench-v1-${{ inputs.primary }}-${{ inputs.child }}-
+      - name: Run the benchmark (dev tuning, test evaluation, live timing)
+        env:
+          PRIMARY: ${{ inputs.primary }}
+          CHILD: ${{ inputs.child }}
+          FAMILIES: ${{ inputs.families }}
+          RBIRAG_RESULTS_DIR: /tmp/run
+        run: |
+          mkdir -p /tmp/run/benchmark
+          # reuse committed model scores; only cache misses run the models
+          cp results/benchmark/score_cache-*.jsonl.gz /tmp/run/benchmark/ 2>/dev/null || true
+          rbirag eval bench --primary "$PRIMARY" --child "$CHILD" --families "$FAMILIES" \
+            --out-dir /tmp/run/benchmark | tee /tmp/run/bench.log
+          cat /tmp/run/benchmark/strategies.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify the replay (no models) reproduces the run
+        env:
+          RBIRAG_RESULTS_DIR: /tmp/replay
+          PRIMARY: ${{ inputs.primary }}
+          CHILD: ${{ inputs.child }}
+          FAMILIES: ${{ inputs.families }}
+        run: |
+          mkdir -p /tmp/replay/benchmark
+          cp /tmp/run/benchmark/score_cache-*.jsonl.gz /tmp/replay/benchmark/
+          rbirag eval bench --no-models --no-log --primary "$PRIMARY" --child "$CHILD" \
+            --families "$FAMILIES" --out-dir /tmp/replay/benchmark
+          python - <<'PY'
+          import json
+          drop = {"latency_ms_p50", "latency_ms_p95"}
+          rows = lambda p: [{k: v for k, v in r.items() if k not in drop}
+                            for r in json.load(open(p))["rows"]]
+          a = rows("/tmp/run/benchmark/strategies.json")
+          b = rows("/tmp/replay/benchmark/strategies.json")
+          assert a == b, "replay from the score cache differs from the live run"
+          print(f"replay identical for {len(a)} strategies")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-${{ github.run_id }}
+          path: /tmp/run
+      - name: Commit results
+        run: |
+          scripts/commit_outputs.sh "Update retrieval benchmark (run ${{ github.run_id }})" \
+            /tmp/run/benchmark:results/benchmark --log /tmp/run/experiments.jsonl

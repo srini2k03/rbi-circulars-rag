@@ -1057,3 +1057,9 @@ def progress(
     questions = {p.qa_id: p.question for p in load_qa(s, qa)}
     accepted = {s.judge_model, *s.judge_model_fallbacks} if s.judge_model else None
     _echo_json(generation_progress(s.results_dir, _csv(backends), questions, accepted, judge=judge))
+
+
+# Further command groups register themselves on eval_app.
+from rbirag.eval import bench_cli as _bench_cli  # noqa: E402
+
+__all__ = ["_bench_cli", "eval_app"]

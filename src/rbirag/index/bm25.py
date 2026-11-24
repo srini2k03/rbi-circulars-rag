@@ -5,13 +5,18 @@ from __future__ import annotations
 import pickle
 import re
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 FORMAT_VERSION = 1
+
+FloatArray = npt.NDArray[np.float64]
+IntArray = npt.NDArray[np.int64]
+BoolArray = npt.NDArray[np.bool_]
 
 _STOPWORDS_TEXT = """
 a about above after again against all am an and any are as at be because been before being
@@ -55,6 +60,9 @@ class BM25Index:
         self.ids: list[str] = []
         self._tokens: list[list[str]] = []
         self._bm25: Any = None
+        self._post: dict[str, tuple[IntArray, FloatArray]] | None = None
+        self._doc_len: FloatArray = np.zeros(0, dtype=np.float64)
+        self._pos: dict[str, int] | None = None
 
     def __len__(self) -> int:
         return len(self.ids)
@@ -70,6 +78,7 @@ class BM25Index:
     def _fit(self) -> None:
         from rank_bm25 import BM25Okapi
 
+        self._post, self._pos = None, None
         if not self._tokens:
             self._bm25 = None
             return
@@ -77,16 +86,97 @@ class BM25Index:
         corpus = [toks or ["\x00"] for toks in self._tokens]
         self._bm25 = BM25Okapi(corpus, k1=self.k1, b=self.b, epsilon=self.epsilon)
 
-    def search(self, query: str, k: int = 10) -> list[tuple[str, float]]:
-        """Top-``k`` ``(chunk_id, score)`` with score > 0, best first (ties by id)."""
+    def search(
+        self, query: str, k: int = 10, *, allowed: BoolArray | None = None
+    ) -> list[tuple[str, float]]:
+        """Top-``k`` ``(chunk_id, score)`` with score > 0, best first (ties by id).
+
+        ``allowed`` (a boolean mask over the indexed chunks) restricts the search, e.g. to
+        the chunks that pass a metadata filter; masked-out chunks are never returned.
+        """
+        return self.search_terms([(t, 1.0) for t in bm25_tokenize(query)], k, allowed=allowed)
+
+    def search_terms(
+        self,
+        terms: Sequence[tuple[str, float]],
+        k: int = 10,
+        *,
+        allowed: BoolArray | None = None,
+    ) -> list[tuple[str, float]]:
+        """Top-``k`` for a weighted query: ``score(d) = sum_t w_t * bm25(t, d)``.
+
+        With unit weights this is exactly ``BM25Okapi.get_scores`` (same IDF, same
+        per-term arithmetic, same summation order); weights let query expansion (RM3,
+        acronyms) down-weight added terms.
+        """
+        if self._bm25 is None or not terms:
+            return []
+        scores = self.score_terms(terms)
+        if allowed is not None:
+            if allowed.shape != scores.shape:
+                raise ValueError("allowed mask must have one entry per indexed chunk")
+            scores = np.where(allowed, scores, 0.0)
+        return self._top(scores, k)
+
+    def _top(self, scores: FloatArray, k: int) -> list[tuple[str, float]]:
+        positive = np.flatnonzero(scores > 0)
+        if positive.size == 0:
+            return []
+        order = sorted(positive.tolist(), key=lambda i: (-scores[i], self.ids[i]))
+        return [(self.ids[i], float(scores[i])) for i in order[:k]]
+
+    def score_terms(self, terms: Sequence[tuple[str, float]]) -> FloatArray:
+        """BM25 scores of every chunk for weighted ``(term, weight)`` pairs (postings-based,
+        so cost grows with the matching postings, not with the corpus size per term)."""
+        scores = np.zeros(len(self.ids), dtype=np.float64)
         if self._bm25 is None:
-            return []
-        q = bm25_tokenize(query)
-        if not q:
-            return []
-        scores = np.asarray(self._bm25.get_scores(q), dtype=np.float64)
-        order = sorted(range(len(scores)), key=lambda i: (-scores[i], self.ids[i]))
-        return [(self.ids[i], float(scores[i])) for i in order[:k] if scores[i] > 0]
+            return scores
+        postings = self._postings()
+        k1, b = self.k1, self.b
+        for term, weight in terms:
+            hit = postings.get(term)
+            idf = self._bm25.idf.get(term) or 0.0
+            if hit is None or not idf or not weight:
+                continue
+            idx, tf = hit
+            denom = tf + k1 * (1 - b + b * self._doc_len[idx] / self._bm25.avgdl)
+            scores[idx] += weight * (idf * (tf * (k1 + 1) / denom))
+        return scores
+
+    def _postings(self) -> dict[str, tuple[IntArray, FloatArray]]:
+        if self._post is None:
+            acc: dict[str, tuple[list[int], list[float]]] = {}
+            for i, freqs in enumerate(self._bm25.doc_freqs):
+                for term, tf in freqs.items():
+                    entry = acc.setdefault(term, ([], []))
+                    entry[0].append(i)
+                    entry[1].append(float(tf))
+            self._post = {
+                t: (np.asarray(ix, dtype=np.int64), np.asarray(tf, dtype=np.float64))
+                for t, (ix, tf) in acc.items()
+            }
+            self._doc_len = np.asarray(self._bm25.doc_len, dtype=np.float64)
+        return self._post
+
+    # -- statistics used by query expansion ----------------------------------------------
+    def tokens_of(self, chunk_id: str) -> list[str]:
+        """The indexed tokens of one chunk (for pseudo-relevance feedback)."""
+        return self._tokens[self._position()[chunk_id]]
+
+    def position(self, chunk_id: str) -> int:
+        return self._position()[chunk_id]
+
+    def _position(self) -> dict[str, int]:
+        if self._pos is None:
+            self._pos = {cid: i for i, cid in enumerate(self.ids)}
+        return self._pos
+
+    def idf(self, term: str) -> float:
+        return float(self._bm25.idf.get(term) or 0.0) if self._bm25 is not None else 0.0
+
+    def mask(self, keep: Callable[[str], bool]) -> BoolArray:
+        """Boolean mask over the indexed chunks for which ``keep(chunk_id)`` is true."""
+        return np.fromiter((keep(cid) for cid in self.ids), dtype=bool, count=len(self.ids))
 
     # -- persistence ---------------------------------------------------------------------
     def save(self, path: Path) -> None:

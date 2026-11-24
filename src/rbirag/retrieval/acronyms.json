@@ -1,0 +1,3670 @@
+[
+ {
+  "acronym": "CRR",
+  "expansion": "cash reserve ratio",
+  "count": 144,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "KYC",
+  "expansion": "know your customer",
+  "count": 142,
+  "share": 0.855,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SHG",
+  "expansion": "self help groups",
+  "count": 125,
+  "share": 0.676,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FEMA",
+  "expansion": "foreign exchange management act",
+  "count": 123,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RBI",
+  "expansion": "reserve bank of india",
+  "count": 114,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CIC",
+  "expansion": "credit information companies",
+  "count": 108,
+  "share": 0.735,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLBC",
+  "expansion": "state level bankers' committee",
+  "count": 102,
+  "share": 0.658,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLR",
+  "expansion": "statutory liquidity ratio",
+  "count": 95,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NBFC",
+  "expansion": "non banking financial companies",
+  "count": 89,
+  "share": 0.627,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UNSC",
+  "expansion": "united nations security council",
+  "count": 87,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LAF",
+  "expansion": "liquidity adjustment facility",
+  "count": 84,
+  "share": 0.875,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DLRC",
+  "expansion": "district level review committee",
+  "count": 78,
+  "share": 0.975,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MSF",
+  "expansion": "marginal standing facility",
+  "count": 76,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NRLM",
+  "expansion": "national rural livelihoods mission",
+  "count": 73,
+  "share": 0.802,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSL",
+  "expansion": "priority sector lending",
+  "count": 73,
+  "share": 0.973,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SEBI",
+  "expansion": "securities and exchange board of india",
+  "count": 73,
+  "share": 0.961,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FPI",
+  "expansion": "foreign portfolio investors",
+  "count": 71,
+  "share": 0.78,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RRB",
+  "expansion": "regional rural banks",
+  "count": 67,
+  "share": 0.931,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MEA",
+  "expansion": "ministry of external affairs",
+  "count": 65,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CRE",
+  "expansion": "commercial real estate",
+  "count": 64,
+  "share": 0.985,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CDD",
+  "expansion": "customer due diligence",
+  "count": 63,
+  "share": 0.913,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ARC",
+  "expansion": "asset reconstruction companies",
+  "count": 62,
+  "share": 0.849,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DCC",
+  "expansion": "district consultative committee",
+  "count": 61,
+  "share": 0.803,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PDI",
+  "expansion": "perpetual debt instruments",
+  "count": 61,
+  "share": 0.897,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DBT",
+  "expansion": "direct benefit transfer",
+  "count": 60,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SFB",
+  "expansion": "small finance banks",
+  "count": 60,
+  "share": 0.909,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CBS",
+  "expansion": "core banking solution",
+  "count": 58,
+  "share": 0.806,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AML",
+  "expansion": "anti money laundering",
+  "count": 57,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "HFC",
+  "expansion": "housing finance companies",
+  "count": 57,
+  "share": 0.77,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MHA",
+  "expansion": "ministry of home affairs",
+  "count": 56,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CRILC",
+  "expansion": "central repository of information on large credits",
+  "count": 49,
+  "share": 0.925,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MPC",
+  "expansion": "monetary policy committee",
+  "count": 47,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "HTM",
+  "expansion": "held to maturity",
+  "count": 45,
+  "share": 0.804,
+  "lower_ok": false
+ },
+ {
+  "acronym": "JLG",
+  "expansion": "joint liability groups",
+  "count": 43,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IFR",
+  "expansion": "investment fluctuation reserve",
+  "count": 41,
+  "share": 0.976,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LTV",
+  "expansion": "loan to value",
+  "count": 41,
+  "share": 0.891,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LCR",
+  "expansion": "liquidity coverage ratio",
+  "count": 40,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PNCPS",
+  "expansion": "perpetual non cumulative preference shares",
+  "count": 40,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "YTM",
+  "expansion": "yield to maturity",
+  "count": 40,
+  "share": 0.952,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CRGFTLIH",
+  "expansion": "credit risk guarantee fund trust for low income housing",
+  "count": 39,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IBA",
+  "expansion": "indian banks' association",
+  "count": 39,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AIFI",
+  "expansion": "all india financial institutions",
+  "count": 38,
+  "share": 0.884,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BLBC",
+  "expansion": "block level bankers' committee",
+  "count": 38,
+  "share": 0.905,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CFT",
+  "expansion": "combating of financing of terrorism",
+  "count": 37,
+  "share": 0.725,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SDL",
+  "expansion": "state development loans",
+  "count": 35,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DCCO",
+  "expansion": "date of commencement of commercial operations",
+  "count": 34,
+  "share": 0.81,
+  "lower_ok": true
+ },
+ {
+  "acronym": "HFT",
+  "expansion": "held for trading",
+  "count": 34,
+  "share": 0.81,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SCB",
+  "expansion": "scheduled commercial banks",
+  "count": 34,
+  "share": 0.944,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SIDBI",
+  "expansion": "small industries development bank of india",
+  "count": 33,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AFS",
+  "expansion": "available for sale",
+  "count": 32,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "KFS",
+  "expansion": "key facts statement",
+  "count": 31,
+  "share": 0.674,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NHB",
+  "expansion": "national housing bank",
+  "count": 31,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NOF",
+  "expansion": "net owned fund",
+  "count": 31,
+  "share": 0.738,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NRI",
+  "expansion": "non resident indian",
+  "count": 31,
+  "share": 0.608,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OTC",
+  "expansion": "over the counter",
+  "count": 31,
+  "share": 0.969,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NAV",
+  "expansion": "net asset value",
+  "count": 30,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NDTL",
+  "expansion": "net demand and time liabilities",
+  "count": 30,
+  "share": 0.938,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NOC",
+  "expansion": "no objection certificate",
+  "count": 30,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PAN",
+  "expansion": "permanent account number",
+  "count": 30,
+  "share": 0.968,
+  "lower_ok": false
+ },
+ {
+  "acronym": "LAB",
+  "expansion": "local area banks",
+  "count": 29,
+  "share": 0.879,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SJSRY",
+  "expansion": "swarna jayanti shahari rozgar yojana",
+  "count": 29,
+  "share": 0.935,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ACB",
+  "expansion": "audit committee of the board",
+  "count": 28,
+  "share": 0.778,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ANBC",
+  "expansion": "adjusted net bank credit",
+  "count": 28,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CEO",
+  "expansion": "chief executive officer",
+  "count": 28,
+  "share": 0.933,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ECB",
+  "expansion": "external commercial borrowings",
+  "count": 28,
+  "share": 0.757,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FAQ",
+  "expansion": "frequently asked questions",
+  "count": 28,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NULM",
+  "expansion": "national urban livelihoods mission",
+  "count": 28,
+  "share": 0.903,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SAA",
+  "expansion": "service area approach",
+  "count": 28,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SGL",
+  "expansion": "subsidiary general ledger",
+  "count": 28,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DRS",
+  "expansion": "debt relief schemes",
+  "count": 27,
+  "share": 0.964,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PCPS",
+  "expansion": "perpetual cumulative preference shares",
+  "count": 27,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSO",
+  "expansion": "payment system operators",
+  "count": 27,
+  "share": 0.871,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RCPS",
+  "expansion": "redeemable cumulative preference shares",
+  "count": 27,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RNCPS",
+  "expansion": "redeemable non cumulative preference shares",
+  "count": 27,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IPDI",
+  "expansion": "innovative perpetual debt instruments",
+  "count": 26,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MIS",
+  "expansion": "monitoring information system",
+  "count": 26,
+  "share": 0.605,
+  "lower_ok": false
+ },
+ {
+  "acronym": "OCI",
+  "expansion": "overseas citizen of india",
+  "count": 26,
+  "share": 0.765,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RTGS",
+  "expansion": "real time gross settlement",
+  "count": 26,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SBR",
+  "expansion": "scale based regulation",
+  "count": 26,
+  "share": 0.963,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WOS",
+  "expansion": "wholly owned subsidiaries",
+  "count": 26,
+  "share": 0.765,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AIF",
+  "expansion": "alternative investment funds",
+  "count": 25,
+  "share": 0.758,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ICAI",
+  "expansion": "institute of chartered accountants of india",
+  "count": 25,
+  "share": 0.926,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NFB",
+  "expansion": "non fund based",
+  "count": 24,
+  "share": 0.96,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NSFI",
+  "expansion": "national strategy for financial inclusion",
+  "count": 24,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "KCC",
+  "expansion": "kisan credit card",
+  "count": 23,
+  "share": 0.885,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PFRDA",
+  "expansion": "pension fund regulatory and development authority",
+  "count": 23,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RSETI",
+  "expansion": "rural self employment training institutes",
+  "count": 23,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UCB",
+  "expansion": "urban cooperative banks",
+  "count": 23,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DCP",
+  "expansion": "district credit plan",
+  "count": 22,
+  "share": 0.957,
+  "lower_ok": true
+ },
+ {
+  "acronym": "EMI",
+  "expansion": "equated monthly instalments",
+  "count": 22,
+  "share": 0.88,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FLC",
+  "expansion": "financial literacy centres",
+  "count": 22,
+  "share": 0.786,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LEI",
+  "expansion": "legal entity identifier",
+  "count": 22,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "NBC",
+  "expansion": "national building code",
+  "count": 22,
+  "share": 0.88,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UTLBC",
+  "expansion": "union territory level bankers' committee",
+  "count": 22,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WMD",
+  "expansion": "weapons of mass destruction",
+  "count": 22,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CCIL",
+  "expansion": "clearing corporation of india limited",
+  "count": 21,
+  "share": 0.875,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CIN",
+  "expansion": "challan identification number",
+  "count": 21,
+  "share": 0.808,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FITL",
+  "expansion": "funded interest term loan'",
+  "count": 21,
+  "share": 0.724,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MAP",
+  "expansion": "monitorable action plans",
+  "count": 21,
+  "share": 0.913,
+  "lower_ok": false
+ },
+ {
+  "acronym": "NCD",
+  "expansion": "non convertible debentures",
+  "count": 21,
+  "share": 0.955,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NSFR",
+  "expansion": "net stable funding ratio",
+  "count": 21,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OTP",
+  "expansion": "one time password",
+  "count": 21,
+  "share": 0.84,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RWA",
+  "expansion": "risk weighted assets",
+  "count": 21,
+  "share": 0.724,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SOP",
+  "expansion": "standard operating procedure",
+  "count": 21,
+  "share": 0.7,
+  "lower_ok": true
+ },
+ {
+  "acronym": "APR",
+  "expansion": "annual percentage rate",
+  "count": 20,
+  "share": 0.69,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CAS",
+  "expansion": "central accounts section",
+  "count": 20,
+  "share": 0.909,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CCL",
+  "expansion": "cash credit limit",
+  "count": 20,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FATF",
+  "expansion": "financial action task force",
+  "count": 20,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MTSS",
+  "expansion": "money transfer service scheme",
+  "count": 20,
+  "share": 0.952,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ZCB",
+  "expansion": "zero coupon bonds",
+  "count": 20,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CIMS",
+  "expansion": "centralised information management system",
+  "count": 19,
+  "share": 0.95,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DIN",
+  "expansion": "director identification number",
+  "count": 19,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FIP",
+  "expansion": "financial inclusion plan",
+  "count": 19,
+  "share": 0.826,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FSI",
+  "expansion": "floor space index",
+  "count": 19,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IBC",
+  "expansion": "insolvency and bankruptcy code",
+  "count": 19,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LBS",
+  "expansion": "lead bank scheme",
+  "count": 19,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NBV",
+  "expansion": "net book value",
+  "count": 19,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NEFT",
+  "expansion": "national electronic funds transfer",
+  "count": 19,
+  "share": 0.704,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SNRR",
+  "expansion": "special non resident rupee",
+  "count": 19,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AAP",
+  "expansion": "annual action plans",
+  "count": 18,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BIS",
+  "expansion": "bureau of indian standards",
+  "count": 18,
+  "share": 0.75,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CBDT",
+  "expansion": "central board of direct taxes",
+  "count": 18,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DPSS",
+  "expansion": "department of payment and settlement systems",
+  "count": 18,
+  "share": 0.9,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LOC",
+  "expansion": "line of credit",
+  "count": 18,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LRS",
+  "expansion": "liberalised remittance scheme",
+  "count": 18,
+  "share": 0.947,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LTSB",
+  "expansion": "long term subordinated bonds",
+  "count": 18,
+  "share": 0.947,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PACS",
+  "expansion": "primary agricultural credit societies",
+  "count": 18,
+  "share": 0.783,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SECC",
+  "expansion": "socio economic and caste census",
+  "count": 18,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "STRIPS",
+  "expansion": "separate trading of registered interest and principal of securities",
+  "count": 18,
+  "share": 0.692,
+  "lower_ok": false
+ },
+ {
+  "acronym": "WAY",
+  "expansion": "weighted average yield",
+  "count": 18,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "ACP",
+  "expansion": "annual credit plans",
+  "count": 17,
+  "share": 0.68,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DRI",
+  "expansion": "differential rate of interest",
+  "count": 17,
+  "share": 0.739,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FSWM",
+  "expansion": "financially sound and well managed",
+  "count": 17,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IRDAI",
+  "expansion": "insurance regulatory and development authority of india",
+  "count": 17,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "KVP",
+  "expansion": "kisan vikas patras",
+  "count": 17,
+  "share": 0.944,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SOC",
+  "expansion": "security operations centre",
+  "count": 17,
+  "share": 0.773,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SRLM",
+  "expansion": "state rural livelihood missions",
+  "count": 17,
+  "share": 0.81,
+  "lower_ok": true
+ },
+ {
+  "acronym": "VFT",
+  "expansion": "value free transfer",
+  "count": 17,
+  "share": 0.944,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AFA",
+  "expansion": "additional factor of authentication",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ALM",
+  "expansion": "asset liability management",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FSS",
+  "expansion": "farmers' service societies",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "HQLA",
+  "expansion": "high quality liquid assets",
+  "count": 16,
+  "share": 0.889,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LEA",
+  "expansion": "law enforcement agencies",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NMDFC",
+  "expansion": "national minorities development and finance corporation",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PCR",
+  "expansion": "provisioning coverage ratio",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "URN",
+  "expansion": "unique reference number",
+  "count": 16,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CDS",
+  "expansion": "credit default swap",
+  "count": 15,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CIP",
+  "expansion": "customer identification procedure",
+  "count": 15,
+  "share": 0.625,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DAY",
+  "expansion": "deendayal antyodaya yojana",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "DQI",
+  "expansion": "data quality index",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FPC",
+  "expansion": "fair practices code",
+  "count": 15,
+  "share": 0.938,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ICA",
+  "expansion": "inter creditor agreement",
+  "count": 15,
+  "share": 0.882,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IPRE",
+  "expansion": "income producing real estate",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LDO",
+  "expansion": "lead district officer",
+  "count": 15,
+  "share": 0.938,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MHP",
+  "expansion": "minimum holding period",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NCLT",
+  "expansion": "national company law tribunal",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NPCI",
+  "expansion": "national payments corporation of india",
+  "count": 15,
+  "share": 0.938,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SDF",
+  "expansion": "standing deposit facility",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SPD",
+  "expansion": "standalone primary dealers",
+  "count": 15,
+  "share": 0.714,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TAT",
+  "expansion": "turn around time",
+  "count": 15,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CCO",
+  "expansion": "chief compliance officer",
+  "count": 14,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FNVC",
+  "expansion": "forged note vigilance cell",
+  "count": 14,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ICAAP",
+  "expansion": "internal capital adequacy assessment process",
+  "count": 14,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MCP",
+  "expansion": "micro credit plan",
+  "count": 14,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MSE",
+  "expansion": "micro and small enterprises",
+  "count": 14,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PCE",
+  "expansion": "partial credit enhancement",
+  "count": 14,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SGSY",
+  "expansion": "swarnjayanti gram swarozgar yojana",
+  "count": 14,
+  "share": 0.636,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SSC",
+  "expansion": "special sub committees",
+  "count": 14,
+  "share": 0.875,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UPI",
+  "expansion": "unified payments interface",
+  "count": 14,
+  "share": 0.667,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BCBS",
+  "expansion": "basel committee on banking supervision",
+  "count": 13,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ETF",
+  "expansion": "exchange traded funds",
+  "count": 13,
+  "share": 0.867,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FVCI",
+  "expansion": "foreign venture capital investor",
+  "count": 13,
+  "share": 0.867,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IRR",
+  "expansion": "interest rate risk",
+  "count": 13,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "KMP",
+  "expansion": "key managerial personnel",
+  "count": 13,
+  "share": 0.722,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSB",
+  "expansion": "public sector banks",
+  "count": 13,
+  "share": 0.929,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SCA",
+  "expansion": "statutory central auditors",
+  "count": 13,
+  "share": 0.812,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SDS",
+  "expansion": "special deposit scheme",
+  "count": 13,
+  "share": 0.812,
+  "lower_ok": true
+ },
+ {
+  "acronym": "VRR",
+  "expansion": "voluntary retention route'",
+  "count": 13,
+  "share": 0.619,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CNP",
+  "expansion": "card not present",
+  "count": 12,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CRS",
+  "expansion": "common reporting standards",
+  "count": 12,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DLG",
+  "expansion": "default loss guarantee",
+  "count": 12,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FAR",
+  "expansion": "fully accessible route",
+  "count": 12,
+  "share": 0.8,
+  "lower_ok": false
+ },
+ {
+  "acronym": "FDI",
+  "expansion": "foreign direct investment",
+  "count": 12,
+  "share": 0.706,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LWD",
+  "expansion": "list of wilful defaulters",
+  "count": 12,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NSE",
+  "expansion": "national stock exchange",
+  "count": 12,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSP",
+  "expansion": "payment system providers",
+  "count": 12,
+  "share": 0.706,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PTC",
+  "expansion": "pass through certificates",
+  "count": 12,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "REIT",
+  "expansion": "real estate investment trusts",
+  "count": 12,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SHCIL",
+  "expansion": "stock holding corporation of india ltd",
+  "count": 12,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ULB",
+  "expansion": "urban local body",
+  "count": 12,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CGS",
+  "expansion": "credit guarantee schemes",
+  "count": 11,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "EBT",
+  "expansion": "electronic benefit transfer",
+  "count": 11,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IBU",
+  "expansion": "ifsc banking units",
+  "count": 11,
+  "share": 0.688,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IFSCA",
+  "expansion": "international financial services centres authority",
+  "count": 11,
+  "share": 0.786,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RIDF",
+  "expansion": "rural infrastructure development fund",
+  "count": 11,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AID",
+  "expansion": "all inclusive directions",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "ARR",
+  "expansion": "alternative reference rate",
+  "count": 10,
+  "share": 0.909,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BBPS",
+  "expansion": "bharat bill payment system",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BLA",
+  "expansion": "bond ledger account",
+  "count": 10,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CBRM",
+  "expansion": "community based repayment mechanism",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CGFMU",
+  "expansion": "credit guarantee fund for micro units",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CISBI",
+  "expansion": "central information system for banking infrastructure",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CPIN",
+  "expansion": "common portal identification number",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CRO",
+  "expansion": "chief risk officer",
+  "count": 10,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DEA",
+  "expansion": "depositor education and awareness",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "DTA",
+  "expansion": "deferred tax assets",
+  "count": 10,
+  "share": 0.769,
+  "lower_ok": true
+ },
+ {
+  "acronym": "EWS",
+  "expansion": "economically weaker sections",
+  "count": 10,
+  "share": 0.625,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FALLCR",
+  "expansion": "facility to avail liquidity for liquidity coverage ratio",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FNV",
+  "expansion": "forged note vigilance",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FPO",
+  "expansion": "farmer producer organisations",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LIG",
+  "expansion": "low income groups",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MDR",
+  "expansion": "merchant discount rate",
+  "count": 10,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MIC",
+  "expansion": "market infrastructure companies",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MLI",
+  "expansion": "member lending institutions",
+  "count": 10,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MTM",
+  "expansion": "mark to market",
+  "count": 10,
+  "share": 0.625,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NIM",
+  "expansion": "net interest margin",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PIP",
+  "expansion": "participatory identification of poor",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PPP",
+  "expansion": "public private partnership",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RBIA",
+  "expansion": "risk based internal audit",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SGB",
+  "expansion": "sovereign gold bond",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLS",
+  "expansion": "structural liquidity statement",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SNFA",
+  "expansion": "specified non financial assets",
+  "count": 10,
+  "share": 0.625,
+  "lower_ok": true
+ },
+ {
+  "acronym": "STR",
+  "expansion": "suspicious transaction reports",
+  "count": 10,
+  "share": 0.625,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UFCE",
+  "expansion": "unhedged foreign currency exposure",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WLA",
+  "expansion": "white label atms",
+  "count": 10,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BSBDA",
+  "expansion": "basic savings bank deposit account",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CEPC",
+  "expansion": "consumer education and protection cell",
+  "count": 9,
+  "share": 0.9,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CRM",
+  "expansion": "credit risk mitigation",
+  "count": 9,
+  "share": 0.818,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DDM",
+  "expansion": "district development manager",
+  "count": 9,
+  "share": 0.818,
+  "lower_ok": true
+ },
+ {
+  "acronym": "HUF",
+  "expansion": "hindu undivided family",
+  "count": 9,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IAC",
+  "expansion": "independent advisory committee",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IRF",
+  "expansion": "interest rate futures",
+  "count": 9,
+  "share": 0.9,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LOU",
+  "expansion": "local operating unit",
+  "count": 9,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MRR",
+  "expansion": "minimum retention requirement",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NRO",
+  "expansion": "non resident ordinary",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PDO",
+  "expansion": "public debt office",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PEP",
+  "expansion": "politically exposed persons",
+  "count": 9,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SBN",
+  "expansion": "specified bank note",
+  "count": 9,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SCCM",
+  "expansion": "standing committee on currency management",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLA",
+  "expansion": "service level agreements",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLSC",
+  "expansion": "state level security committee",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SMF",
+  "expansion": "small and marginal farmers",
+  "count": 9,
+  "share": 0.818,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TWG",
+  "expansion": "technical working group",
+  "count": 9,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "VCF",
+  "expansion": "venture capital funds",
+  "count": 9,
+  "share": 0.692,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ALF",
+  "expansion": "area level federations",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ASCI",
+  "expansion": "agriculture skill council of india",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CME",
+  "expansion": "capital market exposure",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CNO",
+  "expansion": "central nodal officer",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CTR",
+  "expansion": "cash transaction reports",
+  "count": 8,
+  "share": 0.667,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DPRK",
+  "expansion": "democratic people's republic of korea",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GLEIF",
+  "expansion": "global legal entity identifier foundation",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ICE",
+  "expansion": "independent credit evaluation",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IVR",
+  "expansion": "interactive voice response",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "KVK",
+  "expansion": "krishi vigyan kendra",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LCB",
+  "expansion": "low coupon bonds",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LEF",
+  "expansion": "large exposures framework",
+  "count": 8,
+  "share": 0.615,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LSF",
+  "expansion": "late submission fee",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LSP",
+  "expansion": "lending service provider",
+  "count": 8,
+  "share": 0.615,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MBS",
+  "expansion": "mortgage backed securities",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MNBC",
+  "expansion": "miscellaneous non banking companies",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NCRB",
+  "expansion": "national crime records bureau",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NDDC",
+  "expansion": "non deliverable derivative contracts",
+  "count": 8,
+  "share": 0.667,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NOFHC",
+  "expansion": "non operative financial holding company",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NRC",
+  "expansion": "nomination and remuneration committee",
+  "count": 8,
+  "share": 0.889,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NRE",
+  "expansion": "non resident external",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NSM",
+  "expansion": "note sorting machines",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PCA",
+  "expansion": "prompt corrective action",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMS",
+  "expansion": "portfolio management scheme",
+  "count": 8,
+  "share": 0.889,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RBA",
+  "expansion": "risk based approach",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RCA",
+  "expansion": "root cause analysis",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RNBC",
+  "expansion": "residuary non banking companies",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ROU",
+  "expansion": "right of use",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SCDC",
+  "expansion": "scheduled caste development corporation",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SEP",
+  "expansion": "self employment program",
+  "count": 8,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SME",
+  "expansion": "small and micro enterprises",
+  "count": 8,
+  "share": 0.615,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SMMU",
+  "expansion": "state mission management unit",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SPE",
+  "expansion": "special purpose entity",
+  "count": 8,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "STP",
+  "expansion": "straight through processing",
+  "count": 8,
+  "share": 0.727,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SULM",
+  "expansion": "state urban livelihoods mission",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SWIFT",
+  "expansion": "society for worldwide interbank financial telecommunication",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "USA",
+  "expansion": "united states of america",
+  "count": 8,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ASP",
+  "expansion": "application service providers",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CAF",
+  "expansion": "customer application form",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CDES",
+  "expansion": "currency distribution and exchange scheme",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CDR",
+  "expansion": "corporate debt restructuring",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CEGSSC",
+  "expansion": "credit enhancement guarantee scheme for scheduled castes",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CTS",
+  "expansion": "cheque truncation system",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DMA",
+  "expansion": "direct marketing agents",
+  "count": 7,
+  "share": 0.7,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DPD",
+  "expansion": "days past due",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DRDA",
+  "expansion": "district rural development agency",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FFMC",
+  "expansion": "full fledged money changers",
+  "count": 7,
+  "share": 0.636,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GMS",
+  "expansion": "gold monetization scheme",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IES",
+  "expansion": "interest equalization scheme",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "IGA",
+  "expansion": "inter governmental agreement",
+  "count": 7,
+  "share": 0.778,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LFAR",
+  "expansion": "long form audit report",
+  "count": 7,
+  "share": 0.875,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MLM",
+  "expansion": "multi level marketing",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NFRA",
+  "expansion": "national financial reporting authority",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NWC",
+  "expansion": "net working capital",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PIO",
+  "expansion": "persons of indian origin",
+  "count": 7,
+  "share": 0.875,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMJDY",
+  "expansion": "pradhan mantri jan dhan yojana",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMJJBY",
+  "expansion": "pradhan mantri jeevan jyoti bima yojana",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PML",
+  "expansion": "prevention of money laundering",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMSBY",
+  "expansion": "pradhan mantri suraksha bima yojana",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSS",
+  "expansion": "payment and settlement systems",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RERFA",
+  "expansion": "reserve for exchange rate fluctuations account",
+  "count": 7,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UCIC",
+  "expansion": "unique customer identification code",
+  "count": 7,
+  "share": 0.875,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ACU",
+  "expansion": "asian clearing union",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ASLC",
+  "expansion": "application security life cycle",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BLCS",
+  "expansion": "buyers' line of credit scheme",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BOT",
+  "expansion": "build operate transfer",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CBP",
+  "expansion": "co branding partner",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CFO",
+  "expansion": "chief financial officer",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CFR",
+  "expansion": "central fraud registry",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CFS",
+  "expansion": "consolidated financial statements",
+  "count": 6,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CIR",
+  "expansion": "credit information report",
+  "count": 6,
+  "share": 0.667,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CIRP",
+  "expansion": "corporate insolvency resolution process",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CISO",
+  "expansion": "chief information security officer",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CMS",
+  "expansion": "complaint management system",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CVC",
+  "expansion": "central vigilance commission",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DCCB",
+  "expansion": "district central cooperative bank",
+  "count": 6,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DGBA",
+  "expansion": "department of government and bank accounts",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DICGC",
+  "expansion": "deposit insurance and credit guarantee corporation",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "EDD",
+  "expansion": "enhanced due diligence",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "EDPMS",
+  "expansion": "export data processing and monitoring system",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FCA",
+  "expansion": "foreign currency account",
+  "count": 6,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FMRD",
+  "expansion": "financial markets regulation department",
+  "count": 6,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IMF",
+  "expansion": "international monetary fund",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IRAC",
+  "expansion": "income recognition and asset classification",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ISIL",
+  "expansion": "islamic state in iraq and the levant",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MFI",
+  "expansion": "multilateral financial institution",
+  "count": 6,
+  "share": 0.667,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MFIN",
+  "expansion": "micro finance institutions network",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MGC",
+  "expansion": "mortgage guarantee company",
+  "count": 6,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MTF",
+  "expansion": "medium term framework",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NCAF",
+  "expansion": "new capital adequacy framework",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NCLAT",
+  "expansion": "national company law appellate tribunal",
+  "count": 6,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NDMA",
+  "expansion": "national disaster management authority",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NDRF",
+  "expansion": "national disaster response fund",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NETC",
+  "expansion": "national electronic toll collection",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NII",
+  "expansion": "net interest income",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NPV",
+  "expansion": "net present value",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ODI",
+  "expansion": "overseas direct investment",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OMO",
+  "expansion": "open market operations",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PAT",
+  "expansion": "profit after tax",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PPF",
+  "expansion": "public provident fund",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSLC",
+  "expansion": "priority sector lending certificates",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RMC",
+  "expansion": "risk management committee",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SCN",
+  "expansion": "show cause notice",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SDRF",
+  "expansion": "state disaster response fund",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SFMS",
+  "expansion": "structured financial messaging system",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SSS",
+  "expansion": "small savings schemes",
+  "count": 6,
+  "share": 0.857,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UDRN",
+  "expansion": "unclaimed deposit reference number",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WLAO",
+  "expansion": "white label atm operators",
+  "count": 6,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ABS",
+  "expansion": "asset backed securities",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AQI",
+  "expansion": "al qaida in iraq",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BBPOU",
+  "expansion": "bharat bill payment operating units",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BDDR",
+  "expansion": "bad and doubtful debt reserve",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BSBD",
+  "expansion": "basic savings bank deposit",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CAP",
+  "expansion": "corrective action plan",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "CLA",
+  "expansion": "co lending arrangements",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DEF",
+  "expansion": "dividend equalisation fund",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DRP",
+  "expansion": "disaster recovery plan",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DSIM",
+  "expansion": "department of statistics and information management",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ECAI",
+  "expansion": "external credit assessment institutions",
+  "count": 5,
+  "share": 0.714,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FCE",
+  "expansion": "foreign currency exposure",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FIR",
+  "expansion": "first information report",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GCC",
+  "expansion": "general credit card",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IAM",
+  "expansion": "identity and access management",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IBPC",
+  "expansion": "inter bank participation certificates",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ICT",
+  "expansion": "information and communication technology",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IDL",
+  "expansion": "intra day liquidity",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IPC",
+  "expansion": "irrevocable payment commitment",
+  "count": 5,
+  "share": 0.625,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ISS",
+  "expansion": "interest subvention scheme",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MIG",
+  "expansion": "middle income groups",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MITC",
+  "expansion": "most important terms and conditions",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MMIFOR",
+  "expansion": "modified mumbai interbank forward outright rate",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MOP",
+  "expansion": "model operating procedure",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NDS",
+  "expansion": "negotiated dealing system",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NPLL",
+  "expansion": "normally permitted lending limit",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ODR",
+  "expansion": "online dispute resolution",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OEM",
+  "expansion": "original equipment manufacturer",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OPI",
+  "expansion": "overseas portfolio investment",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PFI",
+  "expansion": "public financial institutions",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PIDF",
+  "expansion": "payments infrastructure development fund",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PIS",
+  "expansion": "portfolio investment scheme",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMLA",
+  "expansion": "prevention of money laundering act",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "POS",
+  "expansion": "point of sale",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PSE",
+  "expansion": "public sector entities",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RMCB",
+  "expansion": "risk management committee of the board",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RRP",
+  "expansion": "regulatory retail portfolio",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SCSS",
+  "expansion": "senior citizen savings scheme",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SSM",
+  "expansion": "senior supervisory manager",
+  "count": 5,
+  "share": 0.833,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SWF",
+  "expansion": "sovereign wealth funds",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TRAI",
+  "expansion": "telecom regulatory authority of india",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UAM",
+  "expansion": "udyog aadhaar memorandum",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UBO",
+  "expansion": "ultimate beneficial owner",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WDRA",
+  "expansion": "warehousing development regulatory authority",
+  "count": 5,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ADR",
+  "expansion": "american depository receipts",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ATM",
+  "expansion": "automated teller machines",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BSE",
+  "expansion": "bombay stock exchange",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CAG",
+  "expansion": "comptroller and auditor general",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CBLO",
+  "expansion": "collateralised borrowing and lending obligation",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CCM",
+  "expansion": "committee on currency movement",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CIT",
+  "expansion": "cash in transit",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CMMU",
+  "expansion": "city mission management unit",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CPO",
+  "expansion": "city project officer",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DBR",
+  "expansion": "department of banking regulation",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DIC",
+  "expansion": "district industries centre",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DMMU",
+  "expansion": "district mission management units",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DSCR",
+  "expansion": "debt service coverage ratio",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DTH",
+  "expansion": "direct to home",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "EPI",
+  "expansion": "equated periodic instalment",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ESOP",
+  "expansion": "employee stock ownership plan",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ETCD",
+  "expansion": "exchange traded currency derivatives",
+  "count": 4,
+  "share": 0.667,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FDR",
+  "expansion": "fixed deposit receipts",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FLA",
+  "expansion": "foreign liabilities and assets",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FMR",
+  "expansion": "fraud monitoring returns",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GOI",
+  "expansion": "government of india",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IMCT",
+  "expansion": "inter ministerial central team",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IRA",
+  "expansion": "investment reserve account",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LBR",
+  "expansion": "lead bank return",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LEIIL",
+  "expansion": "legal entity identifier india ltd",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LRN",
+  "expansion": "loan registration number",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LWE",
+  "expansion": "left wing extremism",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MAMP",
+  "expansion": "minimum average maturity period",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MIFOR",
+  "expansion": "mumbai interbank forward outright rate",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MLTGD",
+  "expansion": "medium and long term government deposit",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MRO",
+  "expansion": "mumbai regional office",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MTT",
+  "expansion": "merchanting trade transactions",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MVE",
+  "expansion": "market value of equity",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NCPR",
+  "expansion": "national customer preference register",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NPO",
+  "expansion": "non profit organisations'",
+  "count": 4,
+  "share": 0.667,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PCM",
+  "expansion": "professional clearing member",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PFMI",
+  "expansion": "principles for financial market infrastructures",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMMY",
+  "expansion": "prime minister mudra yojana",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RFC",
+  "expansion": "resident foreign currency",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RMBS",
+  "expansion": "residential mortgage backed securities",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RPO",
+  "expansion": "recovery point objective",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RSL",
+  "expansion": "rate sensitive liabilities",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RTO",
+  "expansion": "recovery time objective",
+  "count": 4,
+  "share": 0.8,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SAR",
+  "expansion": "system audit report",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLRM",
+  "expansion": "state level review meeting",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SRMS",
+  "expansion": "scheme for rehabilitation of manual scavengers",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TEV",
+  "expansion": "techno economic viability",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UCRF",
+  "expansion": "uniform credit reporting format'",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WSHG",
+  "expansion": "women self help groups",
+  "count": 4,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AANA",
+  "expansion": "average aggregate notional amount",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "AFC",
+  "expansion": "asset finance companies",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ANW",
+  "expansion": "adjusted net worth",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "API",
+  "expansion": "application programming interfaces",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BBPCU",
+  "expansion": "bharat bill pay central unit",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "BIC",
+  "expansion": "business indicator component",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CCMP",
+  "expansion": "cyber crisis management plan",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CCP",
+  "expansion": "central counter parties",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CDM",
+  "expansion": "cash deposit machines",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CISA",
+  "expansion": "certified information system auditor",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CRAR",
+  "expansion": "capital to risk assets ratio",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "CROMS",
+  "expansion": "clearcorp repo order matching system",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DBU",
+  "expansion": "digital banking units",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DMZ",
+  "expansion": "de militarized zone",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DNFBP",
+  "expansion": "designated non financial businesses and professions",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "DRR",
+  "expansion": "depository receipt return",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ECS",
+  "expansion": "electronic clearing service",
+  "count": 3,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FIPB",
+  "expansion": "foreign investment promotion board",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FLCE",
+  "expansion": "first loss credit enhancement",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FMG",
+  "expansion": "fraud monitoring group",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FMOD",
+  "expansion": "financial markets operations department",
+  "count": 3,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FTP",
+  "expansion": "full time partners",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "FUA",
+  "expansion": "fmr update application",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GLP",
+  "expansion": "gross loan portfolio'",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GSAP",
+  "expansion": "government securities acquisition programme",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "GSTN",
+  "expansion": "goods and services tax network",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "HLC",
+  "expansion": "high level committee",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IAS",
+  "expansion": "international accounting standard",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IBBI",
+  "expansion": "insolvency and bankruptcy board of india",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ICSI",
+  "expansion": "institute of company secretaries of india",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ILM",
+  "expansion": "internal loss multiplier",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IRRBB",
+  "expansion": "interest rate risk in banking book",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "IVRPL",
+  "expansion": "infomerics valuation and rating private limited",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "LIE",
+  "expansion": "lender's independent engineer",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": false
+ },
+ {
+  "acronym": "MAD",
+  "expansion": "minimum amount due",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MDB",
+  "expansion": "multilateral development banks",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MNAIS",
+  "expansion": "modified national agricultural insurance scheme",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "MRT",
+  "expansion": "material risk takers",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NACH",
+  "expansion": "national automated clearing house",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NAIS",
+  "expansion": "national agricultural insurance scheme",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NCF",
+  "expansion": "non corporate farmers",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NED",
+  "expansion": "non executive directors",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NER",
+  "expansion": "north eastern region",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NFC",
+  "expansion": "near field communication",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NMD",
+  "expansion": "non maturity deposits",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NPS",
+  "expansion": "national pension system",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "NWR",
+  "expansion": "negotiable warehouse receipts",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OBU",
+  "expansion": "offshore banking units",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OIS",
+  "expansion": "overnight indexed swaps",
+  "count": 3,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "OMC",
+  "expansion": "oil marketing companies",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PLI",
+  "expansion": "production linked incentive",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PMFBY",
+  "expansion": "pradhan mantri fasal bima yojana",
+  "count": 3,
+  "share": 0.6,
+  "lower_ok": true
+ },
+ {
+  "acronym": "PVBP",
+  "expansion": "price value of a basis point",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "QIS",
+  "expansion": "quarterly information system",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RDA",
+  "expansion": "rupee drawing arrangement",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RDB",
+  "expansion": "rupee denominated bonds",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RFA",
+  "expansion": "red flagging of accounts",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RRA",
+  "expansion": "regulations review authority",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RSA",
+  "expansion": "rate sensitive assets",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "RSF",
+  "expansion": "required stable funding",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SAF",
+  "expansion": "supervisory action framework",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SFT",
+  "expansion": "securities financing transactions",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SGS",
+  "expansion": "state government securities",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SIA",
+  "expansion": "secretariat for industrial assistance",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SLCE",
+  "expansion": "second loss credit enhancement",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SRVA",
+  "expansion": "special rupee vostro account",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "SSMM",
+  "expansion": "special supervisory monitoring meetings",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "STO",
+  "expansion": "sub treasury offices",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TAD",
+  "expansion": "total amount due",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TFS",
+  "expansion": "trade finance system",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TGA",
+  "expansion": "traditional gap analysis",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "TRQ",
+  "expansion": "tariff rate quota",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UAPA",
+  "expansion": "unlawful activities prevention act",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UDIN",
+  "expansion": "unique document identification number",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UNSCR",
+  "expansion": "united nations security council resolutions",
+  "count": 3,
+  "share": 0.75,
+  "lower_ok": true
+ },
+ {
+  "acronym": "UTI",
+  "expansion": "unit trust of india",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WCDL",
+  "expansion": "working capital demand loan",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "WCTL",
+  "expansion": "working capital term loan",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ },
+ {
+  "acronym": "ZCYC",
+  "expansion": "zero coupon yield curve",
+  "count": 3,
+  "share": 1.0,
+  "lower_ok": true
+ }
+]

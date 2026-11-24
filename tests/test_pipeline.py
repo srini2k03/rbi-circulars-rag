@@ -89,13 +89,14 @@ def test_make_retriever_uses_every_retrieval_setting(fixture_docs: list[Document
     s = Settings(candidate_k=7, rerank_k=4, rrf_k=10, bm25_weight=0.5, dense_weight=2.0,
                  confidence_threshold=0.3, confidence_temperature=4.0, retrieval_mode="hybrid")  # fmt: skip
     r = make_retriever(s, b.store, bm25=b.bm25, dense=b.dense, reranker=FakeReranker())
-    assert (r.candidate_k, r.rerank_k, r.rrf_k) == (7, 4, 10)
-    assert (r.bm25_weight, r.dense_weight) == (0.5, 2.0)
-    assert (r.confidence_threshold, r.confidence_temperature, r.mode) == (0.3, 4.0, "hybrid")
+    p = r.params
+    assert (p.bm25_candidates, p.dense_candidates, p.rerank_depth, p.rrf_k) == (7, 7, 4, 10)
+    assert (p.bm25_weight, p.dense_weight) == (0.5, 2.0)
+    assert (p.confidence_threshold, p.confidence_temperature, r.mode) == (0.3, 4.0, "hybrid")
     assert (
         make_retriever(
             s, b.store, bm25=b.bm25, dense=b.dense, reranker=None, confidence_threshold=0.9
-        ).confidence_threshold
+        ).params.confidence_threshold
         == 0.9
     )
 

@@ -16,7 +16,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from rbirag.providers import get_preset
 
-RetrievalMode = Literal["bm25", "dense", "hybrid", "hybrid_rerank"]
+RetrievalMode = Literal["bm25", "dense", "hybrid", "hybrid_rerank", "bm25_rerank"]
 ChunkerName = Literal["fixed", "semantic", "section"]
 TokenizerName = Literal["regex", "whitespace", "tiktoken"]
 EmbedderBackend = Literal["sentence-transformers", "fake"]
@@ -119,13 +119,29 @@ class Settings(BaseSettings):
     qdrant_upsert_batch_size: int = Field(default=128, ge=1)
 
     # -------------------------------------------------------------- retrieval
+    # See rbirag.retrieval.params.RetrievalParams for what each knob does; the benchmark
+    # (`rbirag eval bench`) tunes them on the dev split and reports on test.
     retrieval_mode: RetrievalMode = "hybrid_rerank"
     top_k: int = Field(default=5, ge=1)
     candidate_k: int = Field(default=50, ge=1)
-    rerank_k: int = Field(default=20, ge=1)
+    bm25_candidates: int = Field(default=0, ge=0)  # 0 = candidate_k
+    dense_candidates: int = Field(default=0, ge=0)  # 0 = candidate_k
+    fusion: Literal["rrf", "weighted"] = "rrf"
+    rerank_k: int = Field(default=20, ge=1)  # rerank depth
+    rerank_weight: float = Field(default=1.0, ge=0, le=1)
     rrf_k: int = Field(default=60, ge=1)
     bm25_weight: float = Field(default=1.0, ge=0)
     dense_weight: float = Field(default=1.0, ge=0)
+    score_norm: Literal["minmax", "zscore"] = "minmax"
+    rerank_min_score: float | None = None
+    dense_min_similarity: float | None = Field(default=None, ge=-1, le=1)
+    query_expansion: Literal["none", "acronyms", "rm3", "acronyms+rm3"] = "none"
+    acronym_weight: float = Field(default=0.5, ge=0, le=2)
+    rm3_fb_docs: int = Field(default=5, ge=1, le=50)
+    rm3_fb_terms: int = Field(default=20, ge=1, le=200)
+    rm3_orig_weight: float = Field(default=0.6, ge=0, le=1)
+    parent_context: Literal["none", "window"] = "none"
+    parent_tokens: int = Field(default=1024, ge=16, le=8192)
     confidence_threshold: float = Field(default=0.5, ge=0, le=1)
     confidence_temperature: float = Field(default=1.0, gt=0)
 

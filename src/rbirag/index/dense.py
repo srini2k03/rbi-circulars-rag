@@ -10,6 +10,7 @@ from typing import Any
 
 from rbirag.chunking.base import Chunk
 from rbirag.index.embedder import Embedder
+from rbirag.retrieval.params import RetrievalFilter
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +86,64 @@ class QdrantIndex:
     def count(self) -> int:
         return int(self.client.count(self.collection, exact=True).count)
 
-    def search(self, query: str, k: int = 10) -> list[tuple[str, float]]:
-        """Top-``k`` ``(chunk_id, cosine)`` best first."""
+    def search(
+        self, query: str, k: int = 10, *, flt: RetrievalFilter | None = None
+    ) -> list[tuple[str, float]]:
+        """Top-``k`` ``(chunk_id, cosine)`` best first, optionally inside a metadata filter
+        (department / category / doc id / year as a Qdrant payload filter; exact dates are
+        checked on the returned payloads, over-fetching to keep ``k`` results)."""
         if not self.client.collection_exists(self.collection):
             return []
         vector = self.embedder.embed_query(query)
+        if flt is None or flt.is_empty:
+            response = self.client.query_points(
+                self.collection, query=vector.tolist(), limit=k, with_payload=["chunk_id"]
+            )
+            return [
+                (str((p.payload or {}).get("chunk_id")), float(p.score)) for p in response.points
+            ]
         response = self.client.query_points(
-            self.collection, query=vector.tolist(), limit=k, with_payload=["chunk_id"]
+            self.collection,
+            query=vector.tolist(),
+            limit=k * 4 if (flt.date_from or flt.date_to) else k,
+            query_filter=qdrant_filter(flt),
+            with_payload=True,
         )
-        return [(str((p.payload or {}).get("chunk_id")), float(p.score)) for p in response.points]
+        out: list[tuple[str, float]] = []
+        for point in response.points:
+            payload = point.payload or {}
+            if flt.matches(payload):
+                out.append((str(payload.get("chunk_id")), float(point.score)))
+        return out[:k]
+
+
+def qdrant_filter(flt: RetrievalFilter) -> Any:
+    """The Qdrant payload filter for a :class:`RetrievalFilter` (year granularity)."""
+    from qdrant_client import models
+
+    must: list[Any] = []
+    if flt.doc_ids:
+        must.append(
+            models.FieldCondition(key="doc_id", match=models.MatchAny(any=list(flt.doc_ids)))
+        )
+    if flt.departments:
+        must.append(
+            models.FieldCondition(
+                key="department", match=models.MatchAny(any=list(flt.departments))
+            )
+        )
+    if flt.categories:
+        must.append(
+            models.FieldCondition(key="category", match=models.MatchAny(any=list(flt.categories)))
+        )
+    if flt.date_from or flt.date_to:
+        must.append(
+            models.FieldCondition(
+                key="year",
+                range=models.Range(
+                    gte=flt.date_from.year if flt.date_from else None,
+                    lte=flt.date_to.year if flt.date_to else None,
+                ),
+            )
+        )
+    return models.Filter(must=must)
