@@ -1,0 +1,56 @@
+{
+ "scorer": "cross-encoder/nli-deberta-v3-base",
+ "threshold": 0.5,
+ "answers": 196,
+ "ollama": {
+  "answers": 128,
+  "verdicts": {
+   "supported": 80,
+   "partially_supported": 24,
+   "unsupported": 24,
+   "no_claims": 0
+  },
+  "mean_supported_share": 0.7331163194444446,
+  "unsupported_claim_rate": 0.2530612244897959,
+  "answers_with_invalid_citation": 7,
+  "irrelevant_citation_rate": 0.6063829787234043,
+  "answers_with_unknown_circular_numbers": 1,
+  "non_answers": 1,
+  "judge_fully_faithful": 121,
+  "of_which_verifier_supported": 78
+ },
+ "openai_compatible": {
+  "answers": 68,
+  "verdicts": {
+   "supported": 34,
+   "partially_supported": 18,
+   "unsupported": 15,
+   "no_claims": 1
+  },
+  "mean_supported_share": 0.6502665245202559,
+  "unsupported_claim_rate": 0.32857142857142857,
+  "answers_with_invalid_citation": 0,
+  "irrelevant_citation_rate": 0.4411764705882353,
+  "answers_with_unknown_circular_numbers": 0,
+  "non_answers": 0,
+  "judge_fully_faithful": 66,
+  "of_which_verifier_supported": 33
+ },
+ "all": {
+  "answers": 196,
+  "verdicts": {
+   "supported": 114,
+   "partially_supported": 42,
+   "unsupported": 39,
+   "no_claims": 1
+  },
+  "mean_supported_share": 0.7046499796499797,
+  "unsupported_claim_rate": 0.2805194805194805,
+  "answers_with_invalid_citation": 7,
+  "irrelevant_citation_rate": 0.5370370370370371,
+  "answers_with_unknown_circular_numbers": 1,
+  "non_answers": 1,
+  "judge_fully_faithful": 187,
+  "of_which_verifier_supported": 111
+ }
+}
