@@ -1,0 +1,4 @@
+{
+ "human_reviews": 0,
+ "note": "No human reviews yet: run `rbirag eval review-answers`. LLM-judge verdicts are not ground truth, so no agreement is reported."
+}

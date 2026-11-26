@@ -1,0 +1,109 @@
+family,strategy,params_hash,dev_chunk_ndcg@10,dev_doc_recall@5
+bm25,bm25,4ed74ae12f1f,0.6684,0.7857
+bm25+acronyms,bm25+acr w=0.25,a475cb03bcc1,0.6442,0.8036
+bm25+acronyms,bm25+acr w=0.5,19ad2aea373c,0.6209,0.7857
+bm25+acronyms,bm25+acr w=1.0,799b7d9a0af9,0.6067,0.7679
+bm25+rm3,bm25+rm3 d=3 t=10 o=0.5,49844365c283,0.6171,0.8393
+bm25+rm3,bm25+rm3 d=3 t=10 o=0.7,ec59625eed03,0.6356,0.8036
+bm25+rm3,bm25+rm3 d=3 t=10 o=0.85,18bbcfe40cb7,0.7046,0.8036
+bm25+rm3,bm25+rm3 d=3 t=20 o=0.5,e291ca2ba740,0.6056,0.8214
+bm25+rm3,bm25+rm3 d=3 t=20 o=0.7,1d4073adc1ad,0.6427,0.8036
+bm25+rm3,bm25+rm3 d=3 t=20 o=0.85,285adcbb0866,0.6619,0.8214
+bm25+rm3,bm25+rm3 d=3 t=40 o=0.5,789287e71b2b,0.6301,0.8214
+bm25+rm3,bm25+rm3 d=3 t=40 o=0.7,b38aa7796be6,0.6282,0.7857
+bm25+rm3,bm25+rm3 d=3 t=40 o=0.85,bd91785b7c82,0.6448,0.8036
+bm25+rm3,bm25+rm3 d=5 t=10 o=0.5,63a4a2b8da47,0.5917,0.8214
+bm25+rm3,bm25+rm3 d=5 t=10 o=0.7,afd5a3d33a03,0.6042,0.7679
+bm25+rm3,bm25+rm3 d=5 t=10 o=0.85,d34b252469ac,0.6777,0.7857
+bm25+rm3,bm25+rm3 d=5 t=20 o=0.5,40d9b6c6782c,0.5649,0.8036
+bm25+rm3,bm25+rm3 d=5 t=20 o=0.7,0029cd5f9ff3,0.6130,0.7679
+bm25+rm3,bm25+rm3 d=5 t=20 o=0.85,e847fc926b4f,0.6309,0.7679
+bm25+rm3,bm25+rm3 d=5 t=40 o=0.5,8ccfd585ac67,0.5598,0.7857
+bm25+rm3,bm25+rm3 d=5 t=40 o=0.7,45cb057c5ea1,0.6146,0.7500
+bm25+rm3,bm25+rm3 d=5 t=40 o=0.85,6553a643eb51,0.6406,0.7679
+bm25+rm3,bm25+rm3 d=10 t=10 o=0.5,ab310c85dba0,0.6055,0.8036
+bm25+rm3,bm25+rm3 d=10 t=10 o=0.7,fd5fda34a5b6,0.6347,0.7500
+bm25+rm3,bm25+rm3 d=10 t=10 o=0.85,6d2dc4b9fcb0,0.6622,0.7857
+bm25+rm3,bm25+rm3 d=10 t=20 o=0.5,13deea0d451a,0.5795,0.7500
+bm25+rm3,bm25+rm3 d=10 t=20 o=0.7,765ced2cbe8a,0.6099,0.7679
+bm25+rm3,bm25+rm3 d=10 t=20 o=0.85,d34f4294fc9b,0.6304,0.7679
+bm25+rm3,bm25+rm3 d=10 t=40 o=0.5,25487c23452b,0.5783,0.7857
+bm25+rm3,bm25+rm3 d=10 t=40 o=0.7,97f04a03e86f,0.5971,0.7679
+bm25+rm3,bm25+rm3 d=10 t=40 o=0.85,b954a36a6a12,0.6358,0.7500
+doc-first,doc-first top-3,4ed74ae12f1f,0.6112,0.7500
+doc-first,doc-first top-5,4ed74ae12f1f,0.6491,0.7857
+doc-first,doc-first top-10,4ed74ae12f1f,0.6656,0.7679
+doc-first,doc-first top-20,4ed74ae12f1f,0.6757,0.7857
+filter:auto,bm25 auto-filter,4ed74ae12f1f,0.6587,0.7500
+filter:oracle-department,bm25 oracle-dept,4ed74ae12f1f,0.7262,0.8214
+filter:oracle-year,bm25 oracle-year,4ed74ae12f1f,0.8592,0.9643
+parent-child bm25,parent bm25 child256->768,ff42912439d1,0.6097,0.8393
+parent-child bm25,parent bm25 child256->1024,ac2a21b69708,0.6286,0.8393
+dense,dense,0b076ac786a2,0.5123,0.7679
+hybrid rrf (original),hybrid rrf k=60,2d2f0c71e2ec,0.6397,0.8393
+hybrid rrf (tuned),hybrid rrf k=10 wb=1.0,c7f833c736e2,0.6864,0.8929
+hybrid rrf (tuned),hybrid rrf k=10 wb=1.5,4e61c3ef0648,0.6956,0.8571
+hybrid rrf (tuned),hybrid rrf k=10 wb=2.0,c37bd46d5adf,0.6861,0.8214
+hybrid rrf (tuned),hybrid rrf k=10 wb=3.0,76d98bc97858,0.6794,0.8393
+hybrid rrf (tuned),hybrid rrf k=30 wb=1.0,ed51977d12dc,0.6462,0.8571
+hybrid rrf (tuned),hybrid rrf k=30 wb=1.5,4c27f2db33d1,0.6665,0.8571
+hybrid rrf (tuned),hybrid rrf k=30 wb=2.0,814c5aa4ca01,0.6752,0.8214
+hybrid rrf (tuned),hybrid rrf k=30 wb=3.0,384d5db05f8e,0.6781,0.8036
+hybrid rrf (tuned),hybrid rrf k=60 wb=1.0,2d2f0c71e2ec,0.6397,0.8393
+hybrid rrf (tuned),hybrid rrf k=60 wb=1.5,74e7db9c4e72,0.6576,0.8393
+hybrid rrf (tuned),hybrid rrf k=60 wb=2.0,8583431f6403,0.6595,0.8214
+hybrid rrf (tuned),hybrid rrf k=60 wb=3.0,fc78f98d265b,0.6575,0.8214
+hybrid rrf (tuned),hybrid rrf k=100 wb=1.0,362929bb19e5,0.6397,0.8036
+hybrid rrf (tuned),hybrid rrf k=100 wb=1.5,83aade0a8576,0.6486,0.8393
+hybrid rrf (tuned),hybrid rrf k=100 wb=2.0,de0683777cbe,0.6567,0.8214
+hybrid rrf (tuned),hybrid rrf k=100 wb=3.0,787f6a09ad96,0.6574,0.8214
+hybrid weighted,hybrid minmax a=0.3,cbe40fd3da55,0.6069,0.8214
+hybrid weighted,hybrid minmax a=0.4,1bcb0d2877ee,0.6514,0.8571
+hybrid weighted,hybrid minmax a=0.5,2c70b8b8649c,0.6990,0.9107
+hybrid weighted,hybrid minmax a=0.6,7b786314b2c2,0.7018,0.8571
+hybrid weighted,hybrid minmax a=0.7,bf90abaa791b,0.7095,0.8571
+hybrid weighted,hybrid minmax a=0.8,40a9c58bd091,0.7093,0.8214
+hybrid weighted,hybrid minmax a=0.9,6d09207a8464,0.6927,0.8036
+hybrid weighted,hybrid zscore a=0.3,46c24ad4e8e3,0.5951,0.8393
+hybrid weighted,hybrid zscore a=0.4,fec4baec747f,0.6537,0.8750
+hybrid weighted,hybrid zscore a=0.5,b0edcb0670e8,0.7071,0.9107
+hybrid weighted,hybrid zscore a=0.6,04350d073a57,0.7004,0.8750
+hybrid weighted,hybrid zscore a=0.7,e9bc15d86cff,0.7132,0.8571
+hybrid weighted,hybrid zscore a=0.8,a9cab4c0cecb,0.7014,0.8393
+hybrid weighted,hybrid zscore a=0.9,9a98baed0634,0.6895,0.8036
+bm25 + rerank,bm25+rerank d=10 w=1.0,7dad72c041a6,0.6519,0.8214
+bm25 + rerank,bm25+rerank d=10 w=0.75,6895ee91b110,0.6507,0.8214
+bm25 + rerank,bm25+rerank d=10 w=0.5,22157ecd15bc,0.6949,0.8214
+bm25 + rerank,bm25+rerank d=10 w=0.25,4872cfa270a6,0.6767,0.8214
+bm25 + rerank,bm25+rerank d=20 w=1.0,3d970cae3727,0.6534,0.8750
+bm25 + rerank,bm25+rerank d=20 w=0.75,a33b3cc820f9,0.6621,0.8750
+bm25 + rerank,bm25+rerank d=20 w=0.5,3bd7e8bba4a2,0.7049,0.8393
+bm25 + rerank,bm25+rerank d=20 w=0.25,143af3fc2685,0.7013,0.8036
+bm25 + rerank,bm25+rerank d=30 w=1.0,20196dfd64af,0.6480,0.8393
+bm25 + rerank,bm25+rerank d=30 w=0.75,641135c3f61b,0.6609,0.8750
+bm25 + rerank,bm25+rerank d=30 w=0.5,0e90e09a04b1,0.6953,0.8571
+bm25 + rerank,bm25+rerank d=30 w=0.25,7850245c7aae,0.7023,0.8036
+bm25 + rerank,bm25+rerank d=50 w=1.0,a2d40ef3d482,0.6442,0.8214
+bm25 + rerank,bm25+rerank d=50 w=0.75,8c3d11605b6c,0.6601,0.8750
+bm25 + rerank,bm25+rerank d=50 w=0.5,84ff543e69c8,0.6882,0.8393
+bm25 + rerank,bm25+rerank d=50 w=0.25,0a70aa491634,0.7040,0.8036
+parent-child bm25 + rerank,parent bm25+rerank child256->1024 w=1.0,950f4378ad0c,0.6668,0.8036
+parent-child bm25 + rerank,parent bm25+rerank child256->1024 w=0.5,edeeba11e181,0.6490,0.8571
+hybrid rrf + rerank (original),hybrid_rerank (original),042a6111d8f5,0.6195,0.8214
+hybrid weighted + rerank,hybrid weighted+rerank d=10 w=1.0,32286cc5430e,0.6671,0.8750
+hybrid weighted + rerank,hybrid weighted+rerank d=10 w=0.75,268566aa5d89,0.6775,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=10 w=0.5,b93ae3b40249,0.7070,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=10 w=0.25,458a1e1e8233,0.7053,0.8750
+hybrid weighted + rerank,hybrid weighted+rerank d=20 w=1.0,eea538d658bf,0.6464,0.8393
+hybrid weighted + rerank,hybrid weighted+rerank d=20 w=0.75,c1c3ec3c8bb1,0.6682,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=20 w=0.5,0a58be873e2c,0.6929,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=20 w=0.25,17667efda98b,0.7105,0.8750
+hybrid weighted + rerank,hybrid weighted+rerank d=30 w=1.0,14ba13f34148,0.6334,0.8214
+hybrid weighted + rerank,hybrid weighted+rerank d=30 w=0.75,0937ad02de76,0.6682,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=30 w=0.5,8e0a27433523,0.7029,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=30 w=0.25,735a691ef4a7,0.7105,0.8750
+hybrid weighted + rerank,hybrid weighted+rerank d=50 w=1.0,6226f63f47fb,0.6135,0.8214
+hybrid weighted + rerank,hybrid weighted+rerank d=50 w=0.75,0bd7195754bb,0.6636,0.8929
+hybrid weighted + rerank,hybrid weighted+rerank d=50 w=0.5,10673bfa23d0,0.7003,0.8750
+hybrid weighted + rerank,hybrid weighted+rerank d=50 w=0.25,a231db6d210d,0.7073,0.8750
+hybrid weighted + expansion,hybrid weighted+rm3,94e760283aa2,0.7111,0.8393

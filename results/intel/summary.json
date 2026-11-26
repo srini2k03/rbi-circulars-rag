@@ -1,0 +1,37 @@
+{
+ "documents": 2153,
+ "references": 9183,
+ "references_resolved": 2671,
+ "references_unknown": 6512,
+ "resolution": {
+  "not_in_corpus": 6230,
+  "unique": 2470,
+  "by_date": 42,
+  "version_at_date": 159,
+  "ambiguous": 282
+ },
+ "edges": 2223,
+ "edges_by_type": {
+  "refers_to": 1493,
+  "amends": 89,
+  "partially_modifies": 2,
+  "supersedes": 19,
+  "consolidates": 620
+ },
+ "documents_with_changes": 58,
+ "version_families": 59,
+ "categories": {
+  "directions": 164,
+  "circular": 1409,
+  "regulations": 95,
+  "master_direction": 134,
+  "ap_dir_circular": 213,
+  "master_circular": 138
+ },
+ "effective_date_kinds": {
+  "explicit": 355,
+  "none": 1481,
+  "immediate": 269,
+  "gazette": 48
+ }
+}

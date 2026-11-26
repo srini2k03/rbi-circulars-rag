@@ -1,0 +1,40 @@
+{
+  "backend": "ollama",
+  "model": "judge-only",
+  "threshold": 0.49,
+  "configs": {
+    "fixed-1024-bm25": {
+      "complete": true,
+      "generated": 0,
+      "judged": 11,
+      "skipped": 13,
+      "stopped_because": null,
+      "judge_stopped": null,
+      "judge_seconds": 4283.9
+    },
+    "fixed-1024-hybrid": {
+      "complete": true,
+      "generated": 0,
+      "judged": 3,
+      "skipped": 5,
+      "stopped_because": null,
+      "judge_stopped": null,
+      "judge_seconds": 1296.8
+    },
+    "fixed-1024-hybrid_rerank": {
+      "complete": true,
+      "generated": 0,
+      "judged": 3,
+      "skipped": 5,
+      "stopped_because": null,
+      "judge_stopped": null,
+      "judge_seconds": 1341.7
+    }
+  },
+  "complete": true,
+  "successful_items": 17,
+  "judge_model": "qwen2.5:7b-instruct",
+  "judge_verdicts": 17,
+  "judge_seconds": 6922.4,
+  "seconds_per_verdict": 407.2
+}

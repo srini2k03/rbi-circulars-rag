@@ -1,0 +1,195 @@
+{
+ "reviewed": 72,
+ "sample_size": 72,
+ "reviewers": [
+  "ai-assistant (LLM)"
+ ],
+ "human_verified": false,
+ "label": "AI-checked (LLM-assisted), not human-verified",
+ "amended_by": {
+  "target": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "type": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "both": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  }
+ },
+ "amends": {
+  "target": {
+   "precision": 0.9,
+   "n": 10,
+   "ci95": [
+    0.596,
+    0.982
+   ]
+  },
+  "type": {
+   "precision": 0.9,
+   "n": 10,
+   "ci95": [
+    0.596,
+    0.982
+   ]
+  },
+  "both": {
+   "precision": 0.8,
+   "n": 10,
+   "ci95": [
+    0.49,
+    0.943
+   ]
+  }
+ },
+ "consolidates": {
+  "target": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "type": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "both": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  }
+ },
+ "effective_date": {
+  "both": {
+   "precision": 0.75,
+   "n": 20,
+   "ci95": [
+    0.531,
+    0.888
+   ]
+  }
+ },
+ "partially_modifies": {
+  "target": {
+   "precision": 1.0,
+   "n": 2,
+   "ci95": [
+    0.342,
+    1.0
+   ]
+  },
+  "type": {
+   "precision": 1.0,
+   "n": 2,
+   "ci95": [
+    0.342,
+    1.0
+   ]
+  },
+  "both": {
+   "precision": 1.0,
+   "n": 2,
+   "ci95": [
+    0.342,
+    1.0
+   ]
+  }
+ },
+ "refers_to": {
+  "target": {
+   "precision": 0.9,
+   "n": 10,
+   "ci95": [
+    0.596,
+    0.982
+   ]
+  },
+  "type": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "both": {
+   "precision": 0.9,
+   "n": 10,
+   "ci95": [
+    0.596,
+    0.982
+   ]
+  }
+ },
+ "supersedes": {
+  "target": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "type": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  },
+  "both": {
+   "precision": 1.0,
+   "n": 10,
+   "ci95": [
+    0.722,
+    1.0
+   ]
+  }
+ },
+ "population_weighted_precision": {
+  "precision": 0.9357918382628229,
+  "weights": {
+   "amended_by": 267,
+   "amends": 12,
+   "consolidates": 679,
+   "partially_modifies": 2,
+   "refers_to": 1691,
+   "supersedes": 20
+  },
+  "note": "per-type precision weighted by how often each type occurs among the resolved relations (the sample is stratified by type, not proportional)"
+ },
+ "all_relations": {
+  "precision": 0.9423076923076923,
+  "n": 52,
+  "ci95": [
+   0.844,
+   0.98
+  ]
+ }
+}

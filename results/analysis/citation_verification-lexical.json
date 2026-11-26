@@ -1,0 +1,56 @@
+{
+ "scorer": "lexical-support",
+ "threshold": 0.6,
+ "answers": 196,
+ "ollama": {
+  "answers": 128,
+  "verdicts": {
+   "supported": 100,
+   "partially_supported": 10,
+   "unsupported": 18,
+   "no_claims": 0
+  },
+  "mean_supported_share": 0.8258246527777778,
+  "unsupported_claim_rate": 0.1306122448979592,
+  "answers_with_invalid_citation": 7,
+  "irrelevant_citation_rate": 0.3829787234042553,
+  "answers_with_unknown_circular_numbers": 1,
+  "non_answers": 1,
+  "judge_fully_faithful": 121,
+  "of_which_verifier_supported": 95
+ },
+ "openai_compatible": {
+  "answers": 68,
+  "verdicts": {
+   "supported": 41,
+   "partially_supported": 12,
+   "unsupported": 14,
+   "no_claims": 1
+  },
+  "mean_supported_share": 0.7147299218194741,
+  "unsupported_claim_rate": 0.22857142857142856,
+  "answers_with_invalid_citation": 0,
+  "irrelevant_citation_rate": 0.29411764705882354,
+  "answers_with_unknown_circular_numbers": 0,
+  "non_answers": 0,
+  "judge_fully_faithful": 66,
+  "of_which_verifier_supported": 40
+ },
+ "all": {
+  "answers": 196,
+  "verdicts": {
+   "supported": 141,
+   "partially_supported": 22,
+   "unsupported": 32,
+   "no_claims": 1
+  },
+  "mean_supported_share": 0.7876536426536428,
+  "unsupported_claim_rate": 0.16623376623376623,
+  "answers_with_invalid_citation": 7,
+  "irrelevant_citation_rate": 0.345679012345679,
+  "answers_with_unknown_circular_numbers": 1,
+  "non_answers": 1,
+  "judge_fully_faithful": 187,
+  "of_which_verifier_supported": 135
+ }
+}

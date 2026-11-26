@@ -1,0 +1,33 @@
+{
+  "backend": "openai_compatible",
+  "model": "judge-only",
+  "threshold": 0.49,
+  "configs": {
+    "fixed-1024-bm25": {
+      "complete": true,
+      "generated": 0,
+      "judged": 1,
+      "skipped": 155,
+      "stopped_because": null,
+      "judge_stopped": null
+    },
+    "fixed-1024-hybrid": {
+      "complete": true,
+      "generated": 0,
+      "judged": 6,
+      "skipped": 60,
+      "stopped_because": null,
+      "judge_stopped": null
+    },
+    "fixed-1024-hybrid_rerank": {
+      "complete": true,
+      "generated": 0,
+      "judged": 0,
+      "skipped": 60,
+      "stopped_because": null,
+      "judge_stopped": null
+    }
+  },
+  "complete": true,
+  "successful_items": 7
+}

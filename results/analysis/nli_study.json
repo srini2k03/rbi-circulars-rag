@@ -1,0 +1,96 @@
+{
+ "answers": 195,
+ "judge_mean": {
+  "mean": 0.9662393162393164,
+  "low": 0.9414423076923075,
+  "high": 0.988034188034188,
+  "n": 195
+ },
+ "whole_chunk_reproduces_committed": "195/195",
+ "whole_chunk": {
+  "mean": {
+   "mean": 0.19013431013431012,
+   "low": 0.14355860805860807,
+   "high": 0.24655555555555556,
+   "n": 195
+  },
+  "pearson_r_vs_judge": -0.027192205462696174,
+  "mean_abs_diff_vs_judge": 0.7897802197802198,
+  "fully_supported_share": 0.1641025641025641
+ },
+ "windows_cited": {
+  "mean": {
+   "mean": 0.6256674806674807,
+   "low": 0.5671738400488401,
+   "high": 0.6896425010175008,
+   "n": 195
+  },
+  "pearson_r_vs_judge": 0.14119990966360288,
+  "mean_abs_diff_vs_judge": 0.35937525437525436,
+  "fully_supported_share": 0.5230769230769231
+ },
+ "windows_any": {
+  "mean": {
+   "mean": 0.7282315832315833,
+   "low": 0.6704576210826212,
+   "high": 0.7857333638583637,
+   "n": 195
+  },
+  "pearson_r_vs_judge": 0.13045780987847652,
+  "mean_abs_diff_vs_judge": 0.26706756206756205,
+  "fully_supported_share": 0.6307692307692307
+ },
+ "claims_windows": {
+  "mean": {
+   "mean": 0.7046499796499797,
+   "low": 0.6487082824582825,
+   "high": 0.7614625050875051,
+   "n": 195
+  },
+  "pearson_r_vs_judge": 0.13184299797022278,
+  "mean_abs_diff_vs_judge": 0.2855209605209605,
+  "fully_supported_share": 0.5846153846153846
+ },
+ "windows_cited_tau0.1_mean": 0.6879242979242979,
+ "windows_any_tau0.1_mean": 0.802026862026862,
+ "non_answers": {
+  "count": 1,
+  "judge_mean": 1.0,
+  "whole_chunk_mean": 0.0
+ },
+ "excluding_non_answers": {
+  "whole_chunk": 0.19111438389788904,
+  "windows_cited": 0.6288925707740142,
+  "windows_any": 0.7319853542791688,
+  "claims_windows": 0.7082821960399279,
+  "judge": 0.96606529209622
+ },
+ "premises": 975,
+ "premises_truncated_share": 0.8594871794871795,
+ "sentences": 345,
+ "uncited_sentence_share": 0.6,
+ "sentences_rescued_by_windows": 215,
+ "rescued_beyond_512_cutoff": 135,
+ "by_backend": {
+  "ollama": {
+   "answers": 128,
+   "judge": 0.953125,
+   "whole_chunk": 0.2123139880952381,
+   "windows_cited": 0.6182198660714286,
+   "windows_any": 0.7510323660714286,
+   "claims_windows": 0.7331163194444446
+  },
+  "openai_compatible": {
+   "answers": 67,
+   "judge": 0.9912935323383083,
+   "whole_chunk": 0.14776119402985075,
+   "windows_cited": 0.6398957592987444,
+   "windows_any": 0.6846718787017294,
+   "claims_windows": 0.6502665245202559
+  }
+ },
+ "nli_model": "cross-encoder/nli-deberta-v3-base",
+ "configs": [
+  "fixed-1024-bm25"
+ ]
+}

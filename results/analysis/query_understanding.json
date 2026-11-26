@@ -1,0 +1,77 @@
+{
+ "inputs": "data/eval/query_understanding_ai.jsonl",
+ "label": "AI-authored behavioural inputs",
+ "test_answerable": {
+  "out_of_scope (false abstain)": {
+   "flagged": 1,
+   "n": 130,
+   "rate": 0.007692307692307693
+  },
+  "ambiguous": {
+   "flagged": 1,
+   "n": 130,
+   "rate": 0.007692307692307693
+  },
+  "multi_part": {
+   "flagged": 0,
+   "n": 130,
+   "rate": 0.0
+  },
+  "types": {
+   "definition": 13,
+   "factual": 44,
+   "numeric": 23,
+   "temporal": 31,
+   "procedural": 10,
+   "comparison": 3,
+   "relation_lookup": 6
+  }
+ },
+ "test_unanswerable": {
+  "out_of_scope (correct abstain)": {
+   "flagged": 12,
+   "n": 25,
+   "rate": 0.48
+  },
+  "reasons": {
+   "asks about SEBI rules, which this RBI corpus does not cover": 3,
+   "asks about IRDAI rules, which this RBI corpus does not cover": 2,
+   "asks about tax law rules, which this RBI corpus does not cover": 1,
+   "asks about PFRDA rules, which this RBI corpus does not cover": 3,
+   "asks about company law rules, which this RBI corpus does not cover": 2,
+   "asks about GST rules, which this RBI corpus does not cover": 1
+  }
+ },
+ "ai_out_of_scope": {
+  "flagged": 14,
+  "n": 20,
+  "rate": 0.7
+ },
+ "ai_ambiguous": {
+  "flagged": 15,
+  "n": 15,
+  "rate": 1.0
+ },
+ "ai_multi_part": {
+  "flagged": 10,
+  "n": 10,
+  "rate": 1.0
+ },
+ "follow_up": {
+  "n": 20,
+  "detected_as_follow_up": 14,
+  "alone": {
+   "doc_recall@5": 0.6,
+   "chunk_ndcg@10": 0.42371642587145164
+  },
+  "rewritten": {
+   "doc_recall@5": 0.95,
+   "chunk_ndcg@10": 0.6764565591246144
+  },
+  "full": {
+   "doc_recall@5": 0.85,
+   "chunk_ndcg@10": 0.7819465347786748
+  },
+  "note": "BM25 on the primary index; 'full' is the original test question (upper bound)"
+ }
+}
